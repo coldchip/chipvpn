@@ -58,6 +58,7 @@ void run_client(Tun *tun) {
 	Socket socket;
 	socket.fd = sock;
 	list_clear(&socket.defrag_queue);
+	list_clear(&socket.tx_queue);
 
 	Peers *peers = new_peer_container(1);
 
@@ -77,7 +78,7 @@ void run_client(Tun *tun) {
 	packet.header.size = htonl(0);
 	strcpy((char*)&packet.data, server_token);
 	
-	send_peer(&socket, (char*)&packet, sizeof(Packet), &addr);
+	send_peer(&socket, rand(), (char*)&packet, sizeof(Packet), &addr, RELIABLE);
 
 	while(1) {
 		tv.tv_sec  = PING_INTERVAL;
@@ -90,13 +91,14 @@ void run_client(Tun *tun) {
 		select(max(tun->fd, sock) + 1, &rdset, NULL, NULL, &tv);
 
 		if((time(NULL) - last_ping) >= PING_INTERVAL) {
+			socket_service(&socket);
 			for(Peer *peer = peers->peers; peer < &peers->peers[peers->peerCount]; ++peer) {
 				if(is_connected(peer)) {
 					memset(&packet, 0, sizeof(Packet));
 					packet.header.type = htonl(PING);
 					packet.header.size = htonl(0);
 					memcpy(packet.header.session, peer->session, sizeof(packet.header.session));
-					send_peer(&socket, (char*)&packet, sizeof(PacketHeader), &peer->addr);
+					send_peer(&socket, rand(), (char*)&packet, sizeof(PacketHeader), &peer->addr, RELIABLE);
 					
 					if(is_unpinged(peer)) {
 						close(sock);
@@ -238,7 +240,7 @@ void run_client(Tun *tun) {
 				packet.header.type = htonl(DATA);
 				packet.header.size = htonl(size);
 				memcpy(packet.header.session, peer->session, sizeof(packet.header.session));
-				send_peer(&socket, (char*)&packet, sizeof(PacketHeader) + size, &peer->addr);
+				send_peer(&socket, rand(), (char*)&packet, sizeof(PacketHeader) + size, &peer->addr, DATAGRAM);
 			}
 		}
 	}

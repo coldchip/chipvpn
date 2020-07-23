@@ -69,11 +69,6 @@ typedef struct IPPacket_ {
     struct  in_addr ip_src, ip_dst;  /* source and dest address */
 } IPPacket;
 
-typedef struct _Socket {
-	int fd;
-	List defrag_queue;
-} Socket;
-
 typedef enum {
 	CONNECT,
 	DATA,
@@ -81,27 +76,6 @@ typedef enum {
 	LOGIN_FAILED,
 	CONNECTION_REJECTED
 } PacketType;
-
-typedef struct _FragmentHeader {
-	int fragment;
-	int size;
-	int id;
-	int max_frag;
-} FragmentHeader;
-
-typedef struct _FragmentData {
-	char data[1300];
-} FragmentData;
-
-typedef struct _Fragment {
-	FragmentHeader header;
-	FragmentData   data;
-} Fragment;
-
-typedef struct _FragmentQueue {
-	ListNode node;
-	Fragment packet;
-} FragmentQueue;
 
 typedef struct _PacketHeader {
 	PacketType type;
@@ -118,8 +92,6 @@ typedef struct _Packet {
 	PacketData   data;
 } Packet;
 
-API void send_peer(Socket *socket, void *data, int size, struct sockaddr_in *addr);
-API bool recv_peer(Socket *socket, void *data, int size, struct sockaddr_in *addr);
 API char *read_string(FILE *file, char const *desired_name);
 API bool read_bool(FILE *file, char const *desired_name);
 API int read_int(FILE *file, char const *desired_name);
@@ -129,6 +101,59 @@ API int exec_sprintf(char *format, ...);
 API void warning(char *format, ...);
 API void error(char *format, ...);
 API void console_log(char *format, ...);
+
+// socket.c
+
+typedef struct _Socket {
+	int fd;
+	List defrag_queue;
+	List tx_queue;
+} Socket;
+
+typedef enum {
+	RELIABLE,
+	DATAGRAM,
+	ACK
+} SendType;
+
+typedef struct _FragmentHeader {
+	int fragment;
+	int size;
+	int offset;
+	int id;
+	int seqid;
+	int max_frag;
+	SendType type;
+} FragmentHeader;
+
+typedef struct _FragmentData {
+	char data[5000];
+} FragmentData;
+
+typedef struct _Fragment {
+	FragmentHeader header;
+	FragmentData   data;
+} Fragment;
+
+typedef struct _FragmentQueue {
+	ListNode node;
+	Fragment packet;
+} FragmentQueue;
+
+typedef struct _ReceiptQueue {
+	ListNode node;
+	int seqid;
+	struct sockaddr_in addr;
+	int size;
+	char *data;
+	int time;
+} ReceiptQueue;
+
+void remove_id_from_queue(List *queue, int to_remove);
+
+API void socket_service(Socket *socket);
+API void send_peer(Socket *socket, int seqid, void *data, int size, struct sockaddr_in *addr, SendType type);
+API bool recv_peer(Socket *socket, void *data, int size, struct sockaddr_in *addr);
 
 // tun.c
 
