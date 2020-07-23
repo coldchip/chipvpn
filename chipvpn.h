@@ -149,6 +149,7 @@ typedef struct _ReceiptQueue {
 	int time;
 } ReceiptQueue;
 
+void remove_receipt_from_queue(List *queue, int to_remove);
 void remove_id_from_queue(List *queue, int to_remove);
 
 API void socket_service(Socket *socket);

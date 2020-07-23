@@ -7,10 +7,18 @@
 
 void socket_service(Socket *socket) {
 	List *resend_queue = &socket->tx_queue;
-	for(ListNode *i = list_begin(resend_queue); i != list_end(resend_queue); i = list_next(i)) {
+
+	ListNode *i = list_begin(resend_queue);
+	while(i != list_end(resend_queue)) {
 		ReceiptQueue *currentQueue = (ReceiptQueue*)i;
+
+		i = list_next(i);
+
 		if((time(NULL) - currentQueue->time) >= 2) {
-			send_peer(socket, currentQueue->seqid, currentQueue->data, currentQueue->size, &currentQueue->addr, DATAGRAM);
+			send_peer(socket, currentQueue->seqid, currentQueue->data, currentQueue->size, &currentQueue->addr, RELIABLE);
+			list_remove(&currentQueue->node);
+			free(currentQueue->data);
+			free(currentQueue);
 		}
 	}
 }
@@ -41,7 +49,7 @@ void send_peer(Socket *socket, int seqid, void *data, int size, struct sockaddr_
 		}
 	}
 	
-	if(type == RELIABLE) {
+	if(type == RELIABLE && list_size(receipt_queue) <= 50) {
 		ReceiptQueue *r_queue = malloc(sizeof(FragmentQueue));
 		//memcpy(&(current_queue->packet), &fragment, sizeof(Fragment));
 		char *data_q = malloc(size);
@@ -52,12 +60,6 @@ void send_peer(Socket *socket, int seqid, void *data, int size, struct sockaddr_
 		r_queue->addr  = *addr;
 		r_queue->time  = time(NULL);
 		list_insert(list_end(receipt_queue), r_queue);
-
-		if(list_size(receipt_queue) > 50) {
-			ReceiptQueue *current = (ReceiptQueue*)list_begin(receipt_queue);
-			list_remove(&current->node);
-			free(current);
-		}
 	}
 	
 }
@@ -74,6 +76,7 @@ void remove_receipt_from_queue(List *queue, int to_remove) {
 		if(to_remove == id) {
 			list_remove(&currentQueue->node);
 			free(currentQueue);
+			free(currentQueue->data);
 		}
 	}
 }
