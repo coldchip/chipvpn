@@ -12,7 +12,7 @@
 
 #define PING_INTERVAL 1
 
-#define MAX_MTU 1500
+#define MAX_MTU 1450
 
 // list.c
 
