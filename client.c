@@ -144,10 +144,10 @@ void run_client(Tun *tun) {
 						memcpy(&peer_gateway, ((char*)&packet.data) + (sizeof(int) * 2), sizeof(int));
 						memcpy(&peer_mtu,     ((char*)&packet.data) + (sizeof(int) * 3), sizeof(int));
 
-						peer_ip = ntohl(peer_ip); 
-						peer_subnet = ntohl(peer_subnet); 
+						peer_ip      = ntohl(peer_ip); 
+						peer_subnet  = ntohl(peer_subnet); 
 						peer_gateway = ntohl(peer_gateway); 
-						peer_mtu = ntohl(peer_mtu);
+						peer_mtu     = ntohl(peer_mtu);
 
 						char set_ip[INET_ADDRSTRLEN];
 						char set_subnet[INET_ADDRSTRLEN];

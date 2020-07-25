@@ -106,7 +106,7 @@ void run_server(Tun *tun) {
 				}
 			}
 			last_ping = time(NULL);
-			printf("\r[%i] Peer(s) Connected. [%lld] Byte(s) Received [%lld] Byte(s) Sent", i, (long long)rx, (long long)tx);
+			printf("\r[%i/%i] Peer(s) Connected. [%lld] Byte(s) Received [%lld] Byte(s) Sent", i, server_max_peers, (long long)rx, (long long)tx);
 		}
 
 		if(FD_ISSET(sock, &rdset)) {
@@ -144,12 +144,12 @@ void run_server(Tun *tun) {
 							fill_random(peer->session, sizeof(packet.header.session));
 
 							memset(&packet, 0, sizeof(Packet));
-							packet.header.type     = htonl(CONNECT);
-							packet.header.size     = htonl(0);
-							int tun_ip      = htonl(alloc_ip);
-							int tun_subnet  = htonl(inet_addr("255.255.255.0"));
-							int tun_gateway = htonl(inet_addr("10.0.0.1"));
-							int mtu         = htonl(MAX_MTU);
+							packet.header.type	   = htonl(CONNECT);
+							packet.header.size	   = htonl(0);
+							int tun_ip			   = htonl(alloc_ip);
+							int tun_subnet		   = htonl(inet_addr("255.255.255.0"));
+							int tun_gateway		   = htonl(inet_addr("10.0.0.1"));
+							int mtu				   = htonl(MAX_MTU);
 							memcpy(((char*)&packet.data) + (sizeof(int) * 0), &tun_ip,      sizeof(int));
 							memcpy(((char*)&packet.data) + (sizeof(int) * 1), &tun_subnet,  sizeof(int));
 							memcpy(((char*)&packet.data) + (sizeof(int) * 2), &tun_gateway, sizeof(int));

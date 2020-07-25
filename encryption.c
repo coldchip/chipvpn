@@ -9,9 +9,7 @@ void encrypt(char *data, int length) {
 				   0xe3, 0x44, 0xa0, 0x7c, 0xfa, 0xd5, 0xc2, 0xbf, 0x68, 0xfe, 0xc4, 0xaf, 0xf2, 0xe3, 0x52, 0x22 };
 
 	for(int i = 0; i < length; i++) {
-		for(int x = 0; x < 1; x++) {
-			*(data + i) ^= *(((char*)&key) + (i % 16));
-		}
+		*(data + i) ^= *(((char*)&key) + (i % 16));
 	}
 }
 
@@ -20,8 +18,6 @@ void decrypt(char *data, int length) {
 				   0xe3, 0x44, 0xa0, 0x7c, 0xfa, 0xd5, 0xc2, 0xbf, 0x68, 0xfe, 0xc4, 0xaf, 0xf2, 0xe3, 0x52, 0x22 };
 
 	for(int i = 0; i < length; i++) {
-		for(int x = 0; x < 1; x++) {
-			*(data + i) ^= *(((char*)&key) + (i % 16));
-		}
+		*(data + i) ^= *(((char*)&key) + (i % 16));
 	}
 }

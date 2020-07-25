@@ -10,15 +10,15 @@ void socket_service(Socket *socket) {
 
 	ListNode *i = list_begin(resend_queue);
 	while(i != list_end(resend_queue)) {
-		ReceiptQueue *currentQueue = (ReceiptQueue*)i;
+		ReceiptQueue *current_queue = (ReceiptQueue*)i;
 
 		i = list_next(i);
 
-		if((time(NULL) - currentQueue->time) >= 2) {
-			send_peer(socket, currentQueue->seqid, currentQueue->data, currentQueue->size, &currentQueue->addr, RELIABLE);
-			list_remove(&currentQueue->node);
-			free(currentQueue->data);
-			free(currentQueue);
+		if((time(NULL) - current_queue->time) >= 2) {
+			send_peer(socket, current_queue->seqid, current_queue->data, current_queue->size, &current_queue->addr, RELIABLE);
+			list_remove(&current_queue->node);
+			free(current_queue->data);
+			free(current_queue);
 		}
 	}
 }
@@ -67,16 +67,16 @@ void send_peer(Socket *socket, int seqid, void *data, int size, struct sockaddr_
 void remove_receipt_from_queue(List *queue, int to_remove) {
 	ListNode *i = list_begin(queue);
 	while(i != list_end(queue)) {
-		ReceiptQueue *currentQueue = (ReceiptQueue*)i;
+		ReceiptQueue *current_queue = (ReceiptQueue*)i;
 
 		i = list_next(i);
 
-		int id = currentQueue->seqid;
+		int id = current_queue->seqid;
 
 		if(to_remove == id) {
-			list_remove(&currentQueue->node);
-			free(currentQueue);
-			free(currentQueue->data);
+			list_remove(&current_queue->node);
+			free(current_queue);
+			free(current_queue->data);
 		}
 	}
 }
@@ -84,16 +84,16 @@ void remove_receipt_from_queue(List *queue, int to_remove) {
 void remove_id_from_queue(List *queue, int to_remove) {
 	ListNode *i = list_begin(queue);
 	while(i != list_end(queue)) {
-		FragmentQueue *currentQueue = (FragmentQueue*)i;
-		Fragment *current = (Fragment*)&(currentQueue->packet);
+		FragmentQueue *current_queue = (FragmentQueue*)i;
+		Fragment *current = (Fragment*)&(current_queue->packet);
 
 		i = list_next(i);
 
 		int id = ntohl(current->header.id);
 
 		if(to_remove == id) {
-			list_remove(&currentQueue->node);
-			free(currentQueue);
+			list_remove(&current_queue->node);
+			free(current_queue);
 		}
 	}
 }
