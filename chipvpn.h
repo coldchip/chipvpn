@@ -59,14 +59,11 @@ typedef struct IPPacket_ {
     uint16_t ip_len;                 /* total length */
     uint16_t ip_id;                  /* identification */
     uint16_t ip_off;                 /* fragment offset field */
-    #define IP_RF 0x8000             /* reserved fragment flag */
-    #define IP_DF 0x4000             /* dont fragment flag */
-    #define IP_MF 0x2000             /* more fragments flag */
-    #define IP_OFFMASK 0x1FFF        /* mask for fragmenting bits */
     uint8_t  ip_ttl;                 /* time to live */
     uint8_t  ip_p;                   /* protocol */
     uint16_t ip_sum;                 /* checksum */
-    struct  in_addr ip_src, ip_dst;  /* source and dest address */
+   	uint32_t src_addr;   			/* Source IP address. */
+    uint32_t dst_addr;
 } IPPacket;
 
 typedef enum {
@@ -101,6 +98,10 @@ API int exec_sprintf(char *format, ...);
 API void warning(char *format, ...);
 API void error(char *format, ...);
 API void console_log(char *format, ...);
+
+// firewall.c
+
+API bool validate_packet(IPPacket *packet);
 
 // socket.c
 

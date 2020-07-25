@@ -172,7 +172,7 @@ void run_server(Tun *tun) {
 				{
 					if(peer && (peer->tx + peer->rx) < peer->quota) {
 						IPPacket *ippacket = (IPPacket*)&packet.data;
-						if(ippacket->ip_src.s_addr == peer->internal_ip && packet_size <= (MAX_MTU)) {
+						if(validate_packet(ippacket) && ippacket->src_addr == peer->internal_ip && packet_size <= (MAX_MTU)) {
 							// Check if source is same as peer(Prevents IP spoofing) and bound packet to mtu size
 							rx += packet_size;
 							peer->rx += packet_size;
@@ -208,7 +208,7 @@ void run_server(Tun *tun) {
 
 			IPPacket *ippacket = (IPPacket*)&packet.data;
 
-			Peer *peer = get_peer_by_ip(peers, ippacket->ip_dst.s_addr);
+			Peer *peer = get_peer_by_ip(peers, ippacket->dst_addr);
 
 			if(peer && (peer->tx + peer->rx) < peer->quota) {
 				tx += size;
