@@ -1,9 +1,33 @@
 #include <stdbool.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <math.h>
 #include <string.h>
 #include <time.h>
 #include "chipvpn.h"
+
+Socket *new_socket() {
+	int sock = socket(AF_INET, SOCK_DGRAM, 0);
+	if(sock < 0) {
+		return NULL;
+	}
+	Socket *socket = malloc(sizeof(Socket));
+	socket->fd = sock;
+	list_clear(&(socket->defrag_queue));
+	list_clear(&(socket->tx_queue));
+	return socket;
+}
+
+bool socket_bind(Socket *socket, struct sockaddr_in addr) {
+	if(bind(socket->fd, (struct sockaddr *)&addr, sizeof(addr)) == 0) { 
+		return true;
+	}
+	return false;
+}
+
+int get_socket_fd(Socket *socket) {
+	return socket->fd;
+}
 
 void socket_service(Socket *socket) {
 	List *resend_queue = &socket->tx_queue;
@@ -161,4 +185,9 @@ bool recv_peer(Socket *socket, void *data, int size, struct sockaddr_in *addr) {
 		}
 	}
 	return false;
+}
+
+void socket_free(Socket *socket) {
+	close(socket->fd);
+	free(socket);
 }

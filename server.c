@@ -47,23 +47,22 @@ void run_server(Tun *tun) {
 
 	fclose(fp);
 
-	int sock = socket(AF_INET, SOCK_DGRAM, 0);
+	struct sockaddr_in addr;
+
+	Socket *socket = new_socket();
+
+	if(socket == NULL) {
+		error("Unable to create socket");
+	}
 
 	struct sockaddr_in      baddr;
 	baddr.sin_family      = AF_INET;
     baddr.sin_addr.s_addr = inet_addr(server_ip); 
     baddr.sin_port        = htons(atoi(server_port));
 
-	if(bind(sock, (struct sockaddr *)&baddr, sizeof(baddr)) < 0) { 
-		error("Bind Failed");
+	if(!socket_bind(socket, baddr)) {
+		error("Bind failed");
 	}
-
-	struct sockaddr_in addr;
-
-	Socket socket;
-	socket.fd = sock;
-	list_clear(&socket.defrag_queue);
-	list_clear(&socket.tx_queue);
 
 	Peers *peers = new_peer_container(server_max_peers);
 
@@ -84,12 +83,12 @@ void run_server(Tun *tun) {
 
 		FD_ZERO(&rdset);
 		FD_SET(tun->fd, &rdset);
-		FD_SET(sock, &rdset);
+		FD_SET(get_socket_fd(socket), &rdset);
 
-		select(max(tun->fd, sock) + 1, &rdset, NULL, NULL, &tv);
+		select(max(tun->fd, get_socket_fd(socket)) + 1, &rdset, NULL, NULL, &tv);
 
 		if((time(NULL) - last_ping) >= PING_INTERVAL) {
-			socket_service(&socket);
+			socket_service(socket);
 			int i = 0;
 			for(Peer *peer = peers->peers; peer < &peers->peers[peers->peerCount]; ++peer) {
 				if(is_connected(peer)) {
@@ -98,7 +97,7 @@ void run_server(Tun *tun) {
 					packet.header.type = htonl(PING);
 					packet.header.size = htonl(0);
 					memcpy(packet.header.session, peer->session, sizeof(packet.header.session));
-					send_peer(&socket, rand(), (char*)&packet, sizeof(PacketHeader), &peer->addr, RELIABLE);
+					send_peer(socket, rand(), (char*)&packet, sizeof(PacketHeader), &peer->addr, RELIABLE);
 					
 					if(is_unpinged(peer)) {
 						peer->state = DISCONNECTED;
@@ -109,9 +108,9 @@ void run_server(Tun *tun) {
 			printf("\r[%i/%i] Peer(s) Connected. [%lld] Byte(s) Received [%lld] Byte(s) Sent", i, server_max_peers, (long long)rx, (long long)tx);
 		}
 
-		if(FD_ISSET(sock, &rdset)) {
+		if(FD_ISSET(get_socket_fd(socket), &rdset)) {
 			memset(&packet, 0, sizeof(Packet));
-			if(!recv_peer(&socket, (char*)&packet, sizeof(Packet), &addr)) {
+			if(!recv_peer(socket, (char*)&packet, sizeof(Packet), &addr)) {
 				continue;
 			}
 
@@ -155,16 +154,16 @@ void run_server(Tun *tun) {
 							memcpy(((char*)&packet.data) + (sizeof(int) * 2), &tun_gateway, sizeof(int));
 							memcpy(((char*)&packet.data) + (sizeof(int) * 3), &mtu,         sizeof(int));
 							memcpy(packet.header.session, peer->session, sizeof(packet.header.session));
-							send_peer(&socket, rand(), (char*)&packet, sizeof(Packet), &peer->addr, RELIABLE);
+							send_peer(socket, rand(), (char*)&packet, sizeof(Packet), &peer->addr, RELIABLE);
 						} else {
 							memset(&packet, 0, sizeof(Packet));
 							packet.header.type = htonl(CONNECTION_REJECTED);
-							send_peer(&socket, rand(), (char*)&packet, sizeof(Packet), &addr, RELIABLE);
+							send_peer(socket, rand(), (char*)&packet, sizeof(Packet), &addr, RELIABLE);
 						}
 					} else {
 						memset(&packet, 0, sizeof(Packet));
 						packet.header.type = htonl(LOGIN_FAILED);
-						send_peer(&socket, rand(), (char*)&packet, sizeof(Packet), &addr, RELIABLE);
+						send_peer(socket, rand(), (char*)&packet, sizeof(Packet), &addr, RELIABLE);
 					}
 				}
 				break;
@@ -217,7 +216,7 @@ void run_server(Tun *tun) {
 				packet.header.type = htonl(DATA);
 				packet.header.size = htonl(size);
 				memcpy(packet.header.session, peer->session, sizeof(packet.header.session));
-				send_peer(&socket, rand(), (char*)&packet, sizeof(PacketHeader) + size, &peer->addr, DATAGRAM);
+				send_peer(socket, rand(), (char*)&packet, sizeof(PacketHeader) + size, &peer->addr, DATAGRAM);
 			}
 		}
 	}

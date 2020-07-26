@@ -153,9 +153,13 @@ typedef struct _ReceiptQueue {
 void remove_receipt_from_queue(List *queue, int to_remove);
 void remove_id_from_queue(List *queue, int to_remove);
 
+API Socket *new_socket();
+API bool socket_bind(Socket *socket, struct sockaddr_in addr);
+API int get_socket_fd(Socket *socket);
 API void socket_service(Socket *socket);
 API void send_peer(Socket *socket, int seqid, void *data, int size, struct sockaddr_in *addr, SendType type);
 API bool recv_peer(Socket *socket, void *data, int size, struct sockaddr_in *addr);
+API void socket_free(Socket *socket);
 
 // tun.c
 
