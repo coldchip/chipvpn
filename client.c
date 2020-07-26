@@ -73,10 +73,11 @@ void run_client(Tun *tun) {
 	console_log("Connecting... ");
 
 	Packet packet;
+
+	memset(&packet, 0, sizeof(Packet));
 	packet.header.type = htonl(CONNECT);
 	packet.header.size = htonl(0);
 	strcpy((char*)&packet.data, server_token);
-	
 	send_peer(socket, rand(), (char*)&packet, sizeof(Packet), &addr, RELIABLE);
 
 	while(1) {
@@ -93,6 +94,7 @@ void run_client(Tun *tun) {
 			socket_service(socket);
 			for(Peer *peer = peers->peers; peer < &peers->peers[peers->peerCount]; ++peer) {
 				if(is_connected(peer)) {
+
 					memset(&packet, 0, sizeof(Packet));
 					packet.header.type = htonl(PING);
 					packet.header.size = htonl(0);
@@ -223,6 +225,12 @@ void run_client(Tun *tun) {
 					free_peer_container(peers);
 					warning("Connection Failed, Connection Rejected. Reconnecting");
 					return;
+				}
+				break;
+				case MSG:
+				{
+					*(((char*)&(packet.data)) + sizeof(PacketData)) = '\0';
+					console_log("[Server] %s", (char*)&(packet.data));
 				}
 				break;
 			}

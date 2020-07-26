@@ -66,6 +66,8 @@ void run_server(Tun *tun) {
 
 	Peers *peers = new_peer_container(server_max_peers);
 
+	LOG *log = log_init();
+
 	uint64_t tx = 0;
 	uint64_t rx = 0;
 
@@ -155,6 +157,11 @@ void run_server(Tun *tun) {
 							memcpy(((char*)&packet.data) + (sizeof(int) * 3), &mtu,         sizeof(int));
 							memcpy(packet.header.session, peer->session, sizeof(packet.header.session));
 							send_peer(socket, rand(), (char*)&packet, sizeof(Packet), &peer->addr, RELIABLE);
+							
+							memset(&packet, 0, sizeof(Packet));
+							packet.header.type = htonl(MSG);
+							strcpy((char*)&(packet.data), "Authenticated");
+							send_peer(socket, rand(), (char*)&packet, sizeof(Packet), &addr, RELIABLE);
 						} else {
 							memset(&packet, 0, sizeof(Packet));
 							packet.header.type = htonl(CONNECTION_REJECTED);
@@ -176,6 +183,8 @@ void run_server(Tun *tun) {
 							rx += packet_size;
 							peer->rx += packet_size;
 
+							log_packet(log, ippacket);
+
 							if(write(tun->fd, (char*)&(packet.data), packet_size)) {}
 						}
 					}
@@ -196,6 +205,11 @@ void run_server(Tun *tun) {
 				case CONNECTION_REJECTED:
 				{
 
+				}
+				break;
+				case MSG:
+				{
+					
 				}
 				break;
 			}

@@ -71,7 +71,8 @@ typedef enum {
 	DATA,
 	PING,
 	LOGIN_FAILED,
-	CONNECTION_REJECTED
+	CONNECTION_REJECTED,
+	MSG
 } PacketType;
 
 typedef struct _PacketHeader {
@@ -98,6 +99,16 @@ API int exec_sprintf(char *format, ...);
 API void warning(char *format, ...);
 API void error(char *format, ...);
 API void console_log(char *format, ...);
+
+// log.c
+
+typedef struct _LOG {
+	FILE *fp;
+} LOG;
+
+API LOG *log_init();
+API void log_packet(LOG *log, IPPacket *packet);
+API void log_free(LOG *log);
 
 // firewall.c
 
