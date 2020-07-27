@@ -20,9 +20,5 @@ bool validate_packet(char *stream) {
 		ICMPHeader *icmp_hdr = (ICMPHeader*)(stream + ip_size);
 		return true;
 	}
-	if(ip_hdr->ip_p == 50 || ip_hdr->ip_p == 51 || ip_hdr->ip_p == 115) {
-		// IPSec and L2TP
-		return true;
-	}
 	return false;
 }

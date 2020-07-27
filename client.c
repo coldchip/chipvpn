@@ -10,6 +10,7 @@
 #include <arpa/inet.h> 
 #include <netinet/in.h>
 #include <netinet/tcp.h>
+#include "sha1.h"
 #include "chipvpn.h"
 
 void init_client() {
@@ -77,7 +78,11 @@ void run_client(Tun *tun) {
 	memset(&packet, 0, sizeof(Packet));
 	packet.header.type = htonl(CONNECT);
 	packet.header.size = htonl(0);
-	strcpy((char*)&packet.data, server_token);
+	int timestamp = time(NULL) / 30;
+	char temp[strlen(server_token) + sizeof(int)];
+	memcpy(temp, server_token, strlen(server_token));
+	memcpy(temp + strlen(server_token), &timestamp, sizeof(int));
+	SHA1((char*)&packet.data, temp, sizeof(temp));
 	send_peer(socket, rand(), (char*)&packet, sizeof(Packet), &addr, RELIABLE);
 
 	while(1) {
@@ -98,7 +103,7 @@ void run_client(Tun *tun) {
 					memset(&packet, 0, sizeof(Packet));
 					packet.header.type = htonl(PING);
 					packet.header.size = htonl(0);
-					memcpy(packet.header.session, peer->session, sizeof(packet.header.session));
+					packet.header.session = peer->session;
 					send_peer(socket, rand(), (char*)&packet, sizeof(PacketHeader), &peer->addr, RELIABLE);
 					
 					if(is_unpinged(peer)) {
@@ -121,9 +126,9 @@ void run_client(Tun *tun) {
 				continue;
 			}
 
-			int   packet_type    = ntohl(packet.header.type);
-			int   packet_size    = ntohl(packet.header.size);
-			char *packet_session = (char*)&(packet.header.session);
+			int     packet_type    = ntohl(packet.header.type);
+			int     packet_size    = ntohl(packet.header.size);
+			Session packet_session = packet.header.session;
 
 			Peer *peer = get_peer_by_session(peers, packet_session);
 			if(peer) {
@@ -184,7 +189,7 @@ void run_client(Tun *tun) {
 
 						update_ping(peer);
 
-						memcpy(peer->session, packet_session, sizeof(packet.header.session));
+						peer->session = packet_session;
 
 						console_log("Assigned IP [%s] Subnet [%s] Via Gateway [%s]", set_ip, set_subnet, set_gateway);
 					}
@@ -248,9 +253,9 @@ void run_client(Tun *tun) {
 				tx += size;
 				peer->tx += size;
 
-				packet.header.type = htonl(DATA);
-				packet.header.size = htonl(size);
-				memcpy(packet.header.session, peer->session, sizeof(packet.header.session));
+				packet.header.type    = htonl(DATA);
+				packet.header.size    = htonl(size);
+				packet.header.session = peer->session;
 				send_peer(socket, rand(), (char*)&packet, sizeof(PacketHeader) + size, &peer->addr, DATAGRAM);
 			}
 		}

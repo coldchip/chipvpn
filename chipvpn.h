@@ -118,10 +118,14 @@ typedef enum {
 	MSG
 } PacketType;
 
+typedef struct _Session {
+	char data[16];
+} Session;
+
 typedef struct _PacketHeader {
 	PacketType type;
 	int size;
-	char session[16];
+	Session session;
 } PacketHeader;
 
 typedef struct _PacketData {
@@ -247,7 +251,7 @@ typedef struct _Peers {
 } Peers;
 
 typedef struct _Peer {
-	char session[16];
+	Session session;
 	uint32_t internal_ip;
 	struct sockaddr_in addr;
 	PeerState state;
@@ -264,7 +268,7 @@ API bool is_unpinged(Peer *peer);
 API Peer *get_disconnected_peer(Peers *peers);
 API uint32_t get_peer_free_ip(Peers *peers);
 API Peer *get_peer_by_ip(Peers *peers, uint32_t ip);
-API Peer *get_peer_by_session(Peers *peers, char *session);
+API Peer *get_peer_by_session(Peers *peers, Session session);
 API bool is_connected(Peer *peer);
 API bool is_disconnected(Peer *peer);
 

@@ -10,6 +10,7 @@
 #include <arpa/inet.h> 
 #include <netinet/in.h>
 #include <netinet/tcp.h>
+#include "sha1.h"
 #include "chipvpn.h"
 
 void init_server() {
@@ -98,7 +99,7 @@ void run_server(Tun *tun) {
 					memset(&packet, 0, sizeof(Packet));
 					packet.header.type = htonl(PING);
 					packet.header.size = htonl(0);
-					memcpy(packet.header.session, peer->session, sizeof(packet.header.session));
+					packet.header.session = peer->session;
 					send_peer(socket, rand(), (char*)&packet, sizeof(PacketHeader), &peer->addr, RELIABLE);
 					
 					if(is_unpinged(peer)) {
@@ -116,9 +117,9 @@ void run_server(Tun *tun) {
 				continue;
 			}
 
-			int   packet_type    = ntohl(packet.header.type);
-			int   packet_size    = ntohl(packet.header.size);
-			char *packet_session = (char*)&(packet.header.session);
+			int     packet_type    = ntohl(packet.header.type);
+			int     packet_size    = ntohl(packet.header.size);
+			Session packet_session = packet.header.session;
 
 			Peer *peer = get_peer_by_session(peers, packet_session);
 			if(peer) {
@@ -129,15 +130,22 @@ void run_server(Tun *tun) {
 			switch(packet_type) {
 				case CONNECT: 
 				{
-					if(strcmp(server_token, (char*)&packet.data) == 0) {
-						Peer *peer         = get_disconnected_peer(peers);
-						uint32_t alloc_ip  = get_peer_free_ip(peers);
+					char token[20];
+					int timestamp = time(NULL) / 30;
+					char temp[strlen(server_token) + sizeof(int)];
+					memcpy(temp, server_token, strlen(server_token));
+					memcpy(temp + strlen(server_token), &timestamp, sizeof(int));
+					SHA1(token, temp, sizeof(temp));
+
+					if(memcmp((char*)&packet.data, token, sizeof(token)) == 0) {
+						Peer *peer        = get_disconnected_peer(peers);
+						uint32_t alloc_ip = get_peer_free_ip(peers);
 						if(peer && alloc_ip != 0) {
 							memset(&packet, 0, sizeof(Packet));
 							packet.header.type = htonl(MSG);
 							strcpy((char*)&(packet.data), "Authenticated");
 							send_peer(socket, rand(), (char*)&packet, sizeof(Packet), &addr, RELIABLE);
-							
+
 							peer->state        = CONNECTED;
 							peer->internal_ip  = alloc_ip;
 							peer->addr         = addr;
@@ -147,7 +155,7 @@ void run_server(Tun *tun) {
 
 							update_ping(peer);
 
-							fill_random(peer->session, sizeof(packet.header.session));
+							fill_random((char*)&peer->session, sizeof(Session));
 
 							memset(&packet, 0, sizeof(Packet));
 							packet.header.type	   = htonl(CONNECT);
@@ -160,7 +168,7 @@ void run_server(Tun *tun) {
 							memcpy(((char*)&packet.data) + (sizeof(int) * 1), &tun_subnet,  sizeof(int));
 							memcpy(((char*)&packet.data) + (sizeof(int) * 2), &tun_gateway, sizeof(int));
 							memcpy(((char*)&packet.data) + (sizeof(int) * 3), &mtu,         sizeof(int));
-							memcpy(packet.header.session, peer->session, sizeof(packet.header.session));
+							packet.header.session = peer->session;
 							send_peer(socket, rand(), (char*)&packet, sizeof(Packet), &peer->addr, RELIABLE);
 						} else {
 							memset(&packet, 0, sizeof(Packet));
@@ -227,9 +235,9 @@ void run_server(Tun *tun) {
 				tx += size;
 				peer->tx += size;
 
-				packet.header.type = htonl(DATA);
-				packet.header.size = htonl(size);
-				memcpy(packet.header.session, peer->session, sizeof(packet.header.session));
+				packet.header.type    = htonl(DATA);
+				packet.header.size    = htonl(size);
+				packet.header.session = peer->session;
 				send_peer(socket, rand(), (char*)&packet, sizeof(PacketHeader) + size, &peer->addr, DATAGRAM);
 			}
 		}
