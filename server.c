@@ -133,6 +133,11 @@ void run_server(Tun *tun) {
 						Peer *peer         = get_disconnected_peer(peers);
 						uint32_t alloc_ip  = get_peer_free_ip(peers);
 						if(peer && alloc_ip != 0) {
+							memset(&packet, 0, sizeof(Packet));
+							packet.header.type = htonl(MSG);
+							strcpy((char*)&(packet.data), "Authenticated");
+							send_peer(socket, rand(), (char*)&packet, sizeof(Packet), &addr, RELIABLE);
+							
 							peer->state        = CONNECTED;
 							peer->internal_ip  = alloc_ip;
 							peer->addr         = addr;
@@ -157,11 +162,6 @@ void run_server(Tun *tun) {
 							memcpy(((char*)&packet.data) + (sizeof(int) * 3), &mtu,         sizeof(int));
 							memcpy(packet.header.session, peer->session, sizeof(packet.header.session));
 							send_peer(socket, rand(), (char*)&packet, sizeof(Packet), &peer->addr, RELIABLE);
-							
-							memset(&packet, 0, sizeof(Packet));
-							packet.header.type = htonl(MSG);
-							strcpy((char*)&(packet.data), "Authenticated");
-							send_peer(socket, rand(), (char*)&packet, sizeof(Packet), &addr, RELIABLE);
 						} else {
 							memset(&packet, 0, sizeof(Packet));
 							packet.header.type = htonl(CONNECTION_REJECTED);
@@ -177,13 +177,13 @@ void run_server(Tun *tun) {
 				case DATA:
 				{
 					if(peer && (peer->tx + peer->rx) < peer->quota) {
-						IPPacket *ippacket = (IPPacket*)&packet.data;
-						if(validate_packet(ippacket) && ippacket->src_addr == peer->internal_ip && packet_size <= (MAX_MTU)) {
+						IPPacket *ip_hdr = (IPPacket*)&packet.data;
+						if(validate_packet((char*)&packet.data) && ip_hdr->src_addr == peer->internal_ip && packet_size <= (MAX_MTU)) {
 							// Check if source is same as peer(Prevents IP spoofing) and bound packet to mtu size
 							rx += packet_size;
 							peer->rx += packet_size;
 
-							log_packet(log, ippacket);
+							log_packet(log, ip_hdr);
 
 							if(write(tun->fd, (char*)&(packet.data), packet_size)) {}
 						}
@@ -219,9 +219,9 @@ void run_server(Tun *tun) {
 			memset(&packet, 0, sizeof(Packet));
 			int size = read(tun->fd, (char*)&packet.data, sizeof(PacketData));
 
-			IPPacket *ippacket = (IPPacket*)&packet.data;
+			IPPacket *ip_hdr = (IPPacket*)&packet.data;
 
-			Peer *peer = get_peer_by_ip(peers, ippacket->dst_addr);
+			Peer *peer = get_peer_by_ip(peers, ip_hdr->dst_addr);
 
 			if(peer && (peer->tx + peer->rx) < peer->quota) {
 				tx += size;

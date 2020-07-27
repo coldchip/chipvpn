@@ -70,7 +70,7 @@ void run_client(Tun *tun) {
 
 	struct timeval tv;
 
-	console_log("Connecting... ");
+	console_log("Connecting & Authenticating... ");
 
 	Packet packet;
 
@@ -193,8 +193,8 @@ void run_client(Tun *tun) {
 				case DATA:
 				{
 					if(peer && (peer->tx + peer->rx) < peer->quota) {
-						IPPacket *ippacket = (IPPacket*)&packet.data;
-						if(ippacket->dst_addr == peer->internal_ip && packet_size <= (MAX_MTU)) {
+						IPPacket *ip_hdr = (IPPacket*)&packet.data;
+						if(ip_hdr->dst_addr == peer->internal_ip && packet_size <= (MAX_MTU)) {
 							// Check if source is same as peer(Prevents IP spoofing) and bound packet to mtu size
 							rx += packet_size;
 							peer->rx += packet_size;
@@ -240,9 +240,9 @@ void run_client(Tun *tun) {
 			memset(&packet, 0, sizeof(Packet));
 			int size = read(tun->fd, (char*)&packet.data, sizeof(PacketData));
 
-			IPPacket *ippacket = (IPPacket*)&packet.data;
+			IPPacket *ip_hdr = (IPPacket*)&packet.data;
 
-			Peer *peer = get_peer_by_ip(peers, ippacket->src_addr);
+			Peer *peer = get_peer_by_ip(peers, ip_hdr->src_addr);
 
 			if(peer && (peer->tx + peer->rx) < peer->quota) {
 				tx += size;
