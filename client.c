@@ -79,7 +79,7 @@ void run_client(Tun *tun) {
 	memset(&packet, 0, sizeof(Packet));
 	packet.header.type = htonl(CONNECT);
 	packet.header.size = htonl(0);
-	int timestamp = 438753032;
+	int timestamp = time(NULL);
 	char temp[strlen(server_token) + sizeof(int)];
 	memcpy(temp, server_token, strlen(server_token));
 	memcpy(temp + strlen(server_token), &timestamp, sizeof(int));
@@ -119,19 +119,31 @@ void run_client(Tun *tun) {
 			}
 			last_ping = time(NULL);
 
+			char *format_tx = format_size(tx);
+			char *format_rx = format_size(rx);
+
 			struct winsize w;
 			ioctl(0, TIOCGWINSZ, &w);
 			printf("\033[0;0H");
-			printf("\033[1;36mChipVPN\033[0m by ColdChip\n\n");
+			for(int i = 0; i < 1920; i++) {
+				printf(" ");
+			}
+			printf("\033[0;0H");
+			printf("\033[1;36mChipVPN Client\033[0m by ColdChip\n\n");
 
-			printf("\x1b[32mStatus  ");
+			printf("\x1b[32mStatus   ");
 			printf("%*s%s\n", w.ws_col / 3, "", "online\033[0m");
-			printf("Region  ");
+			printf("Region   ");
 			printf("%*s%s\n", w.ws_col / 3, "", "Singapore");
-			printf("Received");
-			printf("%*s%lld Bytes\n", w.ws_col / 3, "", (long long)tx);
-			printf("Sent    ");
-			printf("%*s%lld Bytes\n", w.ws_col / 3, "", (long long)rx);
+			printf("Interface");
+			printf("%*s%s\n", w.ws_col / 3, "", tun->dev);
+			printf("Received ");
+			printf("%*s%s\n", w.ws_col / 3, "", format_tx);
+			printf("Sent     ");
+			printf("%*s%s\n", w.ws_col / 3, "", format_rx);
+
+			free(format_tx);
+			free(format_rx);
 		}
 
 		if(FD_ISSET(get_socket_fd(socket), &rdset)) {
@@ -235,7 +247,7 @@ void run_client(Tun *tun) {
 				{
 					socket_free(socket);
 					free_peer_container(peers);
-					error("Login Failed, Disconnected");
+					warning("Login Failed, Reconnecting...");
 					return;
 				}
 				break;
@@ -243,7 +255,7 @@ void run_client(Tun *tun) {
 				{
 					socket_free(socket);
 					free_peer_container(peers);
-					warning("Connection Failed, Connection Rejected. Reconnecting");
+					warning("Connection Failed, Connection Rejected. Reconnecting...");
 					return;
 				}
 				break;

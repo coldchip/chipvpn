@@ -145,6 +145,7 @@ API int exec_sprintf(char *format, ...);
 API void warning(char *format, ...);
 API void error(char *format, ...);
 API void console_log(char *format, ...);
+API char *format_size(uint64_t size);
 
 // log.c
 

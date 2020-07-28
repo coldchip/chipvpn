@@ -109,21 +109,34 @@ void run_server(Tun *tun) {
 				}
 			}
 			last_ping = time(NULL);
+
+			char *format_tx = format_size(tx);
+			char *format_rx = format_size(rx);
+
 			struct winsize w;
 			ioctl(0, TIOCGWINSZ, &w);
 			printf("\033[0;0H");
+			for(int i = 0; i < 1920; i++) {
+				printf(" ");
+			}
+			printf("\033[0;0H");
 			printf("\033[1;36mChipVPN Server\033[0m by ColdChip\n\n");
 
-			printf("\x1b[32mStatus  ");
+			printf("\x1b[32mStatus   ");
 			printf("%*s%s\n", w.ws_col / 3, "", "online\033[0m");
-			printf("Region  ");
+			printf("Region   ");
 			printf("%*s%s\n", w.ws_col / 3, "", "Singapore");
-			printf("Peers   ");
+			printf("Interface");
+			printf("%*s%s\n", w.ws_col / 3, "", tun->dev);
+			printf("Peers    ");
 			printf("%*s%i\n", w.ws_col / 3, "", i);
-			printf("Received");
-			printf("%*s%lld Bytes\n", w.ws_col / 3, "", (long long)tx);
-			printf("Sent    ");
-			printf("%*s%lld Bytes\n", w.ws_col / 3, "", (long long)rx);
+			printf("Received ");
+			printf("%*s%s\n", w.ws_col / 3, "", format_tx);
+			printf("Sent     ");
+			printf("%*s%s\n", w.ws_col / 3, "", format_rx);
+
+			free(format_tx);
+			free(format_rx);
 		}
 
 		if(FD_ISSET(get_socket_fd(socket), &rdset)) {
@@ -146,7 +159,7 @@ void run_server(Tun *tun) {
 				case CONNECT: 
 				{
 					char token[20];
-					int timestamp = 438753032;
+					int timestamp = time(NULL);
 					char temp[strlen(server_token) + sizeof(int)];
 					memcpy(temp, server_token, strlen(server_token));
 					memcpy(temp + strlen(server_token), &timestamp, sizeof(int));
