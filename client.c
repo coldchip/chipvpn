@@ -10,6 +10,7 @@
 #include <arpa/inet.h> 
 #include <netinet/in.h>
 #include <netinet/tcp.h>
+#include <sys/ioctl.h>
 #include "sha1.h"
 #include "chipvpn.h"
 
@@ -78,7 +79,7 @@ void run_client(Tun *tun) {
 	memset(&packet, 0, sizeof(Packet));
 	packet.header.type = htonl(CONNECT);
 	packet.header.size = htonl(0);
-	int timestamp = time(NULL) / 30;
+	int timestamp = 438753032;
 	char temp[strlen(server_token) + sizeof(int)];
 	memcpy(temp, server_token, strlen(server_token));
 	memcpy(temp + strlen(server_token), &timestamp, sizeof(int));
@@ -114,10 +115,23 @@ void run_client(Tun *tun) {
 						free_peer_container(peers);
 						return;
 					}
-					printf("\r[%lld] Byte(s) Received [%lld] Byte(s) Sent", (long long)rx, (long long)tx);
 				}
 			}
 			last_ping = time(NULL);
+
+			struct winsize w;
+			ioctl(0, TIOCGWINSZ, &w);
+			printf("\033[0;0H");
+			printf("\033[1;36mChipVPN\033[0m by ColdChip\n\n");
+
+			printf("\x1b[32mStatus  ");
+			printf("%*s%s\n", w.ws_col / 3, "", "online\033[0m");
+			printf("Region  ");
+			printf("%*s%s\n", w.ws_col / 3, "", "Singapore");
+			printf("Received");
+			printf("%*s%lld Bytes\n", w.ws_col / 3, "", (long long)tx);
+			printf("Sent    ");
+			printf("%*s%lld Bytes\n", w.ws_col / 3, "", (long long)rx);
 		}
 
 		if(FD_ISSET(get_socket_fd(socket), &rdset)) {
@@ -192,6 +206,7 @@ void run_client(Tun *tun) {
 						peer->session = packet_session;
 
 						console_log("Assigned IP [%s] Subnet [%s] Via Gateway [%s]", set_ip, set_subnet, set_gateway);
+						printf("\e[1;1H\e[2J");
 					}
 				}
 				break;

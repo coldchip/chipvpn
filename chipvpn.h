@@ -7,7 +7,6 @@
 #include <stdbool.h>
 #include <netinet/in.h>
 #include <stdint.h>
-#include "aes.h"
 
 #define API extern
 
