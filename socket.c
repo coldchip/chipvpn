@@ -29,10 +29,6 @@ int get_socket_fd(Socket *socket) {
 	return socket->fd;
 }
 
-void socket_connect(Socket *socket, sockaddr_in *addr) {
-
-}
-
 void socket_service(Socket *socket) {
 	List *resend_queue = &socket->tx_queue;
 

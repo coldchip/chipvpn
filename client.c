@@ -26,10 +26,20 @@ void init_client() {
 		error("VPN Socket Creation Failed, Run as Sudo");
 	}
 
-	while(1) {
-		run_client(tun);
-		sleep(1);
-	}
+	run_client(tun);
+}
+
+void connect_server(Socket *socket, struct sockaddr_in addr, char *token) {
+	Packet packet;
+	memset(&packet, 0, sizeof(Packet));
+	packet.header.type = htonl(CONNECT);
+	packet.header.size = htonl(0);
+	int timestamp = time(NULL);
+	char temp[strlen(token) + sizeof(int)];
+	memcpy(temp, token, strlen(token));
+	memcpy(temp + strlen(token), &timestamp, sizeof(int));
+	SHA1((char*)&packet.data, temp, sizeof(temp));
+	send_peer(socket, rand(), (char*)&packet, sizeof(Packet), &addr, RELIABLE);
 }
 
 void run_client(Tun *tun) {
@@ -74,17 +84,9 @@ void run_client(Tun *tun) {
 
 	console_log("Connecting & Authenticating... ");
 
-	Packet packet;
+	connect_server(socket, addr, server_token);
 
-	memset(&packet, 0, sizeof(Packet));
-	packet.header.type = htonl(CONNECT);
-	packet.header.size = htonl(0);
-	int timestamp = time(NULL);
-	char temp[strlen(server_token) + sizeof(int)];
-	memcpy(temp, server_token, strlen(server_token));
-	memcpy(temp + strlen(server_token), &timestamp, sizeof(int));
-	SHA1((char*)&packet.data, temp, sizeof(temp));
-	send_peer(socket, rand(), (char*)&packet, sizeof(Packet), &addr, RELIABLE);
+	Packet packet;
 
 	while(1) {
 		tv.tv_sec  = PING_INTERVAL;
@@ -108,12 +110,11 @@ void run_client(Tun *tun) {
 					send_peer(socket, rand(), (char*)&packet, sizeof(PacketHeader), &peer->addr, RELIABLE);
 					
 					if(is_unpinged(peer)) {
-						socket_free(socket);
 						peer->state = DISCONNECTED;
 						printf("\n");
 						warning("No Ping Received, Reconnecting to Server");
-						free_peer_container(peers);
-						return;
+						sleep(1);
+						connect_server(socket, addr, server_token);
 					}
 				}
 			}
@@ -245,18 +246,16 @@ void run_client(Tun *tun) {
 				break;
 				case LOGIN_FAILED:
 				{
-					socket_free(socket);
-					free_peer_container(peers);
 					warning("Login Failed, Reconnecting...");
-					return;
+					sleep(1);
+					connect_server(socket, addr, server_token);
 				}
 				break;
 				case CONNECTION_REJECTED:
 				{
-					socket_free(socket);
-					free_peer_container(peers);
 					warning("Connection Failed, Connection Rejected. Reconnecting...");
-					return;
+					sleep(1);
+					connect_server(socket, addr, server_token);
 				}
 				break;
 				case MSG:
