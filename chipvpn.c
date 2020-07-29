@@ -142,13 +142,10 @@ void error(char *format, ...) {
 	exit(1);
 }
 
-#define DIM(x) (sizeof(x)/sizeof(*(x)))
-
-static const char     *sizes[]   = { "EiB", "PiB", "TiB", "GiB", "MiB", "KiB", "B" };
-static const uint64_t  exbibytes = 1024ULL * 1024ULL * 1024ULL *
-                                   1024ULL * 1024ULL * 1024ULL;
-
 char *format_size(uint64_t size) {
+    const char     *sizes[]   = { "EiB", "PiB", "TiB", "GiB", "MiB", "KiB", "B" };
+    const uint64_t  exbibytes = 1024ULL * 1024ULL * 1024ULL * 1024ULL * 1024ULL * 1024ULL;
+
     char     *result = (char *) malloc(sizeof(char) * 20);
     uint64_t  multiplier = exbibytes;
     int i;
@@ -158,7 +155,7 @@ char *format_size(uint64_t size) {
         if (size < multiplier)
             continue;
         if (size % multiplier == 0)
-            sprintf(result, "%lu %s", size / multiplier, sizes[i]);
+            sprintf(result, "%llu %s", (long long)(size / multiplier), sizes[i]);
         else
             sprintf(result, "%.1f %s", (float) size / multiplier, sizes[i]);
         return result;
