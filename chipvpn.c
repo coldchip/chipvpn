@@ -33,6 +33,7 @@ char *read_string(FILE *file, char const *desired_name) {
     int rewind = ftell(file);
     while (fscanf(file, "%1023[^=]=%1023[^\n]%*c", name, val) == 2) {
         if (0 == strcmp(name, desired_name)) {
+            fseek(file, rewind, SEEK_SET);
             return strdup(val);
         }
     }
@@ -50,6 +51,7 @@ bool read_bool(FILE *file, char const *desired_name) {
     while (fscanf(file, "%1023[^=]=%1023[^\n]%*c", name, val) == 2) {
         if (0 == strcmp(name, desired_name)) {
             if (0 == strcmp(val, "true")) {
+                fseek(file, rewind, SEEK_SET);
             	return true;
         	}
         }
@@ -67,6 +69,7 @@ int read_int(FILE *file, char const *desired_name) {
     int rewind = ftell(file);
     while (fscanf(file, "%1023[^=]=%1023[^\n]%*c", name, val) == 2) {
         if (0 == strcmp(name, desired_name)) {
+            fseek(file, rewind, SEEK_SET);
             return atoi(val);
         }
     }

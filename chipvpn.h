@@ -277,9 +277,8 @@ API bool is_disconnected(Peer *peer);
 
 // core.c
 
-API void init_core(bool is_client);
 void connect_server(Socket *socket, struct sockaddr_in addr, char *token);
-void run_core(Tun *tun, bool is_client);
+API void run_core(char *config);
 void fill_random(char *buffer, int size);
 void stop_core();
 

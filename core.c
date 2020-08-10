@@ -14,25 +14,6 @@
 #include "sha1.h"
 #include "chipvpn.h"
 
-void init_core(bool is_client) {
-	if (signal(SIGINT, stop_core) == SIG_ERR) {
-		error("Unable to Setup Signal Handlers");
-	}
-
-	srand((unsigned) time(NULL));
-
-	Tun *tun = open_tun("");
-	if(tun < 0 || tun  == NULL) {
-		error("VPN Socket Creation Failed, Run as Sudo");
-	}
-	if(!is_client) {
-		setifip(tun, "10.0.0.1", "255.255.255.0", MAX_MTU);
-		ifup(tun);
-	}
-
-	run_core(tun, is_client);
-}
-
 void connect_server(Socket *socket, struct sockaddr_in addr, char *token) {
 	Packet packet;
 	memset(&packet, 0, sizeof(Packet));
@@ -46,32 +27,44 @@ void connect_server(Socket *socket, struct sockaddr_in addr, char *token) {
 	send_peer(socket, rand(), (char*)&packet, sizeof(Packet), &addr, RELIABLE);
 }
 
-void run_core(Tun *tun, bool is_client) {
-	FILE *fp = NULL;
-	if(is_client == true) {
-		fp = fopen("client.conf", "rb");
-	} else {
-		fp = fopen("server.conf", "rb");
+void run_core(char *config) {
+	if (signal(SIGINT, stop_core) == SIG_ERR) {
+		error("Unable to Setup Signal Handlers");
 	}
+
+	srand((unsigned) time(NULL));
+
+	FILE *fp = fopen(config, "rb");
 
 	if(!fp) {
 		error("Unable to load config");
 	}
 
-	char *server_ip          = read_string(fp, "server");
+	char *server_ip          = read_string(fp, "ip");
 	char *server_port        = read_string(fp, "port");
 	char *server_token       = read_string(fp, "token");
 	bool  server_pull_routes = read_bool(fp, "pull_routes");
+	bool  is_server          = read_bool(fp, "bind");
 	int   server_max_peers   = read_int(fp, "max_peers");
+
+	printf("%i\n", is_server);
 
 	if(!server_ip || !server_port) {
 		error("Server ip or port is not defined in the config");
+	}
+	if(server_max_peers < 1) {
+		server_max_peers = 1;
 	}
 	if(!server_token) {
 		error("Token is not defined");
 	}
 
 	fclose(fp);
+
+	Tun *tun = open_tun("");
+	if(tun < 0 || tun  == NULL) {
+		error("VPN socket creation failed, run as sudo");
+	}
 
 	struct sockaddr_in     addr;
 	addr.sin_family      = AF_INET;
@@ -84,21 +77,17 @@ void run_core(Tun *tun, bool is_client) {
 		error("Unable to create socket");
 	}
 
-	Peers *peers = new_peer_container(server_max_peers);
+	Peers *peers = NULL;
 
-	int last_ping  = 0;
-
-	uint64_t tx = 0;
-	uint64_t rx = 0;
-
-	fd_set rdset;
-
-	struct timeval tv;
-
-	if(is_client) {
+	if(!is_server) {
+		peers = new_peer_container(1);
 		console_log("Connecting & Authenticating... ");
 		connect_server(socket, addr, server_token);
 	} else {
+		peers = new_peer_container(server_max_peers);
+		console_log("Setting up interfaces... ");
+		setifip(tun, "10.0.0.1", "255.255.255.0", MAX_MTU);
+		ifup(tun);
 		console_log("Binding... ");
 		struct sockaddr_in      baddr;
 		baddr.sin_family      = AF_INET;
@@ -110,6 +99,15 @@ void run_core(Tun *tun, bool is_client) {
 		}
 	}
 
+	if(!peers) {
+		error("Unable to setup server");
+	}
+
+	int last_ping = 0;
+	uint64_t tx = 0;
+	uint64_t rx = 0;
+	fd_set rdset;
+	struct timeval tv;
 	Packet packet;
 
 	while(1) {
@@ -136,7 +134,7 @@ void run_core(Tun *tun, bool is_client) {
 					
 					if(is_unpinged(peer)) {
 						peer->state = DISCONNECTED;
-						if(is_client) {
+						if(!is_server) {
 							printf("\n");
 							warning("No Ping Received, Reconnecting to Server");
 							sleep(1);
@@ -157,7 +155,7 @@ void run_core(Tun *tun, bool is_client) {
 				printf(" ");
 			}
 			printf("\033[0;0H");
-			if(!is_client) {
+			if(!is_server) {
 				printf("\033[1;36mChipVPN Client\033[0m by ColdChip\n\n");
 			} else {
 				printf("\033[1;36mChipVPN Server\033[0m by ColdChip\n\n");
@@ -169,7 +167,7 @@ void run_core(Tun *tun, bool is_client) {
 			printf("%*s%s\n", w.ws_col / 3, "", "Singapore");
 			printf("Interface");
 			printf("%*s%s\n", w.ws_col / 3, "", tun->dev);
-			if(!is_client) {
+			if(is_server) {
 				printf("Peers    ");
 				printf("%*s%i\n", w.ws_col / 3, "", i);
 			}
@@ -198,7 +196,7 @@ void run_core(Tun *tun, bool is_client) {
 				peer->addr = addr;
 			}
 
-			if(packet_type == CONNECT_RESPONSE && is_client) {
+			if(packet_type == CONNECT_RESPONSE && !is_server) {
 				Peer *peer = get_disconnected_peer(peers);
 				if(peer) {
 					int peer_ip;
@@ -254,7 +252,7 @@ void run_core(Tun *tun, bool is_client) {
 					console_log("Assigned IP [%s] Subnet [%s] Via Gateway [%s]", set_ip, set_subnet, set_gateway);
 					printf("\e[1;1H\e[2J");
 				}
-			} else if(packet_type == CONNECT_REQUEST && !is_client) {
+			} else if(packet_type == CONNECT_REQUEST && is_server) {
 				char token[20];
 				int timestamp = time(NULL);
 				char temp[strlen(server_token) + sizeof(int)];
@@ -309,8 +307,8 @@ void run_core(Tun *tun, bool is_client) {
 				if(peer && (peer->tx + peer->rx) < peer->quota) {
 					IPPacket *ip_hdr = (IPPacket*)&packet.data;
 					if(
-						((ip_hdr->dst_addr == peer->internal_ip && is_client) || 
-						(ip_hdr->src_addr == peer->internal_ip && !is_client)) && 
+						((ip_hdr->dst_addr == peer->internal_ip && !is_server) || 
+						(ip_hdr->src_addr == peer->internal_ip && is_server)) && 
 						packet_size <= (MAX_MTU)
 					) {
 						// Check if source is same as peer(Prevents IP spoofing) and bound packet to mtu size
@@ -323,15 +321,15 @@ void run_core(Tun *tun, bool is_client) {
 				if(peer) {
 					update_ping(peer);
 				}
-			} else if(packet_type == LOGIN_FAILED && is_client) {
+			} else if(packet_type == LOGIN_FAILED && !is_server) {
 				warning("Login Failed, Reconnecting...");
 				sleep(1);
 				connect_server(socket, addr, server_token);
-			} else if(packet_type == CONNECTION_REJECTED && is_client) {
+			} else if(packet_type == CONNECTION_REJECTED && !is_server) {
 				warning("Connection Failed, Connection Rejected. Reconnecting...");
 				sleep(1);
 				connect_server(socket, addr, server_token);
-			} else if(packet_type == MSG && is_client) {
+			} else if(packet_type == MSG && !is_server) {
 				*(((char*)&(packet.data)) + sizeof(PacketData)) = '\0';
 				console_log("[Server] %s", (char*)&(packet.data));
 			}
@@ -344,7 +342,7 @@ void run_core(Tun *tun, bool is_client) {
 			IPPacket *ip_hdr = (IPPacket*)&packet.data;
 
 			Peer *peer = NULL;
-			if(is_client) {
+			if(!is_server) {
 				peer = get_peer_by_ip(peers, ip_hdr->src_addr);
 			} else {
 				peer = get_peer_by_ip(peers, ip_hdr->dst_addr);

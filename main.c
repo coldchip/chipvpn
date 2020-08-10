@@ -7,15 +7,11 @@ int main(int argc, char const *argv[]) {
 	printf("\e[1;1H\e[2J");
 	console_log("ColdChip ChipVPN");
 	if(argv[1] != NULL) {
-		if(strcmp(argv[1], "client") == 0) {
-			init_core(true);
-		} else if(strcmp(argv[1], "server") == 0) {
-			init_core(false);
-		} else {
-			printf("Invalid Argument\n");
-		}
+		
+		run_core((char*)argv[1]);
+		
 	} else {
-		printf("%s\n", "usage: client or server");
+		printf("Usage %s config.conf\n", argv[0]);
 	}
 	return 0;
 }
