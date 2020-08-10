@@ -8,9 +8,9 @@ int main(int argc, char const *argv[]) {
 	console_log("ColdChip ChipVPN");
 	if(argv[1] != NULL) {
 		if(strcmp(argv[1], "client") == 0) {
-			init_client();
+			init_core(true);
 		} else if(strcmp(argv[1], "server") == 0) {
-			init_server();
+			init_core(false);
 		} else {
 			printf("Invalid Argument\n");
 		}

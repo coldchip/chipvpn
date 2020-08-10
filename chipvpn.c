@@ -30,12 +30,13 @@ char *read_string(FILE *file, char const *desired_name) {
 
 	memset(name, 0, sizeof(name));
 	memset(val , 0, sizeof(val ));
-
+    int rewind = ftell(file);
     while (fscanf(file, "%1023[^=]=%1023[^\n]%*c", name, val) == 2) {
         if (0 == strcmp(name, desired_name)) {
             return strdup(val);
         }
     }
+    fseek(file, rewind, SEEK_SET);
     return NULL;
 }
 
@@ -45,7 +46,7 @@ bool read_bool(FILE *file, char const *desired_name) {
 
 	memset(name, 0, sizeof(name));
 	memset(val , 0, sizeof(val ));
-
+    int rewind = ftell(file);
     while (fscanf(file, "%1023[^=]=%1023[^\n]%*c", name, val) == 2) {
         if (0 == strcmp(name, desired_name)) {
             if (0 == strcmp(val, "true")) {
@@ -53,6 +54,7 @@ bool read_bool(FILE *file, char const *desired_name) {
         	}
         }
     }
+    fseek(file, rewind, SEEK_SET);
     return false;
 }
 
@@ -62,12 +64,13 @@ int read_int(FILE *file, char const *desired_name) {
 
 	memset(name, 0, sizeof(name));
 	memset(val , 0, sizeof(val ));
-
+    int rewind = ftell(file);
     while (fscanf(file, "%1023[^=]=%1023[^\n]%*c", name, val) == 2) {
         if (0 == strcmp(name, desired_name)) {
             return atoi(val);
         }
     }
+    fseek(file, rewind, SEEK_SET);
     return 0;
 }
 

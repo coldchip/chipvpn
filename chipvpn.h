@@ -111,7 +111,8 @@ typedef struct _ICMPHeader {
 } ICMPHeader;
 
 typedef enum {
-	CONNECT,
+	CONNECT_REQUEST,
+	CONNECT_RESPONSE,
 	DATA,
 	PING,
 	LOGIN_FAILED,
@@ -274,19 +275,12 @@ API Peer *get_peer_by_session(Peers *peers, Session session);
 API bool is_connected(Peer *peer);
 API bool is_disconnected(Peer *peer);
 
-// client.c
+// core.c
 
-API void init_client();
+API void init_core(bool is_client);
 void connect_server(Socket *socket, struct sockaddr_in addr, char *token);
-void run_client(Tun *tun);
-void stop_client();
-
-// server.c
-
-API void init_server();
-void run_server(Tun *tun);
+void run_core(Tun *tun, bool is_client);
 void fill_random(char *buffer, int size);
-void stop_server();
-
+void stop_core();
 
 #endif

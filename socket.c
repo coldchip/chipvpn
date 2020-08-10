@@ -51,7 +51,7 @@ void send_peer(Socket *socket, int seqid, void *data, int size, struct sockaddr_
 	List *receipt_queue = &socket->tx_queue;
 
 	Fragment fragment;
-	int mss    = 1000;
+	int mss    = 1400;
 	int pieces = floor(size / mss);
 	int id     = rand();
 
@@ -125,7 +125,7 @@ void remove_id_from_queue(List *queue, int to_remove) {
 bool recv_peer(Socket *socket, void *data, int size, struct sockaddr_in *addr) {
 	List *defrag_queue  = &socket->defrag_queue;
 	List *receipt_queue = &socket->tx_queue;
-	int   queue_size    = 50;
+	int   queue_size    = 20;
 
 	socklen_t len = sizeof(struct sockaddr);
 	Fragment fragment;
