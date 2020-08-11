@@ -1,15 +1,20 @@
 COMPILER=gcc
 COMPILER1=/home/ryan/openwrt/staging_dir/toolchain-mipsel_24kc_gcc-8.4.0_musl/bin/mipsel-openwrt-linux-musl-gcc
-OUTPUT=build/app
-OUTPUT1=build/app_router
+OUTPUT=build/chipvpn
+OUTPUT1=build/chipvpn_router
+
+.PHONY: install
 
 module:
 	$(COMPILER) *.c -o $(OUTPUT) -Wall -lm -lpthread -Ofast
 	$(COMPILER1) *.c -o $(OUTPUT1) -Wall -lm -lpthread -Ofast
-client:
-	$(OUTPUT) client
-server:
-	$(OUTPUT) server
+install:
+	-systemctl stop chipvpn
+	-mkdir /etc/chipvpn
+	-touch /etc/chipvpn/chipvpn.conf
+	cp install/chipvpn.service /etc/systemd/system
+	cp build/chipvpn /usr/local/sbin
+	systemctl daemon-reload
 upload:
 	scp -r /home/ryan/chipvpn/* ryan@coldchip.ru:/home/ryan/chipvpn
 upload2:

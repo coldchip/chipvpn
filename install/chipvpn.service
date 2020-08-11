@@ -1,0 +1,13 @@
+[Unit]
+Description=ColdChip ChipVPN
+After=network-online.target
+
+[Service]
+ExecStart=chipvpn /etc/chipvpn/chipvpn.conf
+StandardOutput=inherit
+StandardError=inherit
+Restart=always
+User=root
+
+[Install]
+WantedBy=multi-user.target
