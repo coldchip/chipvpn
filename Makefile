@@ -7,7 +7,7 @@ OUTPUT1=build/chipvpn_router
 
 module:
 	$(COMPILER) *.c -o $(OUTPUT) -Wall -lm -lpthread -Ofast
-	$(COMPILER1) *.c -o $(OUTPUT1) -Wall -lm -lpthread -Ofast
+	#$(COMPILER1) *.c -o $(OUTPUT1) -Wall -lm -lpthread -Ofast
 install:
 	-systemctl stop chipvpn
 	-mkdir /etc/chipvpn

@@ -8,6 +8,8 @@
 #include <netinet/in.h>
 #include <stdint.h>
 
+#define VERSION 1000
+
 #define API extern
 
 #define PING_INTERVAL 1
@@ -116,8 +118,7 @@ typedef enum {
 	DATA,
 	PING,
 	LOGIN_FAILED,
-	CONNECTION_REJECTED,
-	MSG
+	CONNECTION_REJECTED
 } PacketType;
 
 typedef struct _Session {
@@ -127,6 +128,7 @@ typedef struct _Session {
 typedef struct _PacketHeader {
 	PacketType type;
 	int size;
+	int version;
 	Session session;
 } PacketHeader;
 
@@ -148,6 +150,7 @@ API int exec_sprintf(char *format, ...);
 API void warning(char *format, ...);
 API void error(char *format, ...);
 API void console_log(char *format, ...);
+API void fill_random(char *buffer, int size);
 API char *format_size(uint64_t size);
 
 // log.c
@@ -277,9 +280,15 @@ API bool is_disconnected(Peer *peer);
 
 // core.c
 
+typedef enum {
+	STATE_CONNECTING,
+	STATE_CONNECTED,
+	STATE_DISCONNECTED,
+	STATE_ONLINE
+} Status;
+
 void connect_server(Socket *socket, struct sockaddr_in addr, char *token);
 API void run_core(char *config);
-void fill_random(char *buffer, int size);
 void stop_core();
 
 #endif

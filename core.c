@@ -17,8 +17,9 @@
 void connect_server(Socket *socket, struct sockaddr_in addr, char *token) {
 	Packet packet;
 	memset(&packet, 0, sizeof(Packet));
-	packet.header.type = htonl(CONNECT_REQUEST);
-	packet.header.size = htonl(0);
+	packet.header.type    = htonl(CONNECT_REQUEST);
+	packet.header.size    = htonl(0);
+	packet.header.version = htonl(VERSION);
 	int timestamp = time(NULL);
 	char temp[strlen(token) + sizeof(int)];
 	memcpy(temp, token, strlen(token));
@@ -32,8 +33,6 @@ void run_core(char *config) {
 		error("Unable to Setup Signal Handlers");
 	}
 
-	srand((unsigned) time(NULL));
-
 	FILE *fp = fopen(config, "rb");
 
 	if(!fp) {
@@ -46,8 +45,6 @@ void run_core(char *config) {
 	bool  server_pull_routes = read_bool(fp, "pull_routes");
 	bool  is_server          = read_bool(fp, "bind");
 	int   server_max_peers   = read_int(fp, "max_peers");
-
-	printf("%i\n", is_server);
 
 	if(!server_ip || !server_port) {
 		error("Server ip or port is not defined in the config");
@@ -78,17 +75,18 @@ void run_core(char *config) {
 	}
 
 	Peers *peers = NULL;
+	LOG *log = log_init();
+	Status status;
 
 	if(!is_server) {
 		peers = new_peer_container(1);
-		console_log("Connecting & Authenticating... ");
+		status = STATE_CONNECTING;
 		connect_server(socket, addr, server_token);
 	} else {
 		peers = new_peer_container(server_max_peers);
-		console_log("Setting up interfaces... ");
+		status = STATE_ONLINE;
 		setifip(tun, "10.0.0.1", "255.255.255.0", MAX_MTU);
 		ifup(tun);
-		console_log("Binding... ");
 		struct sockaddr_in      baddr;
 		baddr.sin_family      = AF_INET;
 		baddr.sin_addr.s_addr = inet_addr(server_ip); 
@@ -127,16 +125,16 @@ void run_core(char *config) {
 				if(is_connected(peer)) {
 					i++;
 					memset(&packet, 0, sizeof(Packet));
-					packet.header.type = htonl(PING);
-					packet.header.size = htonl(0);
+					packet.header.type    = htonl(PING);
+					packet.header.size    = htonl(0);
+					packet.header.version = htonl(VERSION);
 					packet.header.session = peer->session;
 					send_peer(socket, rand(), (char*)&packet, sizeof(PacketHeader), &peer->addr, RELIABLE);
 					
 					if(is_unpinged(peer)) {
 						peer->state = DISCONNECTED;
 						if(!is_server) {
-							printf("\n");
-							warning("No Ping Received, Reconnecting to Server");
+							status = STATE_CONNECTING;
 							sleep(1);
 							connect_server(socket, addr, server_token);
 						}
@@ -156,13 +154,35 @@ void run_core(char *config) {
 			}
 			printf("\033[0;0H");
 			if(!is_server) {
-				printf("\033[1;36mChipVPN Client\033[0m by ColdChip\n\n");
+				printf("\033[1;36mChipVPN Client\033[0m by ColdChip b%i\n\n", VERSION);
 			} else {
-				printf("\033[1;36mChipVPN Server\033[0m by ColdChip\n\n");
+				printf("\033[1;36mChipVPN Server\033[0m by ColdChip b%i\n\n", VERSION);
 			}
 
 			printf("\x1b[32mStatus   ");
-			printf("%*s%s\n", w.ws_col / 3, "", "online\033[0m");
+			switch(status) {
+				case STATE_DISCONNECTED: {
+					printf("\x1b[32m%*s%s", w.ws_col / 3, "", "disconnected");
+				}
+				break;
+				case STATE_CONNECTING: {
+					printf("\x1b[33m%*s%s", w.ws_col / 3, "", "connecting");
+				}
+				break;
+				case STATE_CONNECTED: {
+					printf("\x1b[32m%*s%s", w.ws_col / 3, "", "connected");
+				}
+				break;
+				case STATE_ONLINE: {
+					printf("\x1b[32m%*s%s", w.ws_col / 3, "", "online");
+				}
+				break;
+				default: {
+					printf("\x1b[32m%*s%s", w.ws_col / 3, "", "unknown");
+				}
+				break;
+			}
+			printf("\033[0m\n");
 			printf("Region   ");
 			printf("%*s%s\n", w.ws_col / 3, "", "Singapore");
 			printf("Interface");
@@ -188,7 +208,12 @@ void run_core(char *config) {
 
 			int     packet_type    = ntohl(packet.header.type);
 			int     packet_size    = ntohl(packet.header.size);
+			int     packet_version = ntohl(packet.header.version);
 			Session packet_session = packet.header.session;
+
+			if(packet_version != VERSION) {
+				continue;
+			}
 
 			Peer *peer = get_peer_by_session(peers, packet_session);
 			if(peer) {
@@ -226,7 +251,6 @@ void run_core(char *config) {
 					if(server_pull_routes) {
 						char default_gateway[16];
 						get_default_gateway((char*)&default_gateway);
-						console_log("Setting Routes");
 						if(exec_sprintf("ip route add %s via %s", server_ip, default_gateway)) {
 							//error("Set path failed");
 						}
@@ -249,8 +273,7 @@ void run_core(char *config) {
 
 					peer->session = packet_session;
 
-					console_log("Assigned IP [%s] Subnet [%s] Via Gateway [%s]", set_ip, set_subnet, set_gateway);
-					printf("\e[1;1H\e[2J");
+					status = STATE_CONNECTED;
 				}
 			} else if(packet_type == CONNECT_REQUEST && is_server) {
 				char token[20];
@@ -264,11 +287,6 @@ void run_core(char *config) {
 					Peer *peer        = get_disconnected_peer(peers);
 					uint32_t alloc_ip = get_peer_free_ip(peers);
 					if(peer && alloc_ip != 0) {
-						memset(&packet, 0, sizeof(Packet));
-						packet.header.type = htonl(MSG);
-						strcpy((char*)&(packet.data), "Authenticated");
-						send_peer(socket, rand(), (char*)&packet, sizeof(Packet), &addr, RELIABLE);
-
 						peer->state        = CONNECTED;
 						peer->internal_ip  = alloc_ip;
 						peer->addr         = addr;
@@ -283,6 +301,7 @@ void run_core(char *config) {
 						memset(&packet, 0, sizeof(Packet));
 						packet.header.type	   = htonl(CONNECT_RESPONSE);
 						packet.header.size	   = htonl(0);
+						packet.header.version  = htonl(VERSION);
 						int tun_ip			   = htonl(alloc_ip);
 						int tun_subnet		   = htonl(inet_addr("255.255.255.0"));
 						int tun_gateway		   = htonl(inet_addr("10.0.0.1"));
@@ -296,11 +315,13 @@ void run_core(char *config) {
 					} else {
 						memset(&packet, 0, sizeof(Packet));
 						packet.header.type = htonl(CONNECTION_REJECTED);
+						packet.header.version = htonl(VERSION);
 						send_peer(socket, rand(), (char*)&packet, sizeof(Packet), &addr, RELIABLE);
 					}
 				} else {
 					memset(&packet, 0, sizeof(Packet));
 					packet.header.type = htonl(LOGIN_FAILED);
+					packet.header.version = htonl(VERSION);
 					send_peer(socket, rand(), (char*)&packet, sizeof(Packet), &addr, RELIABLE);
 				}
 			} else if(packet_type == DATA) {
@@ -312,6 +333,7 @@ void run_core(char *config) {
 						packet_size <= (MAX_MTU)
 					) {
 						// Check if source is same as peer(Prevents IP spoofing) and bound packet to mtu size
+						log_packet(log, ip_hdr);
 						rx += packet_size;
 						peer->rx += packet_size;
 						if(write(tun->fd, (char*)&(packet.data), packet_size)) {}
@@ -322,16 +344,13 @@ void run_core(char *config) {
 					update_ping(peer);
 				}
 			} else if(packet_type == LOGIN_FAILED && !is_server) {
-				warning("Login Failed, Reconnecting...");
+				status = STATE_CONNECTING;
 				sleep(1);
 				connect_server(socket, addr, server_token);
 			} else if(packet_type == CONNECTION_REJECTED && !is_server) {
-				warning("Connection Failed, Connection Rejected. Reconnecting...");
+				status = STATE_CONNECTING;
 				sleep(1);
 				connect_server(socket, addr, server_token);
-			} else if(packet_type == MSG && !is_server) {
-				*(((char*)&(packet.data)) + sizeof(PacketData)) = '\0';
-				console_log("[Server] %s", (char*)&(packet.data));
 			}
 		}
 
@@ -353,16 +372,11 @@ void run_core(char *config) {
 
 				packet.header.type    = htonl(DATA);
 				packet.header.size    = htonl(size);
+				packet.header.version = htonl(VERSION);
 				packet.header.session = peer->session;
 				send_peer(socket, rand(), (char*)&packet, sizeof(PacketHeader) + size, &peer->addr, DATAGRAM);
 			}
 		}
-	}
-}
-
-void fill_random(char *buffer, int size) {
-	for(int i = 0; i < size; i++) {
-		*(buffer + i) = (char)random();
 	}
 }
 

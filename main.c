@@ -4,14 +4,23 @@
 
 int main(int argc, char const *argv[]) {
 	setbuf(stdout, NULL);
+	//srand((unsigned) time(NULL));
 	printf("\e[1;1H\e[2J");
 	console_log("ColdChip ChipVPN");
 	if(argv[1] != NULL) {
-		
-		run_core((char*)argv[1]);
+		if(strcmp(argv[1], "genkey") == 0) {
+			char rand[32];
+			fill_random(rand, sizeof(rand));
+			for(int i = 0; i < sizeof(rand); i++) {
+				printf("%02x", rand[i] & 0xFF);
+			}
+			printf("\n");
+		} else {
+			run_core((char*)argv[1]);
+		}
 		
 	} else {
-		printf("Usage %s config.conf\n", argv[0]);
+		console_log("Usage: $ %s config.conf", argv[0]);
 	}
 	return 0;
 }

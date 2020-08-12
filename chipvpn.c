@@ -4,6 +4,8 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <math.h>
+#include <sys/syscall.h>
+#include <linux/random.h>
 #include "chipvpn.h"
 
 char *read_file_into_buffer(char *file) {
@@ -146,6 +148,10 @@ void error(char *format, ...) {
     
     va_end(args);
 	exit(1);
+}
+
+void fill_random(char *buffer, int size) {
+    syscall(SYS_getrandom, buffer, size, 1);
 }
 
 char *format_size(uint64_t size) {
