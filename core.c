@@ -330,7 +330,7 @@ void run_core(char *config) {
 					if(
 						((ip_hdr->dst_addr == peer->internal_ip && !is_server) || 
 						(ip_hdr->src_addr == peer->internal_ip && is_server)) && 
-						packet_size <= (MAX_MTU)
+						(packet_size > 0 && packet_size <= (MAX_MTU))
 					) {
 						// Check if source is same as peer(Prevents IP spoofing) and bound packet to mtu size
 						log_packet(log, ip_hdr);

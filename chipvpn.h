@@ -200,19 +200,19 @@ typedef struct _Fragment {
 	FragmentData   data;
 } Fragment;
 
-typedef struct _FragmentQueue {
+typedef struct _ReceiveQueue {
 	ListNode node;
 	Fragment packet;
-} FragmentQueue;
+} ReceiveQueue;
 
-typedef struct _ReceiptQueue {
+typedef struct _TransmitQueue {
 	ListNode node;
 	int seqid;
 	struct sockaddr_in addr;
 	int size;
 	char *data;
 	int time;
-} ReceiptQueue;
+} TransmitQueue;
 
 void remove_receipt_from_queue(List *queue, int to_remove);
 void remove_id_from_queue(List *queue, int to_remove);

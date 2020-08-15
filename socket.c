@@ -34,7 +34,7 @@ void socket_service(Socket *socket) {
 
 	ListNode *i = list_begin(resend_queue);
 	while(i != list_end(resend_queue)) {
-		ReceiptQueue *current_queue = (ReceiptQueue*)i;
+		TransmitQueue *current_queue = (TransmitQueue*)i;
 
 		i = list_next(i);
 
@@ -74,16 +74,16 @@ void send_peer(Socket *socket, int seqid, void *data, int size, struct sockaddr_
 	}
 	
 	if(type == RELIABLE && list_size(receipt_queue) <= 50) {
-		ReceiptQueue *r_queue = malloc(sizeof(FragmentQueue));
+		TransmitQueue *tx_queue = malloc(sizeof(TransmitQueue));
 		//memcpy(&(current_queue->packet), &fragment, sizeof(Fragment));
-		char *data_q = malloc(size);
-		memcpy(data_q, data, size);
-		r_queue->seqid = seqid;
-		r_queue->size  = size;
-		r_queue->data  = data_q;
-		r_queue->addr  = *addr;
-		r_queue->time  = time(NULL);
-		list_insert(list_end(receipt_queue), r_queue);
+		char *data_malloc = malloc(size);
+		memcpy(data_malloc, data, size);
+		tx_queue->seqid = seqid;
+		tx_queue->size  = size;
+		tx_queue->data  = data_malloc;
+		tx_queue->addr  = *addr;
+		tx_queue->time  = time(NULL);
+		list_insert(list_end(receipt_queue), tx_queue);
 	}
 	
 }
@@ -91,7 +91,7 @@ void send_peer(Socket *socket, int seqid, void *data, int size, struct sockaddr_
 void remove_receipt_from_queue(List *queue, int to_remove) {
 	ListNode *i = list_begin(queue);
 	while(i != list_end(queue)) {
-		ReceiptQueue *current_queue = (ReceiptQueue*)i;
+		TransmitQueue *current_queue = (TransmitQueue*)i;
 
 		i = list_next(i);
 
@@ -108,7 +108,7 @@ void remove_receipt_from_queue(List *queue, int to_remove) {
 void remove_id_from_queue(List *queue, int to_remove) {
 	ListNode *i = list_begin(queue);
 	while(i != list_end(queue)) {
-		FragmentQueue *current_queue = (FragmentQueue*)i;
+		ReceiveQueue *current_queue = (ReceiveQueue*)i;
 		Fragment *current = (Fragment*)&(current_queue->packet);
 
 		i = list_next(i);
@@ -134,18 +134,18 @@ bool recv_peer(Socket *socket, void *data, int size, struct sockaddr_in *addr) {
 	if(recvfrom(socket->fd, (char*)&fragment, sizeof(Fragment), MSG_DONTWAIT, (struct sockaddr *)addr, &len) > 0) {
 		decrypt((char*)&fragment, sizeof(Fragment));
 
-		FragmentQueue *current_queue = malloc(sizeof(FragmentQueue));
+		ReceiveQueue *current_queue = malloc(sizeof(ReceiveQueue));
 		memcpy(&(current_queue->packet), &fragment, sizeof(Fragment));
 		list_insert(list_end(defrag_queue), current_queue);
 		if(list_size(defrag_queue) > queue_size) {
-			FragmentQueue *current = (FragmentQueue*)list_begin(defrag_queue);
+			ReceiveQueue *current = (ReceiveQueue*)list_begin(defrag_queue);
 			list_remove(&current->node);
 			free(current);
 		}
 	}
 	// Fragment(s) Reassembly
 	for(ListNode *i = list_begin(defrag_queue); i != list_end(defrag_queue); i = list_next(i)) {
-		Fragment *head    = (Fragment*)&((FragmentQueue*)i)->packet;
+		Fragment *head    = (Fragment*)&((ReceiveQueue*)i)->packet;
 
 		int head_frag      = ntohl(head->header.fragment);
 		int head_max_frag  = ntohl(head->header.max_frag);
@@ -162,7 +162,7 @@ bool recv_peer(Socket *socket, void *data, int size, struct sockaddr_in *addr) {
 		if(head_frag == 0 && head_max_frag < queue_size) {
 			int received_frag = 0;
 			for(ListNode *l = list_begin(defrag_queue); l != list_end(defrag_queue); l = list_next(l)) {
-				Fragment *current = (Fragment*)&((FragmentQueue*)l)->packet;
+				Fragment *current = (Fragment*)&((ReceiveQueue*)l)->packet;
 
 				//int  frag      = ntohl(current->header.fragment);
 				int  id        = ntohl(current->header.id);
@@ -174,8 +174,7 @@ bool recv_peer(Socket *socket, void *data, int size, struct sockaddr_in *addr) {
 					if(received_frag >= head_max_frag) {
 						remove_id_from_queue(defrag_queue, id);
 						if(head_type == RELIABLE) {
-							int tt = 0;
-							send_peer(socket, head_seqid, &tt, sizeof(int), addr, ACK);
+							send_peer(socket, head_seqid, NULL, 0, addr, ACK);
 						}
 						return true;
 					}
