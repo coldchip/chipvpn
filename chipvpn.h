@@ -1,6 +1,11 @@
 #ifndef CHIPVPN
 #define CHIPVPN
 
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+
 #include <asm/byteorder.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -290,5 +295,11 @@ typedef enum {
 void connect_server(Socket *socket, struct sockaddr_in addr, char *token);
 API void run_core(char *config);
 void stop_core();
+
+
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
