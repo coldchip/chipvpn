@@ -19,7 +19,6 @@ void connect_server(Socket *socket, struct sockaddr_in addr, char *token) {
 	memset(&packet, 0, sizeof(Packet));
 	packet.header.type    = htonl(CONNECT_REQUEST);
 	packet.header.size    = htonl(0);
-	packet.header.version = htonl(VERSION);
 	int timestamp = time(NULL);
 	char temp[strlen(token) + sizeof(int)];
 	memcpy(temp, token, strlen(token));
@@ -127,8 +126,7 @@ void run_core(char *config) {
 					memset(&packet, 0, sizeof(Packet));
 					packet.header.type    = htonl(PING);
 					packet.header.size    = htonl(0);
-					packet.header.version = htonl(VERSION);
-					packet.header.session = peer->session;
+					packet.header.id      = peer->id;
 					send_peer(socket, rand(), (char*)&packet, sizeof(PacketHeader), &peer->addr, RELIABLE);
 					
 					if(is_unpinged(peer)) {
@@ -154,9 +152,9 @@ void run_core(char *config) {
 			}
 			printf("\033[0;0H");
 			if(!is_server) {
-				printf("\033[1;36mChipVPN Client\033[0m by ColdChip b%i\n\n", VERSION);
+				printf("\033[1;36mChipVPN Client\033[0m by ColdChip\n\n");
 			} else {
-				printf("\033[1;36mChipVPN Server\033[0m by ColdChip b%i\n\n", VERSION);
+				printf("\033[1;36mChipVPN Server\033[0m by ColdChip\n\n");
 			}
 
 			printf("\x1b[32mStatus   ");
@@ -206,16 +204,11 @@ void run_core(char *config) {
 				continue;
 			}
 
-			int     packet_type    = ntohl(packet.header.type);
-			int     packet_size    = ntohl(packet.header.size);
-			int     packet_version = ntohl(packet.header.version);
-			Session packet_session = packet.header.session;
+			int packet_type   = ntohl(packet.header.type);
+			int packet_size   = ntohl(packet.header.size);
+			int packet_id     = ntohl(packet.header.id);
 
-			if(packet_version != VERSION) {
-				continue;
-			}
-
-			Peer *peer = get_peer_by_session(peers, packet_session);
+			Peer *peer = get_peer_by_id(peers, packet_id);
 			if(peer) {
 				// Update peer address
 				peer->addr = addr;
@@ -228,10 +221,11 @@ void run_core(char *config) {
 					int peer_subnet;
 					int peer_gateway;
 					int peer_mtu;
-					memcpy(&peer_ip,      ((char*)&packet.data) + (sizeof(int) * 0), sizeof(int));
-					memcpy(&peer_subnet,  ((char*)&packet.data) + (sizeof(int) * 1), sizeof(int));
-					memcpy(&peer_gateway, ((char*)&packet.data) + (sizeof(int) * 2), sizeof(int));
-					memcpy(&peer_mtu,     ((char*)&packet.data) + (sizeof(int) * 3), sizeof(int));
+					memcpy(&peer_ip,       ((char*)&packet.data) + (sizeof(int) * 0), sizeof(int));
+					memcpy(&peer_subnet,   ((char*)&packet.data) + (sizeof(int) * 1), sizeof(int));
+					memcpy(&peer_gateway,  ((char*)&packet.data) + (sizeof(int) * 2), sizeof(int));
+					memcpy(&peer_mtu,      ((char*)&packet.data) + (sizeof(int) * 3), sizeof(int));
+					memcpy(peer->key,      ((char*)&packet.data) + (sizeof(int) * 4), 64);
 
 					peer_ip      = ntohl(peer_ip); 
 					peer_subnet  = ntohl(peer_subnet); 
@@ -268,10 +262,9 @@ void run_core(char *config) {
 					peer->tx          = 0;
 					peer->rx          = 0;
 					peer->quota       = 5497558138880;
+					peer->id          = ntohl(packet_id);
 
 					update_ping(peer);
-
-					peer->session = packet_session;
 
 					status = STATE_CONNECTED;
 				}
@@ -296,36 +289,36 @@ void run_core(char *config) {
 
 						update_ping(peer);
 
-						fill_random((char*)&peer->session, sizeof(Session));
+						fill_random((char*)&peer->key, 64);
+						peer->id = index_of_peer(peers, peer);
 
 						memset(&packet, 0, sizeof(Packet));
 						packet.header.type	   = htonl(CONNECT_RESPONSE);
 						packet.header.size	   = htonl(0);
-						packet.header.version  = htonl(VERSION);
+						packet.header.id       = htonl(peer->id);
 						int tun_ip			   = htonl(alloc_ip);
 						int tun_subnet		   = htonl(inet_addr("255.255.255.0"));
 						int tun_gateway		   = htonl(inet_addr("10.0.0.1"));
 						int mtu				   = htonl(MAX_MTU);
-						memcpy(((char*)&packet.data) + (sizeof(int) * 0), &tun_ip,      sizeof(int));
-						memcpy(((char*)&packet.data) + (sizeof(int) * 1), &tun_subnet,  sizeof(int));
-						memcpy(((char*)&packet.data) + (sizeof(int) * 2), &tun_gateway, sizeof(int));
-						memcpy(((char*)&packet.data) + (sizeof(int) * 3), &mtu,         sizeof(int));
-						packet.header.session = peer->session;
+						memcpy(((char*)&packet.data) + (sizeof(int) * 0), &tun_ip,        sizeof(tun_ip));
+						memcpy(((char*)&packet.data) + (sizeof(int) * 1), &tun_subnet,    sizeof(tun_subnet));
+						memcpy(((char*)&packet.data) + (sizeof(int) * 2), &tun_gateway,   sizeof(tun_gateway));
+						memcpy(((char*)&packet.data) + (sizeof(int) * 3), &mtu,           sizeof(mtu));
+						memcpy(((char*)&packet.data) + (sizeof(int) * 4), &peer->key, 	  64);
 						send_peer(socket, rand(), (char*)&packet, sizeof(Packet), &peer->addr, RELIABLE);
 					} else {
 						memset(&packet, 0, sizeof(Packet));
 						packet.header.type = htonl(CONNECTION_REJECTED);
-						packet.header.version = htonl(VERSION);
 						send_peer(socket, rand(), (char*)&packet, sizeof(Packet), &addr, RELIABLE);
 					}
 				} else {
 					memset(&packet, 0, sizeof(Packet));
 					packet.header.type = htonl(LOGIN_FAILED);
-					packet.header.version = htonl(VERSION);
 					send_peer(socket, rand(), (char*)&packet, sizeof(Packet), &addr, RELIABLE);
 				}
 			} else if(packet_type == DATA) {
 				if(peer && (peer->tx + peer->rx) < peer->quota) {
+					decrypt(peer->key, (char*)&packet.data, sizeof(PacketData));
 					IPPacket *ip_hdr = (IPPacket*)&packet.data;
 					if(
 						((ip_hdr->dst_addr == peer->internal_ip && !is_server) || 
@@ -372,8 +365,8 @@ void run_core(char *config) {
 
 				packet.header.type    = htonl(DATA);
 				packet.header.size    = htonl(size);
-				packet.header.version = htonl(VERSION);
-				packet.header.session = peer->session;
+				packet.header.id      = peer->id;
+				encrypt(peer->key, (char*)&(packet.data), sizeof(PacketData));
 				send_peer(socket, rand(), (char*)&packet, sizeof(PacketHeader) + size, &peer->addr, DATAGRAM);
 			}
 		}

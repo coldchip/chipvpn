@@ -75,13 +75,24 @@ Peer *get_peer_by_ip(Peers *peers, uint32_t ip) {
 	return NULL;
 }
 
-Peer *get_peer_by_session(Peers *peers, Session session) {
+Peer *get_peer_by_id(Peers *peers, int id) {
 	for(Peer *peer = peers->peers; peer < &peers->peers[peers->peerCount]; ++peer) {
-		if(is_connected(peer) && memcmp(&peer->session, &session, sizeof(Session)) == 0) {
+		if(is_connected(peer) && peer->id == id) {
 			return peer;
 		}
 	}
 	return NULL;
+}
+
+int index_of_peer(Peers *peers, Peer *peer_i) {
+	int i = 0;
+	for(Peer *peer = peers->peers; peer < &peers->peers[peers->peerCount]; ++peer) {
+		if(peer == peer_i) {
+			return i;
+		}
+		i++;
+	}
+	return -1;
 }
 
 bool is_connected(Peer *peer) {

@@ -67,7 +67,6 @@ void send_peer(Socket *socket, int seqid, void *data, int size, struct sockaddr_
 		fragment.header.type     = htonl(type);
 		memcpy((char*)&fragment.data, data + offset, frag_size);
 
-		encrypt((char*)&fragment, sizeof(Fragment));
 		if(sendto(socket->fd, (char*)&fragment, sizeof(FragmentHeader) + frag_size, MSG_CONFIRM, (struct sockaddr *)addr, sizeof(struct sockaddr)) != sizeof(Fragment)) {
 			//printf("send_peer error\n");
 		}
@@ -132,7 +131,6 @@ bool recv_peer(Socket *socket, void *data, int size, struct sockaddr_in *addr) {
 
 	// Receive Fragment(s)
 	if(recvfrom(socket->fd, (char*)&fragment, sizeof(Fragment), MSG_DONTWAIT, (struct sockaddr *)addr, &len) > 0) {
-		decrypt((char*)&fragment, sizeof(Fragment));
 
 		ReceiveQueue *current_queue = malloc(sizeof(ReceiveQueue));
 		memcpy(&(current_queue->packet), &fragment, sizeof(Fragment));

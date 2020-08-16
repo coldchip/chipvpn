@@ -12,8 +12,7 @@ extern "C"
 #include <stdbool.h>
 #include <netinet/in.h>
 #include <stdint.h>
-
-#define VERSION 1000
+#include "aes.h"
 
 #define API extern
 
@@ -126,15 +125,10 @@ typedef enum {
 	CONNECTION_REJECTED
 } PacketType;
 
-typedef struct _Session {
-	char data[16];
-} Session;
-
 typedef struct _PacketHeader {
+	int id;
 	PacketType type;
 	int size;
-	int version;
-	Session session;
 } PacketHeader;
 
 typedef struct _PacketData {
@@ -244,10 +238,8 @@ API void free_tun(Tun *tun);
 
 // encryption.c
 
-uint8_t get_sbox(uint8_t num);
-uint8_t get_rsbox(uint8_t num);
-API void encrypt(char *data, int length);
-API void decrypt(char *data, int length);
+API void encrypt(char *key, char *data, int length);
+API void decrypt(char *key, char *data, int length);
 
 // peer.c
 
@@ -262,9 +254,10 @@ typedef struct _Peers {
 } Peers;
 
 typedef struct _Peer {
-	Session session;
+	int id;
 	uint32_t internal_ip;
 	struct sockaddr_in addr;
+	char key[64];
 	PeerState state;
 	int last_ping;
 	uint64_t tx;
@@ -279,7 +272,8 @@ API bool is_unpinged(Peer *peer);
 API Peer *get_disconnected_peer(Peers *peers);
 API uint32_t get_peer_free_ip(Peers *peers);
 API Peer *get_peer_by_ip(Peers *peers, uint32_t ip);
-API Peer *get_peer_by_session(Peers *peers, Session session);
+API Peer *get_peer_by_id(Peers *peers, int id);
+API int index_of_peer(Peers *peers, Peer *peer_i);
 API bool is_connected(Peer *peer);
 API bool is_disconnected(Peer *peer);
 
