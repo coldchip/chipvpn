@@ -126,7 +126,7 @@ void run_core(char *config) {
 					memset(&packet, 0, sizeof(Packet));
 					packet.header.type    = htonl(PING);
 					packet.header.size    = htonl(0);
-					packet.header.id      = peer->id;
+					packet.header.id      = htonl(peer->id);
 					send_peer(socket, rand(), (char*)&packet, sizeof(PacketHeader), &peer->addr, RELIABLE);
 					
 					if(is_unpinged(peer)) {
@@ -141,61 +141,7 @@ void run_core(char *config) {
 			}
 			last_ping = time(NULL);
 
-			char *format_tx = format_size(tx);
-			char *format_rx = format_size(rx);
-
-			struct winsize w;
-			ioctl(0, TIOCGWINSZ, &w);
-			printf("\033[0;0H");
-			for(int i = 0; i < 1920; i++) {
-				printf(" ");
-			}
-			printf("\033[0;0H");
-			if(!is_server) {
-				printf("\033[1;36mChipVPN Client\033[0m by ColdChip\n\n");
-			} else {
-				printf("\033[1;36mChipVPN Server\033[0m by ColdChip\n\n");
-			}
-
-			printf("\x1b[32mStatus   ");
-			switch(status) {
-				case STATE_DISCONNECTED: {
-					printf("\x1b[32m%*s%s", w.ws_col / 3, "", "disconnected");
-				}
-				break;
-				case STATE_CONNECTING: {
-					printf("\x1b[33m%*s%s", w.ws_col / 3, "", "connecting");
-				}
-				break;
-				case STATE_CONNECTED: {
-					printf("\x1b[32m%*s%s", w.ws_col / 3, "", "connected");
-				}
-				break;
-				case STATE_ONLINE: {
-					printf("\x1b[32m%*s%s", w.ws_col / 3, "", "online");
-				}
-				break;
-				default: {
-					printf("\x1b[32m%*s%s", w.ws_col / 3, "", "unknown");
-				}
-				break;
-			}
-			printf("\033[0m\n");
-			printf("Region   ");
-			printf("%*s%s\n", w.ws_col / 3, "", "Singapore");
-			printf("Interface");
-			printf("%*s%s\n", w.ws_col / 3, "", tun->dev);
-			if(is_server) {
-				printf("Peers    ");
-				printf("%*s%i\n", w.ws_col / 3, "", i);
-			}
-			printf("Sent     ");
-			printf("%*s%s\n", w.ws_col / 3, "", format_tx);
-			printf("Received ");
-			printf("%*s%s\n", w.ws_col / 3, "", format_rx);
-
-			free(format_tx);
-			free(format_rx);
+			print_console(status, is_server, tx, rx, i, tun->dev);
 		}
 
 		if(FD_ISSET(get_socket_fd(socket), &rdset)) {
@@ -209,10 +155,6 @@ void run_core(char *config) {
 			int packet_id     = ntohl(packet.header.id);
 
 			Peer *peer = get_peer_by_id(peers, packet_id);
-			if(peer) {
-				// Update peer address
-				peer->addr = addr;
-			}
 
 			if(packet_type == CONNECT_RESPONSE && !is_server) {
 				Peer *peer = get_disconnected_peer(peers);
@@ -221,11 +163,11 @@ void run_core(char *config) {
 					int peer_subnet;
 					int peer_gateway;
 					int peer_mtu;
-					memcpy(&peer_ip,       ((char*)&packet.data) + (sizeof(int) * 0), sizeof(int));
-					memcpy(&peer_subnet,   ((char*)&packet.data) + (sizeof(int) * 1), sizeof(int));
-					memcpy(&peer_gateway,  ((char*)&packet.data) + (sizeof(int) * 2), sizeof(int));
-					memcpy(&peer_mtu,      ((char*)&packet.data) + (sizeof(int) * 3), sizeof(int));
-					memcpy(peer->key,      ((char*)&packet.data) + (sizeof(int) * 4), 64);
+					memcpy(&peer_ip,      ((char*)&packet.data) + (sizeof(int) * 0), sizeof(int));
+					memcpy(&peer_subnet,  ((char*)&packet.data) + (sizeof(int) * 1), sizeof(int));
+					memcpy(&peer_gateway, ((char*)&packet.data) + (sizeof(int) * 2), sizeof(int));
+					memcpy(&peer_mtu,     ((char*)&packet.data) + (sizeof(int) * 3), sizeof(int));
+					memcpy(peer->key,     ((char*)&packet.data) + (sizeof(int) * 4), 64);
 
 					peer_ip      = ntohl(peer_ip); 
 					peer_subnet  = ntohl(peer_subnet); 
@@ -262,7 +204,7 @@ void run_core(char *config) {
 					peer->tx          = 0;
 					peer->rx          = 0;
 					peer->quota       = 5497558138880;
-					peer->id          = ntohl(packet_id);
+					peer->id          = packet_id;
 
 					update_ping(peer);
 
@@ -365,12 +307,70 @@ void run_core(char *config) {
 
 				packet.header.type    = htonl(DATA);
 				packet.header.size    = htonl(size);
-				packet.header.id      = peer->id;
+				packet.header.id      = htonl(peer->id);
 				encrypt(peer->key, (char*)&(packet.data), sizeof(PacketData));
 				send_peer(socket, rand(), (char*)&packet, sizeof(PacketHeader) + size, &peer->addr, DATAGRAM);
 			}
 		}
 	}
+}
+
+void print_console(Status status, bool is_server, uint64_t tx, uint64_t rx, int peers, char *dev) {
+	struct winsize w;
+	ioctl(0, TIOCGWINSZ, &w);
+	printf("\033[0;0H");
+	for(int i = 0; i < 1920; i++) {
+		printf(" ");
+	}
+	printf("\033[0;0H");
+	if(!is_server) {
+		printf("\033[1;36mChipVPN Client\033[0m by ColdChip\n\n");
+	} else {
+		printf("\033[1;36mChipVPN Server\033[0m by ColdChip\n\n");
+	}
+
+	printf("\x1b[32mStatus   ");
+	switch(status) {
+		case STATE_DISCONNECTED: {
+			printf("\x1b[32m%*s%s", w.ws_col / 3, "", "disconnected");
+		}
+		break;
+		case STATE_CONNECTING: {
+			printf("\x1b[33m%*s%s", w.ws_col / 3, "", "connecting");
+		}
+		break;
+		case STATE_CONNECTED: {
+			printf("\x1b[32m%*s%s", w.ws_col / 3, "", "connected");
+		}
+		break;
+		case STATE_ONLINE: {
+			printf("\x1b[32m%*s%s", w.ws_col / 3, "", "online");
+		}
+		break;
+		default: {
+			printf("\x1b[32m%*s%s", w.ws_col / 3, "", "unknown");
+		}
+		break;
+	}
+	printf("\033[0m\n");
+	printf("Region   ");
+	printf("%*s%s\n", w.ws_col / 3, "", "Singapore");
+	printf("Interface");
+	printf("%*s%s\n", w.ws_col / 3, "", dev);
+	if(is_server) {
+		printf("Peers    ");
+		printf("%*s%i\n", w.ws_col / 3, "", peers);
+	}
+	char *format_tx = format_size(tx);
+	char *format_rx = format_size(rx);
+
+	printf("Sent     ");
+	printf("%*s%s\n", w.ws_col / 3, "", format_tx);
+	printf("Received ");
+	printf("%*s%s\n", w.ws_col / 3, "", format_rx);
+
+	free(format_tx); 
+	free(format_rx);
 }
 
 void stop_core() {
