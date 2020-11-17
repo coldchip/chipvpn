@@ -4,9 +4,9 @@ After=network-online.target
 
 [Service]
 ExecStart=/usr/local/sbin/chipvpn /etc/chipvpn/chipvpn.conf
-StandardOutput=inherit
-StandardError=inherit
-Restart=always
+StandardOutput=null
+StandardError=null
+Restart=on-failure
 User=root
 
 [Install]

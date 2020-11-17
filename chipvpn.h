@@ -116,6 +116,10 @@ typedef struct _ICMPHeader {
 	} un;
 } ICMPHeader;
 
+typedef struct _Session {
+	char data[16];
+} Session;
+
 typedef enum {
 	CONNECT_REQUEST,
 	CONNECT_RESPONSE,
@@ -126,9 +130,9 @@ typedef enum {
 } PacketType;
 
 typedef struct _PacketHeader {
-	int id;
 	PacketType type;
 	int size;
+	Session session;
 } PacketHeader;
 
 typedef struct _PacketData {
@@ -243,39 +247,23 @@ API void decrypt(char *key, char *data, int length);
 
 // peer.c
 
-typedef enum {
-	CONNECTED,
-	DISCONNECTED
-} PeerState;
-
-typedef struct _Peers {
-	struct _Peer *peers;
-	int peerCount;
-} Peers;
-
 typedef struct _Peer {
-	int id;
+	ListNode node;
 	uint32_t internal_ip;
 	struct sockaddr_in addr;
 	char key[64];
-	PeerState state;
 	int last_ping;
 	uint64_t tx;
 	uint64_t rx;
 	uint64_t quota;
+	Session session;
 } Peer;
 
-API Peers *new_peer_container(int peerCount);
-API void free_peer_container(Peers *peers);
 API void update_ping(Peer *peer);
 API bool is_unpinged(Peer *peer);
-API Peer *get_disconnected_peer(Peers *peers);
-API uint32_t get_peer_free_ip(Peers *peers);
-API Peer *get_peer_by_ip(Peers *peers, uint32_t ip);
-API Peer *get_peer_by_id(Peers *peers, int id);
-API int index_of_peer(Peers *peers, Peer *peer_i);
-API bool is_connected(Peer *peer);
-API bool is_disconnected(Peer *peer);
+API uint32_t get_peer_free_ip(List *peers);
+API Peer *get_peer_by_ip(List *peers, uint32_t ip);
+API Peer *get_peer_by_session(List *peers, Session id);
 
 // core.c
 

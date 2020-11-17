@@ -155,7 +155,7 @@ void fill_random(char *buffer, int size) {
 }
 
 char *format_size(uint64_t size) {
-    const char     *sizes[]   = { "EiB", "PiB", "TiB", "GiB", "MiB", "KiB", "B" };
+    const char     *sizes[]   = { "EB", "PB", "TB", "GB", "MB", "KB", "B" };
     const uint64_t  exbibytes = 1024ULL * 1024ULL * 1024ULL * 1024ULL * 1024ULL * 1024ULL;
 
     char     *result = (char *) malloc(sizeof(char) * 20);

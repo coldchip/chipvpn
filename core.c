@@ -73,16 +73,16 @@ void run_core(char *config) {
 		error("Unable to create socket");
 	}
 
-	Peers *peers = NULL;
+	List peers;
+	list_clear(&peers);
+
 	LOG *log = log_init();
 	Status status;
 
 	if(!is_server) {
-		peers = new_peer_container(1);
 		status = STATE_CONNECTING;
 		connect_server(socket, addr, server_token);
 	} else {
-		peers = new_peer_container(server_max_peers);
 		status = STATE_ONLINE;
 		setifip(tun, "10.0.0.1", "255.255.255.0", MAX_MTU);
 		ifup(tun);
@@ -94,10 +94,6 @@ void run_core(char *config) {
 		if(!socket_bind(socket, baddr)) {
 			error("Bind failed");
 		}
-	}
-
-	if(!peers) {
-		error("Unable to setup server");
 	}
 
 	int last_ping = 0;
@@ -119,29 +115,33 @@ void run_core(char *config) {
 
 		if((time(NULL) - last_ping) >= PING_INTERVAL) {
 			socket_service(socket);
-			int i = 0;
-			for(Peer *peer = peers->peers; peer < &peers->peers[peers->peerCount]; ++peer) {
-				if(is_connected(peer)) {
-					i++;
-					memset(&packet, 0, sizeof(Packet));
-					packet.header.type    = htonl(PING);
-					packet.header.size    = htonl(0);
-					packet.header.id      = htonl(peer->id);
-					send_peer(socket, rand(), (char*)&packet, sizeof(PacketHeader), &peer->addr, RELIABLE);
-					
-					if(is_unpinged(peer)) {
-						peer->state = DISCONNECTED;
-						if(!is_server) {
-							status = STATE_CONNECTING;
-							sleep(1);
-							connect_server(socket, addr, server_token);
-						}
+			int count = 0;
+			ListNode *i = list_begin(&peers);
+			while(i != list_end(&peers)) {
+				Peer *peer = (Peer*)i;
+
+				i = list_next(i);
+
+				count++;
+				memset(&packet, 0, sizeof(Packet));
+				packet.header.type    = htonl(PING);
+				packet.header.size    = htonl(0);
+				packet.header.session = peer->session;
+				send_peer(socket, rand(), (char*)&packet, sizeof(PacketHeader), &peer->addr, RELIABLE);
+				
+				if(is_unpinged(peer)) {
+					list_remove(&peer->node);
+					free(peer);
+					if(!is_server) {
+						status = STATE_CONNECTING;
+						sleep(1);
+						connect_server(socket, addr, server_token);
 					}
 				}
 			}
 			last_ping = time(NULL);
 
-			print_console(status, is_server, tx, rx, i, tun->dev);
+			print_console(status, is_server, tx, rx, count, tun->dev);
 		}
 
 		if(FD_ISSET(get_socket_fd(socket), &rdset)) {
@@ -150,66 +150,70 @@ void run_core(char *config) {
 				continue;
 			}
 
-			int packet_type   = ntohl(packet.header.type);
-			int packet_size   = ntohl(packet.header.size);
-			int packet_id     = ntohl(packet.header.id);
+			int     packet_type    = ntohl(packet.header.type);
+			int     packet_size    = ntohl(packet.header.size);
+			Session packet_session = packet.header.session;
 
-			Peer *peer = get_peer_by_id(peers, packet_id);
+			Peer *peer = get_peer_by_session(&peers, packet_session);
+			if(peer) {
+				// Update peer address
+				peer->addr = addr;
+			}
 
 			if(packet_type == CONNECT_RESPONSE && !is_server) {
-				Peer *peer = get_disconnected_peer(peers);
-				if(peer) {
-					int peer_ip;
-					int peer_subnet;
-					int peer_gateway;
-					int peer_mtu;
-					memcpy(&peer_ip,      ((char*)&packet.data) + (sizeof(int) * 0), sizeof(int));
-					memcpy(&peer_subnet,  ((char*)&packet.data) + (sizeof(int) * 1), sizeof(int));
-					memcpy(&peer_gateway, ((char*)&packet.data) + (sizeof(int) * 2), sizeof(int));
-					memcpy(&peer_mtu,     ((char*)&packet.data) + (sizeof(int) * 3), sizeof(int));
-					memcpy(peer->key,     ((char*)&packet.data) + (sizeof(int) * 4), 64);
+				Peer *peer_alloc = malloc(sizeof(Peer));
 
-					peer_ip      = ntohl(peer_ip); 
-					peer_subnet  = ntohl(peer_subnet); 
-					peer_gateway = ntohl(peer_gateway); 
-					peer_mtu     = ntohl(peer_mtu);
+				list_insert(list_end(&peers), peer_alloc);
 
-					char set_ip[INET_ADDRSTRLEN];
-					char set_subnet[INET_ADDRSTRLEN];
-					char set_gateway[INET_ADDRSTRLEN];
-					sprintf(set_ip,      "%i.%i.%i.%i", (peer_ip >> 0)      & 0xFF, (peer_ip >> 8)      & 0xFF, (peer_ip >> 16)      & 0xFF, (peer_ip >> 24)      & 0xFF);
-					sprintf(set_subnet,  "%i.%i.%i.%i", (peer_subnet >> 0)  & 0xFF, (peer_subnet >> 8)  & 0xFF, (peer_subnet >> 16)  & 0xFF, (peer_subnet >> 24)  & 0xFF);
-					sprintf(set_gateway, "%i.%i.%i.%i", (peer_gateway >> 0) & 0xFF, (peer_gateway >> 8) & 0xFF, (peer_gateway >> 16) & 0xFF, (peer_gateway >> 24) & 0xFF);
-					
-					setifip(tun, set_ip, set_subnet, peer_mtu);
-					ifup(tun);
+				int peer_ip;
+				int peer_subnet;
+				int peer_gateway;
+				int peer_mtu;
+				memcpy(&peer_ip,      ((char*)&packet.data) + (sizeof(int) * 0), sizeof(int));
+				memcpy(&peer_subnet,  ((char*)&packet.data) + (sizeof(int) * 1), sizeof(int));
+				memcpy(&peer_gateway, ((char*)&packet.data) + (sizeof(int) * 2), sizeof(int));
+				memcpy(&peer_mtu,     ((char*)&packet.data) + (sizeof(int) * 3), sizeof(int));
+				memcpy(peer_alloc->key, ((char*)&packet.data) + (sizeof(int) * 4), 64);
 
-					if(server_pull_routes) {
-						char default_gateway[16];
-						get_default_gateway((char*)&default_gateway);
-						if(exec_sprintf("ip route add %s via %s", server_ip, default_gateway)) {
-							//error("Set path failed");
-						}
-						if(exec_sprintf("ip route add 0.0.0.0/1 via %s", set_gateway)) {
-							//error("Set path failed");
-						}
-						if(exec_sprintf("ip route add 128.0.0.0/1 via %s", set_gateway)) {
-							//error("Set path failed");
-						}
+				peer_ip      = ntohl(peer_ip); 
+				peer_subnet  = ntohl(peer_subnet); 
+				peer_gateway = ntohl(peer_gateway); 
+				peer_mtu     = ntohl(peer_mtu);
+
+				char set_ip[INET_ADDRSTRLEN];
+				char set_subnet[INET_ADDRSTRLEN];
+				char set_gateway[INET_ADDRSTRLEN];
+				sprintf(set_ip,      "%i.%i.%i.%i", (peer_ip >> 0)      & 0xFF, (peer_ip >> 8)      & 0xFF, (peer_ip >> 16)      & 0xFF, (peer_ip >> 24)      & 0xFF);
+				sprintf(set_subnet,  "%i.%i.%i.%i", (peer_subnet >> 0)  & 0xFF, (peer_subnet >> 8)  & 0xFF, (peer_subnet >> 16)  & 0xFF, (peer_subnet >> 24)  & 0xFF);
+				sprintf(set_gateway, "%i.%i.%i.%i", (peer_gateway >> 0) & 0xFF, (peer_gateway >> 8) & 0xFF, (peer_gateway >> 16) & 0xFF, (peer_gateway >> 24) & 0xFF);
+				
+				setifip(tun, set_ip, set_subnet, peer_mtu);
+				ifup(tun);
+
+				if(server_pull_routes) {
+					char default_gateway[16];
+					get_default_gateway((char*)&default_gateway);
+					if(exec_sprintf("ip route add %s via %s", server_ip, default_gateway)) {
+						//error("Set path failed");
 					}
-
-					peer->state       = CONNECTED;
-					peer->internal_ip = peer_ip;
-					peer->addr        = addr;
-					peer->tx          = 0;
-					peer->rx          = 0;
-					peer->quota       = 5497558138880;
-					peer->id          = packet_id;
-
-					update_ping(peer);
-
-					status = STATE_CONNECTED;
+					if(exec_sprintf("ip route add 0.0.0.0/1 via %s", set_gateway)) {
+						//error("Set path failed");
+					}
+					if(exec_sprintf("ip route add 128.0.0.0/1 via %s", set_gateway)) {
+						//error("Set path failed");
+					}
 				}
+
+				peer_alloc->internal_ip = peer_ip;
+				peer_alloc->addr        = addr;
+				peer_alloc->tx          = 0;
+				peer_alloc->rx          = 0;
+				peer_alloc->quota       = 5497558138880;
+				peer_alloc->session     = packet_session;
+
+				update_ping(peer_alloc);
+
+				status = STATE_CONNECTED;
 			} else if(packet_type == CONNECT_REQUEST && is_server) {
 				char token[20];
 				int timestamp = time(NULL);
@@ -219,25 +223,26 @@ void run_core(char *config) {
 				SHA1(token, temp, sizeof(temp));
 
 				if(memcmp((char*)&packet.data, token, sizeof(token)) == 0) {
-					Peer *peer        = get_disconnected_peer(peers);
-					uint32_t alloc_ip = get_peer_free_ip(peers);
-					if(peer && alloc_ip != 0) {
-						peer->state        = CONNECTED;
-						peer->internal_ip  = alloc_ip;
-						peer->addr         = addr;
-						peer->tx           = 0;
-						peer->rx           = 0;
-						peer->quota        = 5497558138880;
+					Peer *peer_alloc  = malloc(sizeof(Peer));
+					list_insert(list_end(&peers), peer_alloc);
 
-						update_ping(peer);
+					uint32_t alloc_ip = get_peer_free_ip(&peers);
+					if(peer_alloc && alloc_ip != 0) {
+						peer_alloc->internal_ip  = alloc_ip;
+						peer_alloc->addr         = addr;
+						peer_alloc->tx           = 0;
+						peer_alloc->rx           = 0;
+						peer_alloc->quota        = 5497558138880;
 
-						fill_random((char*)&peer->key, 64);
-						peer->id = index_of_peer(peers, peer);
+						update_ping(peer_alloc);
+
+						fill_random((char*)&peer_alloc->key    , 64);
+						fill_random((char*)&peer_alloc->session, sizeof(Session));
 
 						memset(&packet, 0, sizeof(Packet));
 						packet.header.type	   = htonl(CONNECT_RESPONSE);
 						packet.header.size	   = htonl(0);
-						packet.header.id       = htonl(peer->id);
+						packet.header.session  = peer_alloc->session;
 						int tun_ip			   = htonl(alloc_ip);
 						int tun_subnet		   = htonl(inet_addr("255.255.255.0"));
 						int tun_gateway		   = htonl(inet_addr("10.0.0.1"));
@@ -246,8 +251,8 @@ void run_core(char *config) {
 						memcpy(((char*)&packet.data) + (sizeof(int) * 1), &tun_subnet,    sizeof(tun_subnet));
 						memcpy(((char*)&packet.data) + (sizeof(int) * 2), &tun_gateway,   sizeof(tun_gateway));
 						memcpy(((char*)&packet.data) + (sizeof(int) * 3), &mtu,           sizeof(mtu));
-						memcpy(((char*)&packet.data) + (sizeof(int) * 4), &peer->key, 	  64);
-						send_peer(socket, rand(), (char*)&packet, sizeof(Packet), &peer->addr, RELIABLE);
+						memcpy(((char*)&packet.data) + (sizeof(int) * 4), &peer_alloc->key, 	  64);
+						send_peer(socket, rand(), (char*)&packet, sizeof(Packet), &peer_alloc->addr, RELIABLE);
 					} else {
 						memset(&packet, 0, sizeof(Packet));
 						packet.header.type = htonl(CONNECTION_REJECTED);
@@ -297,9 +302,9 @@ void run_core(char *config) {
 
 			Peer *peer = NULL;
 			if(!is_server) {
-				peer = get_peer_by_ip(peers, ip_hdr->src_addr);
+				peer = get_peer_by_ip(&peers, ip_hdr->src_addr);
 			} else {
-				peer = get_peer_by_ip(peers, ip_hdr->dst_addr);
+				peer = get_peer_by_ip(&peers, ip_hdr->dst_addr);
 			}
 			if(peer && (peer->tx + peer->rx) < peer->quota) {
 				tx += size;
@@ -307,7 +312,7 @@ void run_core(char *config) {
 
 				packet.header.type    = htonl(DATA);
 				packet.header.size    = htonl(size);
-				packet.header.id      = htonl(peer->id);
+				packet.header.session = peer->session;
 				encrypt(peer->key, (char*)&(packet.data), sizeof(PacketData));
 				send_peer(socket, rand(), (char*)&packet, sizeof(PacketHeader) + size, &peer->addr, DATAGRAM);
 			}
