@@ -141,7 +141,7 @@ void run_core(char *config) {
 			}
 			last_ping = time(NULL);
 
-			print_console(status, is_server, tx, rx, count, tun->dev);
+			print_console(status, server_ip, server_port, is_server, tx, rx, count, tun->dev);
 		}
 
 		if(FD_ISSET(get_socket_fd(socket), &rdset)) {
@@ -215,47 +215,53 @@ void run_core(char *config) {
 
 				status = STATE_CONNECTED;
 			} else if(packet_type == CONNECT_REQUEST && is_server) {
-				char token[20];
-				int timestamp = time(NULL);
-				char temp[strlen(server_token) + sizeof(int)];
-				memcpy(temp, server_token, strlen(server_token));
-				memcpy(temp + strlen(server_token), &timestamp, sizeof(int));
-				SHA1(token, temp, sizeof(temp));
+				if(list_size(&peers) < server_max_peers) {
+					char token[20];
+					int timestamp = time(NULL);
+					char temp[strlen(server_token) + sizeof(int)];
+					memcpy(temp, server_token, strlen(server_token));
+					memcpy(temp + strlen(server_token), &timestamp, sizeof(int));
+					SHA1(token, temp, sizeof(temp));
 
-				if(memcmp((char*)&packet.data, token, sizeof(token)) == 0) {
-					Peer *peer_alloc  = malloc(sizeof(Peer));
-					list_insert(list_end(&peers), peer_alloc);
+					if(memcmp((char*)&packet.data, token, sizeof(token)) == 0) {
+						Peer *peer_alloc  = malloc(sizeof(Peer));
+						list_insert(list_end(&peers), peer_alloc);
 
-					uint32_t alloc_ip = get_peer_free_ip(&peers);
-					if(peer_alloc && alloc_ip != 0) {
-						peer_alloc->internal_ip  = alloc_ip;
-						peer_alloc->addr         = addr;
-						peer_alloc->tx           = 0;
-						peer_alloc->rx           = 0;
-						peer_alloc->quota        = 5497558138880;
+						uint32_t alloc_ip = get_peer_free_ip(&peers);
+						if(peer_alloc && alloc_ip != 0) {
+							peer_alloc->internal_ip  = alloc_ip;
+							peer_alloc->addr         = addr;
+							peer_alloc->tx           = 0;
+							peer_alloc->rx           = 0;
+							peer_alloc->quota        = 5497558138880;
 
-						update_ping(peer_alloc);
+							update_ping(peer_alloc);
 
-						fill_random((char*)&peer_alloc->key    , 64);
-						fill_random((char*)&peer_alloc->session, sizeof(Session));
+							fill_random((char*)&peer_alloc->key    , 64);
+							fill_random((char*)&peer_alloc->session, sizeof(Session));
 
-						memset(&packet, 0, sizeof(Packet));
-						packet.header.type	   = htonl(CONNECT_RESPONSE);
-						packet.header.size	   = htonl(0);
-						packet.header.session  = peer_alloc->session;
-						int tun_ip			   = htonl(alloc_ip);
-						int tun_subnet		   = htonl(inet_addr("255.255.255.0"));
-						int tun_gateway		   = htonl(inet_addr("10.0.0.1"));
-						int mtu				   = htonl(MAX_MTU);
-						memcpy(((char*)&packet.data) + (sizeof(int) * 0), &tun_ip,        sizeof(tun_ip));
-						memcpy(((char*)&packet.data) + (sizeof(int) * 1), &tun_subnet,    sizeof(tun_subnet));
-						memcpy(((char*)&packet.data) + (sizeof(int) * 2), &tun_gateway,   sizeof(tun_gateway));
-						memcpy(((char*)&packet.data) + (sizeof(int) * 3), &mtu,           sizeof(mtu));
-						memcpy(((char*)&packet.data) + (sizeof(int) * 4), &peer_alloc->key, 	  64);
-						send_peer(socket, rand(), (char*)&packet, sizeof(Packet), &peer_alloc->addr, RELIABLE);
+							memset(&packet, 0, sizeof(Packet));
+							packet.header.type	   = htonl(CONNECT_RESPONSE);
+							packet.header.size	   = htonl(0);
+							packet.header.session  = peer_alloc->session;
+							int tun_ip			   = htonl(alloc_ip);
+							int tun_subnet		   = htonl(inet_addr("255.255.255.0"));
+							int tun_gateway		   = htonl(inet_addr("10.0.0.1"));
+							int mtu				   = htonl(MAX_MTU);
+							memcpy(((char*)&packet.data) + (sizeof(int) * 0), &tun_ip,        sizeof(tun_ip));
+							memcpy(((char*)&packet.data) + (sizeof(int) * 1), &tun_subnet,    sizeof(tun_subnet));
+							memcpy(((char*)&packet.data) + (sizeof(int) * 2), &tun_gateway,   sizeof(tun_gateway));
+							memcpy(((char*)&packet.data) + (sizeof(int) * 3), &mtu,           sizeof(mtu));
+							memcpy(((char*)&packet.data) + (sizeof(int) * 4), &peer_alloc->key, 	  64);
+							send_peer(socket, rand(), (char*)&packet, sizeof(Packet), &peer_alloc->addr, RELIABLE);
+						} else {
+							memset(&packet, 0, sizeof(Packet));
+							packet.header.type = htonl(CONNECTION_REJECTED);
+							send_peer(socket, rand(), (char*)&packet, sizeof(Packet), &addr, RELIABLE);
+						}
 					} else {
 						memset(&packet, 0, sizeof(Packet));
-						packet.header.type = htonl(CONNECTION_REJECTED);
+						packet.header.type = htonl(LOGIN_FAILED);
 						send_peer(socket, rand(), (char*)&packet, sizeof(Packet), &addr, RELIABLE);
 					}
 				} else {
@@ -320,7 +326,7 @@ void run_core(char *config) {
 	}
 }
 
-void print_console(Status status, bool is_server, uint64_t tx, uint64_t rx, int peers, char *dev) {
+void print_console(Status status, char *server_ip, char *server_port, bool is_server, uint64_t tx, uint64_t rx, int peers, char *dev) {
 	struct winsize w;
 	ioctl(0, TIOCGWINSZ, &w);
 	printf("\033[0;0H");
@@ -358,6 +364,13 @@ void print_console(Status status, bool is_server, uint64_t tx, uint64_t rx, int 
 		break;
 	}
 	printf("\033[0m\n");
+	if(is_server) {
+		printf("Bind     ");
+		printf("%*s%s:%s\n", w.ws_col / 3, "", server_ip, server_port);
+	} else {
+		printf("Server   ");
+		printf("%*s%s:%s\n", w.ws_col / 3, "", server_ip, server_port);
+	}
 	printf("Region   ");
 	printf("%*s%s\n", w.ws_col / 3, "", "Singapore");
 	printf("Interface");

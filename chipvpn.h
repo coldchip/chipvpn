@@ -276,7 +276,7 @@ typedef enum {
 
 void connect_server(Socket *socket, struct sockaddr_in addr, char *token);
 API void run_core(char *config);
-void print_console(Status status, bool is_server, uint64_t tx, uint64_t rx, int peers, char *dev);
+void print_console(Status status, char *server_ip, char *server_port, bool is_server, uint64_t tx, uint64_t rx, int peers, char *dev);
 void stop_core();
 
 
