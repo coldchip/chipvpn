@@ -156,26 +156,43 @@ API void console_log(char *format, ...);
 API void fill_random(char *buffer, int size);
 API char *format_size(uint64_t size);
 
-// log.c
-
-typedef struct _LOG {
-	FILE *fp;
-} LOG;
-
-API LOG *log_init();
-API void log_packet(LOG *log, IPPacket *packet);
-API void log_free(LOG *log);
-
 // firewall.c
 
 API bool validate_packet(char *stream);
+
+// fragment.c
+
+typedef struct _FragmentEntry {
+	ListNode node;
+	int id;
+	int size;
+	int offset;
+	int count;
+	int expiry;
+	char *data;
+} FragmentEntry;
+
+typedef struct _FragmentQueue {
+	List entries;
+	int queue_size;
+} FragmentQueue;
+
+FragmentQueue *new_queue(uint32_t queue_size);
+FragmentEntry *new_entry(uint32_t id, char *data, uint32_t offset, uint32_t size, uint32_t count);
+
+void queue_service(FragmentQueue * queue);
+void queue_insert(FragmentQueue *queue, uint32_t id, char *data, uint32_t offset, uint32_t size, uint32_t count);
+void queue_remove(FragmentQueue *queue, uint32_t id);
+int queue_ready(FragmentQueue *queue, char *data, uint32_t max_size);
+
+void free_entry(FragmentEntry *entry);
+void free_queue(FragmentQueue *queue);
 
 // socket.c
 
 typedef struct _Socket {
 	int fd;
-	List defrag_queue;
-	List tx_queue;
+	FragmentQueue *frag_queue;
 } Socket;
 
 typedef enum {
@@ -185,40 +202,21 @@ typedef enum {
 } SendType;
 
 typedef struct _FragmentHeader {
-	int fragment;
 	int size;
-	int offset;
+	int count;
+	int index;
 	int id;
-	int seqid;
-	int max_frag;
-	SendType type;
+	int offset;
 } FragmentHeader;
 
 typedef struct _FragmentData {
-	char data[5000];
+	char data[10000];
 } FragmentData;
 
 typedef struct _Fragment {
 	FragmentHeader header;
 	FragmentData   data;
 } Fragment;
-
-typedef struct _ReceiveQueue {
-	ListNode node;
-	Fragment packet;
-} ReceiveQueue;
-
-typedef struct _TransmitQueue {
-	ListNode node;
-	int seqid;
-	struct sockaddr_in addr;
-	int size;
-	char *data;
-	int time;
-} TransmitQueue;
-
-void remove_receipt_from_queue(List *queue, int to_remove);
-void remove_id_from_queue(List *queue, int to_remove);
 
 API Socket *new_socket();
 API bool socket_bind(Socket *socket, struct sockaddr_in addr);

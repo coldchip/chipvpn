@@ -24,7 +24,7 @@ uint32_t get_peer_free_ip(List *peers) {
 	uint32_t end   = inet_addr("10.0.0.200");
 	bool     trip  = false;
 
-	for(int ip = ntohl(start); ip < ntohl(end); ip++) {
+	for(uint32_t ip = ntohl(start); ip < ntohl(end); ip++) {
 		trip = false;
 		for(ListNode *i = list_begin(peers); i != list_end(peers); i = list_next(i)) {
 			Peer *peer = (Peer*)i;

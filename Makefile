@@ -6,7 +6,7 @@ OUTPUT1=build/chipvpn_router
 .PHONY: install
 
 module:
-	$(COMPILER) *.c -o $(OUTPUT) -Wall -Ofast -s
+	$(COMPILER) *.c -o $(OUTPUT) -Wall -Ofast
 	#$(COMPILER1) *.c -o $(OUTPUT1) -Wall -lm -lpthread -Ofast
 install:
 	-systemctl stop chipvpn
@@ -16,4 +16,6 @@ install:
 	cp build/chipvpn /usr/local/sbin
 	systemctl daemon-reload
 upload:
-	scp -r /home/ryan/chipvpn/* ryan@35.240.200.48:/home/ryan/chipvpn
+	scp -r /home/ryan/chipvpn/* ryan@34.87.165.28:/home/ryan/chipvpn
+upload2:
+	scp -r /home/ryan/chipvpn/* ryan@192.168.0.100:/home/ryan/chipvpn

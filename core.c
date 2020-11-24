@@ -9,7 +9,6 @@
 #include <sys/types.h>
 #include <arpa/inet.h> 
 #include <netinet/in.h>
-#include <netinet/tcp.h>
 #include <sys/ioctl.h>
 #include "sha1.h"
 #include "chipvpn.h"
@@ -76,11 +75,10 @@ void run_core(char *config) {
 	List peers;
 	list_clear(&peers);
 
-	LOG *log = log_init();
 	Status status;
 
 	if(!is_server) {
-		status = STATE_CONNECTING;
+		status = STATE_DISCONNECTED;
 		connect_server(socket, addr, server_token);
 	} else {
 		status = STATE_ONLINE;
@@ -133,15 +131,17 @@ void run_core(char *config) {
 					list_remove(&peer->node);
 					free(peer);
 					if(!is_server) {
-						status = STATE_CONNECTING;
-						sleep(1);
-						connect_server(socket, addr, server_token);
+						status = STATE_DISCONNECTED;
 					}
 				}
 			}
 			last_ping = time(NULL);
 
 			print_console(status, server_ip, server_port, is_server, tx, rx, count, tun->dev);
+		
+			if(!is_server && status == STATE_DISCONNECTED) {
+				connect_server(socket, addr, server_token);
+			}
 		}
 
 		if(FD_ISSET(get_socket_fd(socket), &rdset)) {
@@ -161,19 +161,22 @@ void run_core(char *config) {
 			}
 
 			if(packet_type == CONNECT_RESPONSE && !is_server) {
+				if(list_size(&peers) >= 1) {
+					continue;
+				}
 				Peer *peer_alloc = malloc(sizeof(Peer));
 
 				list_insert(list_end(&peers), peer_alloc);
 
-				int peer_ip;
-				int peer_subnet;
-				int peer_gateway;
-				int peer_mtu;
-				memcpy(&peer_ip,      ((char*)&packet.data) + (sizeof(int) * 0), sizeof(int));
-				memcpy(&peer_subnet,  ((char*)&packet.data) + (sizeof(int) * 1), sizeof(int));
-				memcpy(&peer_gateway, ((char*)&packet.data) + (sizeof(int) * 2), sizeof(int));
-				memcpy(&peer_mtu,     ((char*)&packet.data) + (sizeof(int) * 3), sizeof(int));
-				memcpy(peer_alloc->key, ((char*)&packet.data) + (sizeof(int) * 4), 64);
+				uint32_t peer_ip;
+				uint32_t peer_subnet;
+				uint32_t peer_gateway;
+				uint32_t peer_mtu;
+				memcpy(&peer_ip,      ((char*)&packet.data) + (sizeof(uint32_t) * 0), sizeof(int));
+				memcpy(&peer_subnet,  ((char*)&packet.data) + (sizeof(uint32_t) * 1), sizeof(int));
+				memcpy(&peer_gateway, ((char*)&packet.data) + (sizeof(uint32_t) * 2), sizeof(int));
+				memcpy(&peer_mtu,     ((char*)&packet.data) + (sizeof(uint32_t) * 3), sizeof(int));
+				memcpy(peer_alloc->key, ((char*)&packet.data) + (sizeof(uint32_t) * 4), 64);
 
 				peer_ip      = ntohl(peer_ip); 
 				peer_subnet  = ntohl(peer_subnet); 
@@ -244,15 +247,15 @@ void run_core(char *config) {
 							packet.header.type	   = htonl(CONNECT_RESPONSE);
 							packet.header.size	   = htonl(0);
 							packet.header.session  = peer_alloc->session;
-							int tun_ip			   = htonl(alloc_ip);
-							int tun_subnet		   = htonl(inet_addr("255.255.255.0"));
-							int tun_gateway		   = htonl(inet_addr("10.0.0.1"));
-							int mtu				   = htonl(MAX_MTU);
-							memcpy(((char*)&packet.data) + (sizeof(int) * 0), &tun_ip,        sizeof(tun_ip));
-							memcpy(((char*)&packet.data) + (sizeof(int) * 1), &tun_subnet,    sizeof(tun_subnet));
-							memcpy(((char*)&packet.data) + (sizeof(int) * 2), &tun_gateway,   sizeof(tun_gateway));
-							memcpy(((char*)&packet.data) + (sizeof(int) * 3), &mtu,           sizeof(mtu));
-							memcpy(((char*)&packet.data) + (sizeof(int) * 4), &peer_alloc->key, 	  64);
+							uint32_t tun_ip        = htonl(alloc_ip);
+							uint32_t tun_subnet    = htonl(inet_addr("255.255.255.0"));
+							uint32_t tun_gateway   = htonl(inet_addr("10.0.0.1"));
+							uint32_t mtu           = htonl(MAX_MTU);
+							memcpy(((char*)&packet.data) + (sizeof(uint32_t) * 0), &tun_ip,        sizeof(tun_ip));
+							memcpy(((char*)&packet.data) + (sizeof(uint32_t) * 1), &tun_subnet,    sizeof(tun_subnet));
+							memcpy(((char*)&packet.data) + (sizeof(uint32_t) * 2), &tun_gateway,   sizeof(tun_gateway));
+							memcpy(((char*)&packet.data) + (sizeof(uint32_t) * 3), &mtu,           sizeof(mtu));
+							memcpy(((char*)&packet.data) + (sizeof(uint32_t) * 4), &peer_alloc->key, 	  64);
 							send_peer(socket, rand(), (char*)&packet, sizeof(Packet), &peer_alloc->addr, RELIABLE);
 						} else {
 							memset(&packet, 0, sizeof(Packet));
@@ -279,7 +282,6 @@ void run_core(char *config) {
 						(packet_size > 0 && packet_size <= (MAX_MTU))
 					) {
 						// Check if source is same as peer(Prevents IP spoofing) and bound packet to mtu size
-						log_packet(log, ip_hdr);
 						rx += packet_size;
 						peer->rx += packet_size;
 						if(write(tun->fd, (char*)&(packet.data), packet_size)) {}
@@ -290,13 +292,9 @@ void run_core(char *config) {
 					update_ping(peer);
 				}
 			} else if(packet_type == LOGIN_FAILED && !is_server) {
-				status = STATE_CONNECTING;
-				sleep(1);
-				connect_server(socket, addr, server_token);
+				status = STATE_DISCONNECTED;
 			} else if(packet_type == CONNECTION_REJECTED && !is_server) {
-				status = STATE_CONNECTING;
-				sleep(1);
-				connect_server(socket, addr, server_token);
+				status = STATE_DISCONNECTED;
 			}
 		}
 
@@ -343,7 +341,7 @@ void print_console(Status status, char *server_ip, char *server_port, bool is_se
 	printf("\x1b[32mStatus   ");
 	switch(status) {
 		case STATE_DISCONNECTED: {
-			printf("\x1b[32m%*s%s", w.ws_col / 3, "", "disconnected");
+			printf("\x1b[31m%*s%s", w.ws_col / 3, "", "disconnected");
 		}
 		break;
 		case STATE_CONNECTING: {
