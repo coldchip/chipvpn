@@ -37,6 +37,7 @@ void socket_service(Socket *socket) {
 		FragmentEntry *entry = (FragmentEntry*)i;
 		i = list_next(i);
 		if(time(NULL) > entry->expiry) {
+			// Free fragment if it expires
 			free_frag_entry(entry);
 		}
 	}
@@ -45,7 +46,13 @@ void socket_service(Socket *socket) {
 	while(e != list_end(&socket->ack_queue)) {
 		ACKEntry *entry = (ACKEntry*)e;
 		e = list_next(e);
-		send_peer_frag(socket, entry->id, entry->data, entry->size, entry->addr, RELIABLE);
+		if(time(NULL) > entry->expiry) {
+			// Delete ACK if it expires
+			free_ack_entry(entry);
+		} else {
+			// Resend ACK
+			send_peer_frag(socket, entry->id, entry->data, entry->size, entry->addr, RELIABLE);
+		}
 	}
 }
 
@@ -55,13 +62,14 @@ void send_peer(Socket *socket, void *data, int size, struct sockaddr_in addr, Se
 	send_peer_frag(socket, rand_id, data, size, addr, type);
 
 	if(type == RELIABLE) {
+		// Queue if type is reliable
 		ack_queue_insert(socket, rand_id, data, size, addr);
 	}
 }
 
 void send_peer_frag(Socket *socket, uint32_t id, void *data, int size, struct sockaddr_in addr, SendType type) {
 	Fragment fragment;
-	int mss    = 400;
+	int mss    = 1300;
 	int pieces = floor(size / mss);
 
 	for(int i = 0; i <= pieces; i++) {
@@ -146,8 +154,8 @@ void socket_free(Socket *socket) {
 
 void frag_queue_insert(Socket *socket, Fragment fragment, struct sockaddr_in addr) {
 	FragmentEntry *entry = malloc(sizeof(FragmentEntry));
-	entry->addr          = addr;
 	entry->expiry        = time(NULL) + 2;
+	entry->addr          = addr;
 	entry->fragment      = fragment;
 
 	list_insert(list_end(&socket->frag_queue), entry);
@@ -181,10 +189,11 @@ void free_frag_entry(FragmentEntry *entry) {
 
 void ack_queue_insert(Socket *socket, uint32_t id, char *data, int size, struct sockaddr_in addr) {
 	ACKEntry *entry = malloc(sizeof(ACKEntry));
-	entry->id   = id;
-	entry->data = malloc(sizeof(char) * size);
-	entry->size = size;
-	entry->addr = addr;
+	entry->expiry = time(NULL) + 10;
+	entry->id     = id;
+	entry->data   = malloc(sizeof(char) * size);
+	entry->size   = size;
+	entry->addr   = addr;
 
 	memcpy(entry->data, data, size);
 

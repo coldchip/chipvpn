@@ -202,6 +202,7 @@ typedef struct _FragmentEntry {
 
 typedef struct _ACKEntry {
 	ListNode node;
+	uint32_t expiry;
 	uint32_t id;
 	struct sockaddr_in addr;
 	char *data;
