@@ -160,39 +160,13 @@ API char *format_size(uint64_t size);
 
 API bool validate_packet(char *stream);
 
-// fragment.c
-
-typedef struct _FragmentEntry {
-	ListNode node;
-	int id;
-	int size;
-	int offset;
-	int count;
-	int expiry;
-	char *data;
-} FragmentEntry;
-
-typedef struct _FragmentQueue {
-	List entries;
-	int queue_size;
-} FragmentQueue;
-
-FragmentQueue *new_queue(uint32_t queue_size);
-FragmentEntry *new_entry(uint32_t id, char *data, uint32_t offset, uint32_t size, uint32_t count);
-
-void queue_service(FragmentQueue * queue);
-void queue_insert(FragmentQueue *queue, uint32_t id, char *data, uint32_t offset, uint32_t size, uint32_t count);
-void queue_remove(FragmentQueue *queue, uint32_t id);
-int queue_ready(FragmentQueue *queue, char *data, uint32_t max_size);
-
-void free_entry(FragmentEntry *entry);
-void free_queue(FragmentQueue *queue);
-
 // socket.c
 
 typedef struct _Socket {
 	int fd;
-	FragmentQueue *frag_queue;
+	int queue_size;
+	List frag_queue;
+	List ack_queue;
 } Socket;
 
 typedef enum {
@@ -202,6 +176,7 @@ typedef enum {
 } SendType;
 
 typedef struct _FragmentHeader {
+	SendType type;
 	int size;
 	int count;
 	int index;
@@ -218,13 +193,37 @@ typedef struct _Fragment {
 	FragmentData   data;
 } Fragment;
 
+typedef struct _FragmentEntry {
+	ListNode node;
+	uint32_t expiry;
+	struct sockaddr_in addr;
+	Fragment fragment;
+} FragmentEntry;
+
+typedef struct _ACKEntry {
+	ListNode node;
+	uint32_t id;
+	struct sockaddr_in addr;
+	char *data;
+	int size;
+} ACKEntry;
+
 API Socket *new_socket();
 API bool socket_bind(Socket *socket, struct sockaddr_in addr);
 API int get_socket_fd(Socket *socket);
 API void socket_service(Socket *socket);
-API void send_peer(Socket *socket, int seqid, void *data, int size, struct sockaddr_in *addr, SendType type);
+API void send_peer(Socket *socket, void *data, int size, struct sockaddr_in addr, SendType type);
+API void send_peer_frag(Socket *socket, uint32_t id, void *data, int size, struct sockaddr_in addr, SendType type);
 API bool recv_peer(Socket *socket, void *data, int size, struct sockaddr_in *addr);
 API void socket_free(Socket *socket);
+
+void frag_queue_insert(Socket *socket, Fragment fragment, struct sockaddr_in addr);
+void frag_queue_remove(Socket *socket, uint32_t id);
+void free_frag_entry(FragmentEntry *entry);
+
+void ack_queue_insert(Socket *socket, uint32_t id, char *data, int size, struct sockaddr_in addr);
+void ack_queue_remove(Socket *socket, uint32_t id);
+void free_ack_entry(ACKEntry *entry);
 
 // tun.c
 

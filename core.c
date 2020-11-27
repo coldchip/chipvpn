@@ -10,6 +10,7 @@
 #include <arpa/inet.h> 
 #include <netinet/in.h>
 #include <sys/ioctl.h>
+#include <math.h>
 #include "sha1.h"
 #include "chipvpn.h"
 
@@ -18,12 +19,12 @@ void connect_server(Socket *socket, struct sockaddr_in addr, char *token) {
 	memset(&packet, 0, sizeof(Packet));
 	packet.header.type    = htonl(CONNECT_REQUEST);
 	packet.header.size    = htonl(0);
-	int timestamp = time(NULL);
+	int timestamp = floor(time(NULL) / 15);
 	char temp[strlen(token) + sizeof(int)];
 	memcpy(temp, token, strlen(token));
 	memcpy(temp + strlen(token), &timestamp, sizeof(int));
 	SHA1((char*)&packet.data, temp, sizeof(temp));
-	send_peer(socket, rand(), (char*)&packet, sizeof(Packet), &addr, RELIABLE);
+	send_peer(socket, (char*)&packet, sizeof(Packet), addr, RELIABLE);
 }
 
 void run_core(char *config) {
@@ -125,7 +126,7 @@ void run_core(char *config) {
 				packet.header.type    = htonl(PING);
 				packet.header.size    = htonl(0);
 				packet.header.session = peer->session;
-				send_peer(socket, rand(), (char*)&packet, sizeof(PacketHeader), &peer->addr, RELIABLE);
+				send_peer(socket, (char*)&packet, sizeof(PacketHeader), peer->addr, RELIABLE);
 				
 				if(is_unpinged(peer)) {
 					list_remove(&peer->node);
@@ -139,9 +140,6 @@ void run_core(char *config) {
 
 			print_console(status, server_ip, server_port, is_server, tx, rx, count, tun->dev);
 		
-			if(!is_server && status == STATE_DISCONNECTED) {
-				connect_server(socket, addr, server_token);
-			}
 		}
 
 		if(FD_ISSET(get_socket_fd(socket), &rdset)) {
@@ -220,7 +218,7 @@ void run_core(char *config) {
 			} else if(packet_type == CONNECT_REQUEST && is_server) {
 				if(list_size(&peers) < server_max_peers) {
 					char token[20];
-					int timestamp = time(NULL);
+					int timestamp = floor(time(NULL) / 15);
 					char temp[strlen(server_token) + sizeof(int)];
 					memcpy(temp, server_token, strlen(server_token));
 					memcpy(temp + strlen(server_token), &timestamp, sizeof(int));
@@ -256,21 +254,21 @@ void run_core(char *config) {
 							memcpy(((char*)&packet.data) + (sizeof(uint32_t) * 2), &tun_gateway,   sizeof(tun_gateway));
 							memcpy(((char*)&packet.data) + (sizeof(uint32_t) * 3), &mtu,           sizeof(mtu));
 							memcpy(((char*)&packet.data) + (sizeof(uint32_t) * 4), &peer_alloc->key, 	  64);
-							send_peer(socket, rand(), (char*)&packet, sizeof(Packet), &peer_alloc->addr, RELIABLE);
+							send_peer(socket, (char*)&packet, sizeof(Packet), peer_alloc->addr, RELIABLE);
 						} else {
 							memset(&packet, 0, sizeof(Packet));
 							packet.header.type = htonl(CONNECTION_REJECTED);
-							send_peer(socket, rand(), (char*)&packet, sizeof(Packet), &addr, RELIABLE);
+							send_peer(socket, (char*)&packet, sizeof(Packet), addr, RELIABLE);
 						}
 					} else {
 						memset(&packet, 0, sizeof(Packet));
 						packet.header.type = htonl(LOGIN_FAILED);
-						send_peer(socket, rand(), (char*)&packet, sizeof(Packet), &addr, RELIABLE);
+						send_peer(socket, (char*)&packet, sizeof(Packet), addr, RELIABLE);
 					}
 				} else {
 					memset(&packet, 0, sizeof(Packet));
 					packet.header.type = htonl(LOGIN_FAILED);
-					send_peer(socket, rand(), (char*)&packet, sizeof(Packet), &addr, RELIABLE);
+					send_peer(socket, (char*)&packet, sizeof(Packet), addr, RELIABLE);
 				}
 			} else if(packet_type == DATA) {
 				if(peer && (peer->tx + peer->rx) < peer->quota) {
@@ -318,7 +316,7 @@ void run_core(char *config) {
 				packet.header.size    = htonl(size);
 				packet.header.session = peer->session;
 				encrypt(peer->key, (char*)&(packet.data), sizeof(PacketData));
-				send_peer(socket, rand(), (char*)&packet, sizeof(PacketHeader) + size, &peer->addr, DATAGRAM);
+				send_peer(socket, (char*)&packet, sizeof(PacketHeader) + size, peer->addr, DATAGRAM);
 			}
 		}
 	}
