@@ -16,15 +16,35 @@ Socket *new_socket() {
 
 	socket->queue_size = 50;
 	list_clear(&socket->frag_queue);
-	list_clear(&socket->ack_queue);
+	list_clear(&socket->peers);
 	return socket;
 }
 
-bool socket_bind(Socket *socket, struct sockaddr_in addr) {
+bool socket_bind(Socket *socket, char *ip, int port) {
+	struct sockaddr_in     addr;
+	addr.sin_family      = AF_INET;
+	addr.sin_addr.s_addr = inet_addr(ip); 
+	addr.sin_port        = htons(port);
+
 	if(bind(socket->fd, (struct sockaddr *)&addr, sizeof(addr)) == 0) { 
 		return true;
 	}
 	return false;
+}
+
+void socket_connect(Socket *socket, char *ip, int port) {
+	struct sockaddr_in     addr;
+	addr.sin_family      = AF_INET;
+	addr.sin_addr.s_addr = inet_addr(ip); 
+	addr.sin_port        = htons(port);
+
+	Packet packet;
+	packet.header.type    = htonl(PT_CONNECT_SYN);
+	packet.header.size    = htonl(0);
+	packet.header.seqid   = htonl(10);
+	packet.header.ackid   = htonl(0);
+
+	socket_send_fragment(socket, (char*)&packet, sizeof(PacketHeader), addr);
 }
 
 int get_socket_fd(Socket *socket) {
@@ -32,42 +52,132 @@ int get_socket_fd(Socket *socket) {
 }
 
 void socket_service(Socket *socket) {
-	ListNode *i = list_begin(&socket->frag_queue);
-	while(i != list_end(&socket->frag_queue)) {
-		FragmentEntry *entry = (FragmentEntry*)i;
+	int count = 0;
+	ListNode *i = list_begin(&socket->peers);
+	while(i != list_end(&socket->peers)) {
+		Peer *peer = (Peer*)i;
+
 		i = list_next(i);
+
+		count++;
+
+		Packet packet;
+		packet.header.type     = htonl(PT_PING);
+		packet.header.session  = peer->session;
+		packet.header.size     = htonl(0);
+		packet.header.seqid    = htonl(peer->seqid);
+		packet.header.ackid    = htonl(peer->ackid);
+		socket_send_fragment(socket, (char*)&packet, sizeof(PacketHeader), peer->addr);
+
+		if(is_unpinged(peer)) {
+			printf("PEER delete\n");
+			list_remove(&peer->node);
+			free(peer);
+		}
+	}
+
+	ListNode *j = list_begin(&socket->frag_queue);
+	while(j != list_end(&socket->frag_queue)) {
+		FragmentEntry *entry = (FragmentEntry*)j;
+		j = list_next(j);
 		if(time(NULL) > entry->expiry) {
 			// Free fragment if it expires
 			free_frag_entry(entry);
 		}
 	}
+}
 
-	ListNode *e = list_begin(&socket->ack_queue);
-	while(e != list_end(&socket->ack_queue)) {
-		ACKEntry *entry = (ACKEntry*)e;
-		e = list_next(e);
-		if(time(NULL) > entry->expiry) {
-			// Delete ACK if it expires
-			free_ack_entry(entry);
-		} else {
-			// Resend ACK
-			send_peer_frag(socket, entry->id, entry->data, entry->size, entry->addr, RELIABLE);
+void socket_send(Socket *socket, Peer *peer, char *data, int size, SendType type) {
+	// send_peer: Packet sequencing and reliability layer
+	// Packet fragmentation will be handled in socket_send_fragment
+
+	Packet packet;
+	packet.header.type     = htonl(PT_DATA);
+	packet.header.session  = peer->session;
+	packet.header.size     = htonl(size);
+
+	packet.header.seqid    = htonl(peer->seqid);
+	packet.header.ackid    = htonl(peer->ackid);
+
+	if(data != NULL) {
+		memcpy((char*)&packet.data, data, size);
+	}
+	socket_send_fragment(socket, (char*)&packet, sizeof(PacketHeader) + size, peer->addr);
+}
+
+int socket_recv(Socket *socket, Peer **peer, char *data, int size, EventType *type) {
+	// @return: -1 = error, 0 = not ready, > 0 data available
+	Packet packet;
+	struct sockaddr_in addr;
+	if(!socket_recv_fragment(socket, (char*)&packet, sizeof(Packet), &addr)) {
+		*type = EVENT_NONE;
+		return 0;
+	}
+
+	int      packet_type    = ntohl(packet.header.type);
+	int      packet_size    = ntohl(packet.header.size);
+	uint32_t packet_seqid   = ntohl(packet.header.seqid);
+	uint32_t packet_ackid   = ntohl(packet.header.ackid);
+	Session  packet_session = packet.header.session;
+
+	if(packet_type == PT_CONNECT_SYN) {
+		// Do connect server side
+		Peer *peer_alloc  = malloc(sizeof(Peer));
+		peer_alloc->addr  = addr;
+		peer_alloc->seqid = 0;
+		peer_alloc->ackid = packet_seqid + 1;
+		update_ping(peer_alloc);
+		fill_random((char*)&peer_alloc->session, sizeof(Session));
+		list_insert(list_end(&socket->peers), peer_alloc);
+
+		Packet synack;
+		synack.header.type     = htonl(PT_CONNECT_ACK);
+		synack.header.session  = peer_alloc->session;
+		synack.header.size     = htonl(size);
+
+		synack.header.seqid    = htonl(0);
+		synack.header.ackid    = htonl(0);
+
+		socket_send_fragment(socket, (char*)&synack, sizeof(PacketHeader), addr);
+		*peer = peer_alloc;
+		*type = EVENT_CONNECT;
+		printf("CONNECT SYN\n");
+		return 1;
+	} else if(packet_type == PT_CONNECT_ACK) {
+		// Client side
+		Peer *peer_alloc = malloc(sizeof(Peer));
+		peer_alloc->addr    = addr;
+		peer_alloc->seqid   = 0;
+		peer_alloc->ackid   = packet_seqid + 1;
+		peer_alloc->session = packet_session;
+		update_ping(peer_alloc);
+
+		list_insert(list_end(&socket->peers), peer_alloc);
+		*peer = peer_alloc;
+		*type = EVENT_CONNECT;
+		printf("CONNECT ACK\n");
+		return 1;
+	} else {
+		*peer = get_peer_by_session(&socket->peers, packet_session);
+		if(*peer) {
+			if(packet_type == PT_PING) {
+				printf("Update peer, %li peer(s) left\n", list_size(&socket->peers));
+				update_ping(*peer);
+			} else {
+				// TODO: check for packet_size to prevent buffer overflow
+				memcpy(data, (char*)&packet.data, packet_size);
+				*type = EVENT_RECEIVE;
+				return packet_size;
+			}
 		}
 	}
+	*type = EVENT_NONE;
+	return -1;
 }
 
-void send_peer(Socket *socket, void *data, int size, struct sockaddr_in addr, SendType type) {
-	uint32_t rand_id = rand();
+void socket_send_fragment(Socket *socket, void *data, int size, struct sockaddr_in addr) {
+	uint32_t id = rand();
 
-	send_peer_frag(socket, rand_id, data, size, addr, type);
-
-	if(type == RELIABLE) {
-		// Queue if type is reliable
-		ack_queue_insert(socket, rand_id, data, size, addr);
-	}
-}
-
-void send_peer_frag(Socket *socket, uint32_t id, void *data, int size, struct sockaddr_in addr, SendType type) {
 	Fragment fragment;
 	int mss    = 1300;
 	int pieces = floor(size / mss);
@@ -75,7 +185,6 @@ void send_peer_frag(Socket *socket, uint32_t id, void *data, int size, struct so
 	for(int i = 0; i <= pieces; i++) {
 		int offset = i * mss;
 		int frag_size  = i == pieces ? size - offset : mss;
-		fragment.header.type     = htonl(type);
 		fragment.header.index    = htonl(i);
 		fragment.header.count    = htonl(pieces);
 		fragment.header.size     = htonl(frag_size);
@@ -91,24 +200,17 @@ void send_peer_frag(Socket *socket, uint32_t id, void *data, int size, struct so
 	}
 }
 
-bool recv_peer(Socket *socket, void *data, int size, struct sockaddr_in *addr) {
+bool socket_recv_fragment(Socket *socket, void *data, int size, struct sockaddr_in *addr) {
 	socklen_t len = sizeof(struct sockaddr_in);
 
 	Fragment fragment;
 
 	if(recvfrom(socket->fd, (char*)&fragment, sizeof(Fragment), MSG_WAITALL, (struct sockaddr *)addr, &len) > 0) {
-		SendType type = ntohl(fragment.header.type);
-		uint32_t id   = ntohl(fragment.header.id);
-		if(type == ACK) {
-			ack_queue_remove(socket, id);
-		} else {
-			frag_queue_insert(socket, fragment, *addr);
-		}
+		frag_queue_insert(socket, fragment, *addr);
 	}
 
 	for(ListNode *i = list_begin(&socket->frag_queue); i != list_end(&socket->frag_queue); i = list_next(i)) {
 		FragmentEntry *head_entry = (FragmentEntry*)i;
-		SendType type       = ntohl(head_entry->fragment.header.type);
 		uint32_t head_id    = ntohl(head_entry->fragment.header.id);
 		uint32_t head_count = ntohl(head_entry->fragment.header.count);
 
@@ -125,9 +227,6 @@ bool recv_peer(Socket *socket, void *data, int size, struct sockaddr_in *addr) {
 					counter++;
 					memcpy(data + entry_offset, (char*)&entry->fragment.data, entry_size);
 					if(counter > head_count) {
-						if(type == RELIABLE) {
-							send_peer_frag(socket, head_id, NULL, 0, head_entry->addr, ACK);
-						}
 						frag_queue_remove(socket, head_id);
 						return true;
 					}
@@ -180,45 +279,5 @@ void frag_queue_remove(Socket *socket, uint32_t id) {
 
 void free_frag_entry(FragmentEntry *entry) {
 	list_remove(&entry->node);
-	free(entry);
-}
-
-
-
-
-
-void ack_queue_insert(Socket *socket, uint32_t id, char *data, int size, struct sockaddr_in addr) {
-	ACKEntry *entry = malloc(sizeof(ACKEntry));
-	entry->expiry = time(NULL) + 10;
-	entry->id     = id;
-	entry->data   = malloc(sizeof(char) * size);
-	entry->size   = size;
-	entry->addr   = addr;
-
-	memcpy(entry->data, data, size);
-
-	list_insert(list_end(&socket->ack_queue), entry);
-
-	if(list_size(&socket->ack_queue) > socket->queue_size) {
-		ACKEntry *current = (ACKEntry*)list_begin(&socket->ack_queue);
-		free_ack_entry(current);
-	}
-}
-
-void ack_queue_remove(Socket *socket, uint32_t id) {
-	ListNode *i = list_begin(&socket->ack_queue);
-
-	while(i != list_end(&socket->ack_queue)) {
-		ACKEntry *current = (ACKEntry*)i;
-		i = list_next(i);
-		if(current->id == id) {
-			free_ack_entry(current);
-		}
-	}
-}
-
-void free_ack_entry(ACKEntry *entry) {
-	list_remove(&entry->node);
-	free(entry->data);
 	free(entry);
 }

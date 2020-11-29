@@ -121,18 +121,29 @@ typedef struct _Session {
 } Session;
 
 typedef enum {
-	CONNECT_REQUEST,
-	CONNECT_RESPONSE,
-	DATA,
-	PING,
-	LOGIN_FAILED,
-	CONNECTION_REJECTED
+	RELIABLE,
+	DATAGRAM
+} SendType;
+
+typedef enum {
+	PT_CONNECT_SYN,
+	PT_CONNECT_ACK,
+	PT_PING,
+	PT_DATA
 } PacketType;
+
+typedef enum {
+	EVENT_CONNECT,
+	EVENT_RECEIVE,
+	EVENT_NONE
+} EventType;
 
 typedef struct _PacketHeader {
 	PacketType type;
 	int size;
 	Session session;
+	uint32_t seqid;
+	uint32_t ackid;
 } PacketHeader;
 
 typedef struct _PacketData {
@@ -166,17 +177,24 @@ typedef struct _Socket {
 	int fd;
 	int queue_size;
 	List frag_queue;
-	List ack_queue;
+	List peers;
 } Socket;
 
-typedef enum {
-	RELIABLE,
-	DATAGRAM,
-	ACK
-} SendType;
+typedef struct _Peer {
+	ListNode node;
+	uint32_t internal_ip;
+	struct sockaddr_in addr;
+	char key[64];
+	int last_ping;
+	uint64_t tx;
+	uint64_t rx;
+	uint64_t quota;
+	Session session;
+	uint32_t seqid;
+	uint32_t ackid;
+} Peer;
 
 typedef struct _FragmentHeader {
-	SendType type;
 	int size;
 	int count;
 	int index;
@@ -200,31 +218,20 @@ typedef struct _FragmentEntry {
 	Fragment fragment;
 } FragmentEntry;
 
-typedef struct _ACKEntry {
-	ListNode node;
-	uint32_t expiry;
-	uint32_t id;
-	struct sockaddr_in addr;
-	char *data;
-	int size;
-} ACKEntry;
-
 API Socket *new_socket();
-API bool socket_bind(Socket *socket, struct sockaddr_in addr);
+API bool socket_bind(Socket *socket, char *ip, int port);
+API void socket_connect(Socket *socket, char *ip, int port);
 API int get_socket_fd(Socket *socket);
 API void socket_service(Socket *socket);
-API void send_peer(Socket *socket, void *data, int size, struct sockaddr_in addr, SendType type);
-API void send_peer_frag(Socket *socket, uint32_t id, void *data, int size, struct sockaddr_in addr, SendType type);
-API bool recv_peer(Socket *socket, void *data, int size, struct sockaddr_in *addr);
+API void socket_send(Socket *socket, Peer *peer, char *data, int size, SendType type);
+API int socket_recv(Socket *socket, Peer **peer, char *data, int size, EventType *type);
+API void socket_send_fragment(Socket *socket, void *data, int size, struct sockaddr_in addr);
+API bool socket_recv_fragment(Socket *socket, void *data, int size, struct sockaddr_in *addr);
 API void socket_free(Socket *socket);
 
 void frag_queue_insert(Socket *socket, Fragment fragment, struct sockaddr_in addr);
 void frag_queue_remove(Socket *socket, uint32_t id);
 void free_frag_entry(FragmentEntry *entry);
-
-void ack_queue_insert(Socket *socket, uint32_t id, char *data, int size, struct sockaddr_in addr);
-void ack_queue_remove(Socket *socket, uint32_t id);
-void free_ack_entry(ACKEntry *entry);
 
 // tun.c
 
@@ -245,18 +252,6 @@ API void decrypt(char *key, char *data, int length);
 
 // peer.c
 
-typedef struct _Peer {
-	ListNode node;
-	uint32_t internal_ip;
-	struct sockaddr_in addr;
-	char key[64];
-	int last_ping;
-	uint64_t tx;
-	uint64_t rx;
-	uint64_t quota;
-	Session session;
-} Peer;
-
 API void update_ping(Peer *peer);
 API bool is_unpinged(Peer *peer);
 API uint32_t get_peer_free_ip(List *peers);
@@ -272,8 +267,8 @@ typedef enum {
 	STATE_ONLINE
 } Status;
 
-void connect_server(Socket *socket, struct sockaddr_in addr, char *token);
 API void run_core(char *config);
+
 void print_console(Status status, char *server_ip, char *server_port, bool is_server, uint64_t tx, uint64_t rx, int peers, char *dev);
 void stop_core();
 
