@@ -6,17 +6,27 @@
 #include <time.h>
 #include "chipvpn.h"
 
-void update_ping(Peer *peer) {
+void socket_peer_update_ping(Peer *peer) {
 	if(peer) {
 		peer->last_ping = time(NULL);
 	}
 }
 
-bool is_unpinged(Peer *peer) {
+bool socket_peer_is_unpinged(Peer *peer) {
 	if(peer) {
 		return (time(NULL) - peer->last_ping) >= 10;
 	}
 	return true;
+}
+
+void socket_peer_ping(Socket *socket, Peer *peer) {
+	Packet packet;
+	packet.header.type     = htonl(PT_PING);
+	packet.header.session  = peer->session;
+	packet.header.size     = htonl(0);
+	packet.header.seqid    = htonl(peer->seqid);
+	packet.header.ackid    = htonl(peer->ackid);
+	socket_send_fragment(socket, (char*)&packet, sizeof(PacketHeader), peer->addr);
 }
 
 void socket_peer_send(Socket *socket, Peer *peer, char *data, int size, SendType type) {
@@ -36,6 +46,23 @@ void socket_peer_send(Socket *socket, Peer *peer, char *data, int size, SendType
 	}
 	socket_send_fragment(socket, (char*)&packet, sizeof(PacketHeader) + size, peer->addr);
 }
+
+Peer *socket_peer_get_by_session(Socket *socket, Session session) {
+	for(ListNode *i = list_begin(&socket->peers); i != list_end(&socket->peers); i = list_next(i)) {
+		Peer *peer = (Peer*)i;
+		if(memcmp(&peer->session, &session, sizeof(Session)) == 0) {
+			return peer;
+		}
+	}
+	return NULL;
+}
+
+
+
+
+
+
+
 
 uint32_t get_peer_free_ip(List *peers) {
 	uint32_t start = inet_addr("10.0.0.100");
@@ -62,16 +89,6 @@ Peer *get_peer_by_ip(List *peers, uint32_t ip) {
 	for(ListNode *i = list_begin(peers); i != list_end(peers); i = list_next(i)) {
 		Peer *peer = (Peer*)i;
 		if(peer->internal_ip == ip) {
-			return peer;
-		}
-	}
-	return NULL;
-}
-
-Peer *get_peer_by_session(List *peers, Session session) {
-	for(ListNode *i = list_begin(peers); i != list_end(peers); i = list_next(i)) {
-		Peer *peer = (Peer*)i;
-		if(memcmp(&peer->session, &session, sizeof(Session)) == 0) {
 			return peer;
 		}
 	}

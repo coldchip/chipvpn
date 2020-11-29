@@ -139,25 +139,12 @@ typedef struct _Socket {
 	int queue_size;
 	List frag_queue;
 	List peers;
+	uint32_t last_service_time;
 } Socket;
 
 typedef struct _Session {
 	char data[16];
 } Session;
-
-typedef struct _Peer {
-	ListNode node;
-	uint32_t internal_ip;
-	struct sockaddr_in addr;
-	char key[64];
-	int last_ping;
-	uint64_t tx;
-	uint64_t rx;
-	uint64_t quota;
-	Session session;
-	uint32_t seqid;
-	uint32_t ackid;
-} Peer;
 
 typedef enum {
 	RELIABLE,
@@ -174,8 +161,29 @@ typedef enum {
 typedef enum {
 	EVENT_CONNECT,
 	EVENT_RECEIVE,
+	EVENT_DISCONNECT,
 	EVENT_NONE
 } EventType;
+
+typedef enum {
+	STATE_DISCONNECTED,
+	STATE_CONNECTED
+} PeerState;
+
+typedef struct _Peer {
+	ListNode node;
+	PeerState state;
+	uint32_t internal_ip;
+	struct sockaddr_in addr;
+	char key[64];
+	int last_ping;
+	uint64_t tx;
+	uint64_t rx;
+	uint64_t quota;
+	Session session;
+	uint32_t seqid;
+	uint32_t ackid;
+} Peer;
 
 typedef struct _SocketEvent {
 	EventType type;
@@ -229,7 +237,6 @@ API Socket *new_socket();
 API bool socket_bind(Socket *socket, char *ip, int port);
 API void socket_connect(Socket *socket, char *ip, int port);
 API int get_socket_fd(Socket *socket);
-API void socket_service(Socket *socket);
 API int socket_event(Socket *socket, SocketEvent *event);
 API void socket_send_fragment(Socket *socket, void *data, int size, struct sockaddr_in addr);
 API bool socket_recv_fragment(Socket *socket, void *data, int size, struct sockaddr_in *addr);
@@ -241,12 +248,14 @@ void free_frag_entry(FragmentEntry *entry);
 
 // peer.c
 
-API void update_ping(Peer *peer);
-API bool is_unpinged(Peer *peer);
+API void socket_peer_update_ping(Peer *peer);
+API bool socket_peer_is_unpinged(Peer *peer);
+API void socket_peer_ping(Socket *socket, Peer *peer);
 API void socket_peer_send(Socket *socket, Peer *peer, char *data, int size, SendType type);
+API Peer *socket_peer_get_by_session(Socket *socket, Session id);
+
 API uint32_t get_peer_free_ip(List *peers);
 API Peer *get_peer_by_ip(List *peers, uint32_t ip);
-API Peer *get_peer_by_session(List *peers, Session id);
 
 // tun.c
 
@@ -267,16 +276,7 @@ API void decrypt(char *key, char *data, int length);
 
 // core.c
 
-typedef enum {
-	STATE_CONNECTING,
-	STATE_CONNECTED,
-	STATE_DISCONNECTED,
-	STATE_ONLINE
-} Status;
-
 API void run_core(char *config);
-
-void print_console(Status status, char *server_ip, char *server_port, bool is_server, uint64_t tx, uint64_t rx, int peers, char *dev);
 void stop_core();
 
 

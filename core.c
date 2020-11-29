@@ -66,7 +66,6 @@ void run_core(char *config) {
 		}
 	}
 
-	int last_ping = 0;
 	uint64_t tx = 0;
 	uint64_t rx = 0;
 	fd_set rdset;
@@ -83,112 +82,108 @@ void run_core(char *config) {
 
 		select(max(tun->fd, get_socket_fd(socket)) + 1, &rdset, NULL, NULL, &tv);
 
-		if((time(NULL) - last_ping) >= PING_INTERVAL) {
-			socket_service(socket);
-			last_ping = time(NULL);
-		}
+		while((socket_event(socket, &event) > 0)) {
+			switch(event.type) {
+				case EVENT_CONNECT: {
+					if(is_server) {
+						uint32_t alloc_ip = get_peer_free_ip(&socket->peers);
+						if(alloc_ip > 0) {
+							char data[3000];
+							event.peer->internal_ip  = alloc_ip;
 
-		if(FD_ISSET(get_socket_fd(socket), &rdset)) {
-			int size = socket_event(socket, &event);
-			if(size > 0) {
-				switch(event.type) {
-					case EVENT_CONNECT: {
-						if(is_server) {
-							uint32_t alloc_ip = get_peer_free_ip(&socket->peers);
-							if(alloc_ip > 0) {
-								char data[3000];
-								event.peer->internal_ip  = alloc_ip;
+							uint32_t tun_ip        = htonl(alloc_ip);
+							uint32_t tun_subnet    = htonl(inet_addr("255.255.255.0"));
+							uint32_t tun_gateway   = htonl(inet_addr("10.0.0.1"));
+							uint32_t mtu           = htonl(MAX_MTU);
 
-								uint32_t tun_ip        = htonl(alloc_ip);
-								uint32_t tun_subnet    = htonl(inet_addr("255.255.255.0"));
-								uint32_t tun_gateway   = htonl(inet_addr("10.0.0.1"));
-								uint32_t mtu           = htonl(MAX_MTU);
+							memcpy(((char*)&data) + (sizeof(uint32_t) * 0) + 4, &tun_ip,        sizeof(tun_ip));
+							memcpy(((char*)&data) + (sizeof(uint32_t) * 1) + 4, &tun_subnet,    sizeof(tun_subnet));
+							memcpy(((char*)&data) + (sizeof(uint32_t) * 2) + 4, &tun_gateway,   sizeof(tun_gateway));
+							memcpy(((char*)&data) + (sizeof(uint32_t) * 3) + 4, &mtu,           sizeof(mtu));
 
-								memcpy(((char*)&data) + (sizeof(uint32_t) * 0) + 4, &tun_ip,        sizeof(tun_ip));
-								memcpy(((char*)&data) + (sizeof(uint32_t) * 1) + 4, &tun_subnet,    sizeof(tun_subnet));
-								memcpy(((char*)&data) + (sizeof(uint32_t) * 2) + 4, &tun_gateway,   sizeof(tun_gateway));
-								memcpy(((char*)&data) + (sizeof(uint32_t) * 3) + 4, &mtu,           sizeof(mtu));
+							int p_type = htonl(69);
+							memcpy((char*)&data, &p_type, sizeof(p_type));
 
-								int p_type = htonl(69);
-								memcpy((char*)&data, &p_type, sizeof(p_type));
-
-								socket_peer_send(socket, event.peer, data, sizeof(data), RELIABLE);
-							}
-							printf("Client Connected\n");
-						} else {
-							printf("Connected to server\n");
+							socket_peer_send(socket, event.peer, data, sizeof(data), RELIABLE);
 						}
+						printf("Client Connected\n");
+					} else {
+						printf("Connected to server\n");
 					}
-					break;
-
-					case EVENT_RECEIVE: {
-						int  p_type = ntohl(*(int*)event.data);
-						char *p_data = ((char*)event.data) + 4;
-						int size = event.size - 4;
-						switch(p_type) {
-							case 69: {
-								printf("received DHCP \n");
-								char data[3000];
-								uint32_t peer_ip;
-								uint32_t peer_subnet;
-								uint32_t peer_gateway;
-								uint32_t peer_mtu;
-								memcpy(&peer_ip,      (p_data) + (sizeof(uint32_t) * 0), sizeof(int));
-								memcpy(&peer_subnet,  (p_data) + (sizeof(uint32_t) * 1), sizeof(int));
-								memcpy(&peer_gateway, (p_data) + (sizeof(uint32_t) * 2), sizeof(int));
-								memcpy(&peer_mtu,     (p_data) + (sizeof(uint32_t) * 3), sizeof(int));
-
-								peer_ip      = ntohl(peer_ip); 
-								peer_subnet  = ntohl(peer_subnet); 
-								peer_gateway = ntohl(peer_gateway); 
-								peer_mtu     = ntohl(peer_mtu);
-
-								char set_ip[INET_ADDRSTRLEN];
-								char set_subnet[INET_ADDRSTRLEN];
-								char set_gateway[INET_ADDRSTRLEN];
-								sprintf(set_ip,      "%i.%i.%i.%i", (peer_ip >> 0)      & 0xFF, (peer_ip >> 8)      & 0xFF, (peer_ip >> 16)      & 0xFF, (peer_ip >> 24)      & 0xFF);
-								sprintf(set_subnet,  "%i.%i.%i.%i", (peer_subnet >> 0)  & 0xFF, (peer_subnet >> 8)  & 0xFF, (peer_subnet >> 16)  & 0xFF, (peer_subnet >> 24)  & 0xFF);
-								sprintf(set_gateway, "%i.%i.%i.%i", (peer_gateway >> 0) & 0xFF, (peer_gateway >> 8) & 0xFF, (peer_gateway >> 16) & 0xFF, (peer_gateway >> 24) & 0xFF);
-								printf("%s\n", set_ip);
-
-								setifip(tun, set_ip, set_subnet, peer_mtu);
-								ifup(tun);
-
-								if(server_pull_routes) {
-									char default_gateway[16];
-									get_default_gateway((char*)&default_gateway);
-									if(exec_sprintf("ip route add %s via %s", server_ip, default_gateway)) { }
-									if(exec_sprintf("ip route add 0.0.0.0/1 via %s", set_gateway)) { }
-									if(exec_sprintf("ip route add 128.0.0.0/1 via %s", set_gateway)) { }
-								}
-								event.peer->internal_ip = peer_ip;
-							}
-							break;
-							case 32: {
-								IPPacket *ip_hdr = (IPPacket*)p_data;
-								if(
-									((ip_hdr->dst_addr == event.peer->internal_ip && !is_server) || 
-									(ip_hdr->src_addr == event.peer->internal_ip && is_server)) && 
-									(size > 0 && size <= (MAX_MTU))
-								) {
-									// Check if source is same as peer(Prevents IP spoofing) and bound packet to mtu size
-									rx += size;
-									event.peer->rx += size;
-									if(write(tun->fd, p_data, size)) {}
-								}
-							}
-							break;
-						}
-
-						free(event.data);
-					}
-					break;
-
-					case EVENT_NONE: {
-
-					}
-					break;
 				}
+				break;
+
+				case EVENT_RECEIVE: {
+					int  p_type = ntohl(*(int*)event.data);
+					char *p_data = ((char*)event.data) + 4;
+					int size = event.size - 4;
+					switch(p_type) {
+						case 69: {
+							printf("received DHCP \n");
+							uint32_t peer_ip;
+							uint32_t peer_subnet;
+							uint32_t peer_gateway;
+							uint32_t peer_mtu;
+							memcpy(&peer_ip,      (p_data) + (sizeof(uint32_t) * 0), sizeof(int));
+							memcpy(&peer_subnet,  (p_data) + (sizeof(uint32_t) * 1), sizeof(int));
+							memcpy(&peer_gateway, (p_data) + (sizeof(uint32_t) * 2), sizeof(int));
+							memcpy(&peer_mtu,     (p_data) + (sizeof(uint32_t) * 3), sizeof(int));
+
+							peer_ip      = ntohl(peer_ip); 
+							peer_subnet  = ntohl(peer_subnet); 
+							peer_gateway = ntohl(peer_gateway); 
+							peer_mtu     = ntohl(peer_mtu);
+
+							char set_ip[INET_ADDRSTRLEN];
+							char set_subnet[INET_ADDRSTRLEN];
+							char set_gateway[INET_ADDRSTRLEN];
+							sprintf(set_ip,      "%i.%i.%i.%i", (peer_ip >> 0)      & 0xFF, (peer_ip >> 8)      & 0xFF, (peer_ip >> 16)      & 0xFF, (peer_ip >> 24)      & 0xFF);
+							sprintf(set_subnet,  "%i.%i.%i.%i", (peer_subnet >> 0)  & 0xFF, (peer_subnet >> 8)  & 0xFF, (peer_subnet >> 16)  & 0xFF, (peer_subnet >> 24)  & 0xFF);
+							sprintf(set_gateway, "%i.%i.%i.%i", (peer_gateway >> 0) & 0xFF, (peer_gateway >> 8) & 0xFF, (peer_gateway >> 16) & 0xFF, (peer_gateway >> 24) & 0xFF);
+							printf("%s\n", set_ip);
+
+							setifip(tun, set_ip, set_subnet, peer_mtu);
+							ifup(tun);
+
+							if(server_pull_routes) {
+								char default_gateway[16];
+								get_default_gateway((char*)&default_gateway);
+								if(exec_sprintf("ip route add %s via %s", server_ip, default_gateway)) { }
+								if(exec_sprintf("ip route add 0.0.0.0/1 via %s", set_gateway)) { }
+								if(exec_sprintf("ip route add 128.0.0.0/1 via %s", set_gateway)) { }
+							}
+							event.peer->internal_ip = peer_ip;
+						}
+						break;
+						case 32: {
+							IPPacket *ip_hdr = (IPPacket*)p_data;
+							if(
+								((ip_hdr->dst_addr == event.peer->internal_ip && !is_server) || 
+								(ip_hdr->src_addr == event.peer->internal_ip && is_server)) && 
+								(size > 0 && size <= (MAX_MTU))
+							) {
+								// Check if source is same as peer(Prevents IP spoofing) and bound packet to mtu size
+								rx += size;
+								event.peer->rx += size;
+								if(write(tun->fd, p_data, size)) {}
+							}
+						}
+						break;
+					}
+
+					free(event.data);
+				}
+				break;
+
+				case EVENT_DISCONNECT: {
+					printf("disconnected\n");
+				}
+				break;
+
+				case EVENT_NONE: {
+
+				}
+				break;
 			}
 		}
 
@@ -218,6 +213,7 @@ void run_core(char *config) {
 	}
 }
 
+/*
 void print_console(Status status, char *server_ip, char *server_port, bool is_server, uint64_t tx, uint64_t rx, int peers, char *dev) {
 	struct winsize w;
 	ioctl(0, TIOCGWINSZ, &w);
@@ -282,6 +278,7 @@ void print_console(Status status, char *server_ip, char *server_port, bool is_se
 	free(format_tx); 
 	free(format_rx);
 }
+*/
 
 void stop_core() {
 	exit(0);
