@@ -71,6 +71,7 @@ void run_core(char *config) {
 	uint64_t rx = 0;
 	fd_set rdset;
 	struct timeval tv;
+	SocketEvent event;
 
 	while(1) {
 		tv.tv_sec  = PING_INTERVAL;
@@ -88,18 +89,15 @@ void run_core(char *config) {
 		}
 
 		if(FD_ISSET(get_socket_fd(socket), &rdset)) {
-			Peer *peer = NULL;
-			EventType type = EVENT_NONE;
-
-			char data[3000];
-			int size = socket_recv(socket, &peer, data, sizeof(data), &type);
+			int size = socket_event(socket, &event);
 			if(size > 0) {
-				switch(type) {
+				switch(event.type) {
 					case EVENT_CONNECT: {
 						if(is_server) {
 							uint32_t alloc_ip = get_peer_free_ip(&socket->peers);
 							if(alloc_ip > 0) {
-								peer->internal_ip  = alloc_ip;
+								char data[3000];
+								event.peer->internal_ip  = alloc_ip;
 
 								uint32_t tun_ip        = htonl(alloc_ip);
 								uint32_t tun_subnet    = htonl(inet_addr("255.255.255.0"));
@@ -114,21 +112,23 @@ void run_core(char *config) {
 								int p_type = htonl(69);
 								memcpy((char*)&data, &p_type, sizeof(p_type));
 
-								socket_send(socket, peer, data, sizeof(data), RELIABLE);
+								socket_peer_send(socket, event.peer, data, sizeof(data), RELIABLE);
 							}
+							printf("Client Connected\n");
 						} else {
-							printf("Client: Connect\n");
+							printf("Connected to server\n");
 						}
 					}
 					break;
 
 					case EVENT_RECEIVE: {
-						int  p_type = ntohl(*(int*)&data);
-						char *p_data = ((char*)&data) + 4;
-						size -= 4;
+						int  p_type = ntohl(*(int*)event.data);
+						char *p_data = ((char*)event.data) + 4;
+						int size = event.size - 4;
 						switch(p_type) {
 							case 69: {
 								printf("received DHCP \n");
+								char data[3000];
 								uint32_t peer_ip;
 								uint32_t peer_subnet;
 								uint32_t peer_gateway;
@@ -157,34 +157,30 @@ void run_core(char *config) {
 								if(server_pull_routes) {
 									char default_gateway[16];
 									get_default_gateway((char*)&default_gateway);
-									if(exec_sprintf("ip route add %s via %s", server_ip, default_gateway)) {
-										//error("Set path failed");
-									}
-									if(exec_sprintf("ip route add 0.0.0.0/1 via %s", set_gateway)) {
-										//error("Set path failed");
-									}
-									if(exec_sprintf("ip route add 128.0.0.0/1 via %s", set_gateway)) {
-										//error("Set path failed");
-									}
+									if(exec_sprintf("ip route add %s via %s", server_ip, default_gateway)) { }
+									if(exec_sprintf("ip route add 0.0.0.0/1 via %s", set_gateway)) { }
+									if(exec_sprintf("ip route add 128.0.0.0/1 via %s", set_gateway)) { }
 								}
-								peer->internal_ip = peer_ip;
+								event.peer->internal_ip = peer_ip;
 							}
 							break;
 							case 32: {
 								IPPacket *ip_hdr = (IPPacket*)p_data;
 								if(
-									((ip_hdr->dst_addr == peer->internal_ip && !is_server) || 
-									(ip_hdr->src_addr == peer->internal_ip && is_server)) && 
+									((ip_hdr->dst_addr == event.peer->internal_ip && !is_server) || 
+									(ip_hdr->src_addr == event.peer->internal_ip && is_server)) && 
 									(size > 0 && size <= (MAX_MTU))
 								) {
 									// Check if source is same as peer(Prevents IP spoofing) and bound packet to mtu size
 									rx += size;
-									peer->rx += size;
+									event.peer->rx += size;
 									if(write(tun->fd, p_data, size)) {}
 								}
 							}
 							break;
 						}
+
+						free(event.data);
 					}
 					break;
 
@@ -216,7 +212,7 @@ void run_core(char *config) {
 				peer->tx += size;
 				*p_type = htonl(32);
 
-				socket_send(socket, peer, buf, size + 4, DATAGRAM);
+				socket_peer_send(socket, peer, buf, size + 4, DATAGRAM);
 			}
 		}
 	}

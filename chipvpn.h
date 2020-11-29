@@ -116,45 +116,6 @@ typedef struct _ICMPHeader {
 	} un;
 } ICMPHeader;
 
-typedef struct _Session {
-	char data[16];
-} Session;
-
-typedef enum {
-	RELIABLE,
-	DATAGRAM
-} SendType;
-
-typedef enum {
-	PT_CONNECT_SYN,
-	PT_CONNECT_ACK,
-	PT_PING,
-	PT_DATA
-} PacketType;
-
-typedef enum {
-	EVENT_CONNECT,
-	EVENT_RECEIVE,
-	EVENT_NONE
-} EventType;
-
-typedef struct _PacketHeader {
-	PacketType type;
-	int size;
-	Session session;
-	uint32_t seqid;
-	uint32_t ackid;
-} PacketHeader;
-
-typedef struct _PacketData {
-	char data[5000];
-} PacketData;
-
-typedef struct _Packet {
-	PacketHeader header;
-	PacketData   data;
-} Packet;
-
 API char *read_string(FILE *file, char const *desired_name);
 API bool read_bool(FILE *file, char const *desired_name);
 API int read_int(FILE *file, char const *desired_name);
@@ -180,6 +141,10 @@ typedef struct _Socket {
 	List peers;
 } Socket;
 
+typedef struct _Session {
+	char data[16];
+} Session;
+
 typedef struct _Peer {
 	ListNode node;
 	uint32_t internal_ip;
@@ -193,6 +158,48 @@ typedef struct _Peer {
 	uint32_t seqid;
 	uint32_t ackid;
 } Peer;
+
+typedef enum {
+	RELIABLE,
+	DATAGRAM
+} SendType;
+
+typedef enum {
+	PT_CONNECT_SYN,
+	PT_CONNECT_ACK,
+	PT_PING,
+	PT_DATA
+} PacketType;
+
+typedef enum {
+	EVENT_CONNECT,
+	EVENT_RECEIVE,
+	EVENT_NONE
+} EventType;
+
+typedef struct _SocketEvent {
+	EventType type;
+	Peer *peer;
+	char *data;
+	int size;
+} SocketEvent;
+
+typedef struct _PacketHeader {
+	PacketType type;
+	int size;
+	Session session;
+	uint32_t seqid;
+	uint32_t ackid;
+} PacketHeader;
+
+typedef struct _PacketData {
+	char data[5000];
+} PacketData;
+
+typedef struct _Packet {
+	PacketHeader header;
+	PacketData   data;
+} Packet;
 
 typedef struct _FragmentHeader {
 	int size;
@@ -223,8 +230,7 @@ API bool socket_bind(Socket *socket, char *ip, int port);
 API void socket_connect(Socket *socket, char *ip, int port);
 API int get_socket_fd(Socket *socket);
 API void socket_service(Socket *socket);
-API void socket_send(Socket *socket, Peer *peer, char *data, int size, SendType type);
-API int socket_recv(Socket *socket, Peer **peer, char *data, int size, EventType *type);
+API int socket_event(Socket *socket, SocketEvent *event);
 API void socket_send_fragment(Socket *socket, void *data, int size, struct sockaddr_in addr);
 API bool socket_recv_fragment(Socket *socket, void *data, int size, struct sockaddr_in *addr);
 API void socket_free(Socket *socket);
@@ -232,6 +238,15 @@ API void socket_free(Socket *socket);
 void frag_queue_insert(Socket *socket, Fragment fragment, struct sockaddr_in addr);
 void frag_queue_remove(Socket *socket, uint32_t id);
 void free_frag_entry(FragmentEntry *entry);
+
+// peer.c
+
+API void update_ping(Peer *peer);
+API bool is_unpinged(Peer *peer);
+API void socket_peer_send(Socket *socket, Peer *peer, char *data, int size, SendType type);
+API uint32_t get_peer_free_ip(List *peers);
+API Peer *get_peer_by_ip(List *peers, uint32_t ip);
+API Peer *get_peer_by_session(List *peers, Session id);
 
 // tun.c
 
@@ -249,14 +264,6 @@ API void free_tun(Tun *tun);
 
 API void encrypt(char *key, char *data, int length);
 API void decrypt(char *key, char *data, int length);
-
-// peer.c
-
-API void update_ping(Peer *peer);
-API bool is_unpinged(Peer *peer);
-API uint32_t get_peer_free_ip(List *peers);
-API Peer *get_peer_by_ip(List *peers, uint32_t ip);
-API Peer *get_peer_by_session(List *peers, Session id);
 
 // core.c
 

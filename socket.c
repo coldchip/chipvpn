@@ -4,6 +4,7 @@
 #include <math.h>
 #include <string.h>
 #include <time.h>
+#include <arpa/inet.h> 
 #include "chipvpn.h"
 
 Socket *new_socket() {
@@ -87,30 +88,12 @@ void socket_service(Socket *socket) {
 	}
 }
 
-void socket_send(Socket *socket, Peer *peer, char *data, int size, SendType type) {
-	// send_peer: Packet sequencing and reliability layer
-	// Packet fragmentation will be handled in socket_send_fragment
-
-	Packet packet;
-	packet.header.type     = htonl(PT_DATA);
-	packet.header.session  = peer->session;
-	packet.header.size     = htonl(size);
-
-	packet.header.seqid    = htonl(peer->seqid);
-	packet.header.ackid    = htonl(peer->ackid);
-
-	if(data != NULL) {
-		memcpy((char*)&packet.data, data, size);
-	}
-	socket_send_fragment(socket, (char*)&packet, sizeof(PacketHeader) + size, peer->addr);
-}
-
-int socket_recv(Socket *socket, Peer **peer, char *data, int size, EventType *type) {
+int socket_event(Socket *socket, SocketEvent *event) {
 	// @return: -1 = error, 0 = not ready, > 0 data available
 	Packet packet;
 	struct sockaddr_in addr;
 	if(!socket_recv_fragment(socket, (char*)&packet, sizeof(Packet), &addr)) {
-		*type = EVENT_NONE;
+		event->type = EVENT_NONE;
 		return 0;
 	}
 
@@ -133,15 +116,13 @@ int socket_recv(Socket *socket, Peer **peer, char *data, int size, EventType *ty
 		Packet synack;
 		synack.header.type     = htonl(PT_CONNECT_ACK);
 		synack.header.session  = peer_alloc->session;
-		synack.header.size     = htonl(size);
-
+		synack.header.size     = htonl(0);
 		synack.header.seqid    = htonl(0);
 		synack.header.ackid    = htonl(0);
 
 		socket_send_fragment(socket, (char*)&synack, sizeof(PacketHeader), addr);
-		*peer = peer_alloc;
-		*type = EVENT_CONNECT;
-		printf("CONNECT SYN\n");
+		event->type = EVENT_CONNECT;
+		event->peer = peer_alloc;
 		return 1;
 	} else if(packet_type == PT_CONNECT_ACK) {
 		// Client side
@@ -153,25 +134,28 @@ int socket_recv(Socket *socket, Peer **peer, char *data, int size, EventType *ty
 		update_ping(peer_alloc);
 
 		list_insert(list_end(&socket->peers), peer_alloc);
-		*peer = peer_alloc;
-		*type = EVENT_CONNECT;
-		printf("CONNECT ACK\n");
+		event->type = EVENT_CONNECT;
+		event->peer = peer_alloc;
 		return 1;
 	} else {
-		*peer = get_peer_by_session(&socket->peers, packet_session);
-		if(*peer) {
+		Peer *peer = get_peer_by_session(&socket->peers, packet_session);
+		if(peer) {
 			if(packet_type == PT_PING) {
 				printf("Update peer, %li peer(s) left\n", list_size(&socket->peers));
-				update_ping(*peer);
-			} else {
+				update_ping(peer);
+			} else if(packet_type == PT_DATA && (packet_size > 0 && packet_size < 65535)) {
 				// TODO: check for packet_size to prevent buffer overflow
-				memcpy(data, (char*)&packet.data, packet_size);
-				*type = EVENT_RECEIVE;
+				event->data = malloc(sizeof(char) * packet_size);
+				event->size = packet_size;
+				memcpy(event->data, (char*)&packet.data, packet_size);
+				event->type = EVENT_RECEIVE;
+				event->peer = peer;
 				return packet_size;
 			}
 		}
 	}
-	*type = EVENT_NONE;
+	event->type = EVENT_NONE;
+	event->peer = NULL;
 	return -1;
 }
 

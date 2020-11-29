@@ -19,6 +19,24 @@ bool is_unpinged(Peer *peer) {
 	return true;
 }
 
+void socket_peer_send(Socket *socket, Peer *peer, char *data, int size, SendType type) {
+	// send_peer: Packet sequencing and reliability layer
+	// Packet fragmentation will be handled in socket_send_fragment
+
+	Packet packet;
+	packet.header.type     = htonl(PT_DATA);
+	packet.header.session  = peer->session;
+	packet.header.size     = htonl(size);
+
+	packet.header.seqid    = htonl(peer->seqid);
+	packet.header.ackid    = htonl(peer->ackid);
+
+	if(data != NULL) {
+		memcpy((char*)&packet.data, data, size);
+	}
+	socket_send_fragment(socket, (char*)&packet, sizeof(PacketHeader) + size, peer->addr);
+}
+
 uint32_t get_peer_free_ip(List *peers) {
 	uint32_t start = inet_addr("10.0.0.100");
 	uint32_t end   = inet_addr("10.0.0.200");
