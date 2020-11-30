@@ -1,10 +1,4 @@
-#include <string.h>
-#include <stdlib.h>
-#include <stdbool.h>
-#include <arpa/inet.h>
-#include <netinet/in.h>
-#include <time.h>
-#include "chipvpn.h"
+#include "socket.h"
 
 void socket_peer_update_ping(Peer *peer) {
 	if(peer) {
@@ -19,32 +13,33 @@ bool socket_peer_is_unpinged(Peer *peer) {
 	return true;
 }
 
-void socket_peer_ping(Socket *socket, Peer *peer) {
+void socket_peer_ping(Peer *peer) {
 	Packet packet;
 	packet.header.type     = htonl(PT_PING);
 	packet.header.session  = peer->session;
 	packet.header.size     = htonl(0);
 	packet.header.seqid    = htonl(peer->seqid);
 	packet.header.ackid    = htonl(peer->ackid);
-	socket_send_fragment(socket, (char*)&packet, sizeof(PacketHeader), peer->addr);
+	socket_send_fragment(peer->socket, (char*)&packet, sizeof(PacketHeader), peer->addr);
 }
 
-void socket_peer_send(Socket *socket, Peer *peer, char *data, int size, SendType type) {
+void socket_peer_send(Peer *peer, char *data, int size, SendType type) {
 	// send_peer: Packet sequencing and reliability layer
 	// Packet fragmentation will be handled in socket_send_fragment
+	if(peer->state == STATE_CONNECTED) {
+		Packet packet;
+		packet.header.type     = htonl(PT_DATA);
+		packet.header.session  = peer->session;
+		packet.header.size     = htonl(size);
 
-	Packet packet;
-	packet.header.type     = htonl(PT_DATA);
-	packet.header.session  = peer->session;
-	packet.header.size     = htonl(size);
+		packet.header.seqid    = htonl(peer->seqid);
+		packet.header.ackid    = htonl(peer->ackid);
 
-	packet.header.seqid    = htonl(peer->seqid);
-	packet.header.ackid    = htonl(peer->ackid);
-
-	if(data != NULL) {
-		memcpy((char*)&packet.data, data, size);
+		if(data != NULL) {
+			memcpy((char*)&packet.data, data, size);
+		}
+		socket_send_fragment(peer->socket, (char*)&packet, sizeof(PacketHeader) + size, peer->addr);
 	}
-	socket_send_fragment(socket, (char*)&packet, sizeof(PacketHeader) + size, peer->addr);
 }
 
 Peer *socket_peer_get_by_session(Socket *socket, Session session) {
@@ -57,7 +52,9 @@ Peer *socket_peer_get_by_session(Socket *socket, Session session) {
 	return NULL;
 }
 
-
+void socket_peer_disconnect(Peer *peer) {
+	peer->state = STATE_DISCONNECTING;
+}
 
 
 

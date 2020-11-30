@@ -1,21 +1,15 @@
-#include <stdbool.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <math.h>
-#include <string.h>
-#include <time.h>
-#include <arpa/inet.h> 
-#include "chipvpn.h"
+#include "socket.h"
 
-Socket *new_socket() {
+Socket *new_socket(int peer_count) {
 	int sock = socket(AF_INET, SOCK_DGRAM, 0);
 	if(sock < 0) {
 		return NULL;
 	}
 	Socket *socket = malloc(sizeof(Socket));
-	socket->fd = sock;
+	socket->fd                = sock;
 	socket->last_service_time = 0;
-	socket->queue_size = 50;
+	socket->queue_size        = 50;
+	socket->peer_count        = peer_count;
 	list_clear(&socket->frag_queue);
 	list_clear(&socket->peers);
 	return socket;
@@ -68,9 +62,13 @@ int socket_event(Socket *socket, SocketEvent *event) {
 		while(j != list_end(&socket->peers)) {
 			Peer *peer = (Peer*)j;
 			j = list_next(j);
-			if(socket_peer_is_unpinged(peer) && peer->state != STATE_DISCONNECTED) {
+			if(socket_peer_is_unpinged(peer) && peer->state == STATE_CONNECTED) {
 				// Return event disconnect
+				peer->state = STATE_DISCONNECTING;
+			} else if(peer->state == STATE_DISCONNECTING) {
+				// Notify disconnect
 				peer->state = STATE_DISCONNECTED;
+
 				event->type = EVENT_DISCONNECT;
 				event->peer = peer;
 				return 1;
@@ -79,7 +77,7 @@ int socket_event(Socket *socket, SocketEvent *event) {
 				list_remove(&peer->node);
 				free(peer);
 			} else {
-				socket_peer_ping(socket, peer);
+				socket_peer_ping(peer);
 			}
 		}
 		socket->last_service_time = time(NULL);
@@ -94,15 +92,16 @@ int socket_event(Socket *socket, SocketEvent *event) {
 		uint32_t packet_ackid   = ntohl(packet.header.ackid);
 		Session  packet_session = packet.header.session;
 
-		if(packet_type == PT_CONNECT_SYN) {
+		if(packet_type == PT_CONNECT_SYN && list_size(&socket->peers) < socket->peer_count) {
 			// Do connect server side
-			Peer *peer  = malloc(sizeof(Peer));
-			peer->state = STATE_CONNECTED;
-			peer->addr  = addr;
-			peer->seqid = 0;
-			peer->ackid = packet_seqid + 1;
+			Peer *peer   = malloc(sizeof(Peer));
+			peer->socket = socket;
+			peer->state  = STATE_CONNECTED;
+			peer->addr   = addr;
+			peer->seqid  = 0;
+			peer->ackid  = packet_seqid + 1;
 			socket_peer_update_ping(peer);
-			fill_random((char*)&peer->session, sizeof(Session));
+			socket_fill_random((char*)&peer->session, sizeof(Session));
 			list_insert(list_end(&socket->peers), peer);
 
 			Packet synack;
@@ -116,9 +115,10 @@ int socket_event(Socket *socket, SocketEvent *event) {
 			event->type = EVENT_CONNECT;
 			event->peer = peer;
 			return 1;
-		} else if(packet_type == PT_CONNECT_ACK) {
+		} else if(packet_type == PT_CONNECT_ACK && list_size(&socket->peers) < socket->peer_count) {
 			// Client side
 			Peer *peer    = malloc(sizeof(Peer));
+			peer->socket  = socket;
 			peer->state   = STATE_CONNECTED;
 			peer->addr    = addr;
 			peer->seqid   = 0;
@@ -218,6 +218,10 @@ bool socket_recv_fragment(Socket *socket, void *data, int size, struct sockaddr_
 	}
 
 	return false;
+}
+
+void socket_fill_random(char *buffer, int size) {
+    syscall(SYS_getrandom, buffer, size, 1);
 }
 
 void socket_free(Socket *socket) {

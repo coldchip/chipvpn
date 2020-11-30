@@ -1,15 +1,3 @@
-#include <stdio.h>
-#include <string.h>
-#include <stdarg.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <linux/if.h>
-#include <linux/if_tun.h>
-#include <arpa/inet.h>
-#include <sys/types.h>
-#include <sys/ioctl.h>
-#include <sys/stat.h>
-#include <fcntl.h>
 #include "chipvpn.h"
 
 Tun *open_tun(char *dev) {
@@ -48,7 +36,7 @@ Tun *open_tun(char *dev) {
 	return tun;
 }
 
-void setifip(Tun* tun, char* local, char* mask, int mtu) {
+void setifip(Tun* tun, uint32_t ip, uint32_t mask, int mtu) {
 
 	if(tun) {
 		struct ifreq ifr;
@@ -60,10 +48,10 @@ void setifip(Tun* tun, char* local, char* mask, int mtu) {
 
 		int fd = socket(AF_INET, SOCK_DGRAM, 0);
 
-		inet_pton(AF_INET, local, &addr->sin_addr);
+		addr->sin_addr.s_addr = ip;
 		ioctl(fd, SIOCSIFADDR, &ifr);
 
-		inet_pton(AF_INET, mask, &addr->sin_addr);
+		addr->sin_addr.s_addr = mask;
 		ioctl(fd, SIOCSIFNETMASK, &ifr);
 
 		ifr.ifr_mtu = mtu;

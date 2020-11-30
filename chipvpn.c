@@ -1,11 +1,3 @@
-#include <stdio.h>
-#include <string.h>
-#include <stdarg.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <math.h>
-#include <sys/syscall.h>
-#include <linux/random.h>
 #include "chipvpn.h"
 
 char *read_file_into_buffer(char *file) {
@@ -79,7 +71,8 @@ int read_int(FILE *file, char const *desired_name) {
     return 0;
 }
 
-void get_default_gateway(char *ip) {
+uint32_t get_default_gateway() {
+    char ip[20];
     char cmd[] = "ip route show default | awk '/default/ {print $3}'";
     FILE* fp = popen(cmd, "r");
 
@@ -87,6 +80,7 @@ void get_default_gateway(char *ip) {
         //printf("%s\n", line);
     }
     pclose(fp);
+    return inet_addr(ip);
 }
 
 int exec_sprintf(char *format, ...) {
@@ -148,10 +142,6 @@ void error(char *format, ...) {
     
     va_end(args);
 	exit(1);
-}
-
-void fill_random(char *buffer, int size) {
-    syscall(SYS_getrandom, buffer, size, 1);
 }
 
 char *format_size(uint64_t size) {

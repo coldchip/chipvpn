@@ -9,12 +9,7 @@ int main(int argc, char const *argv[]) {
 	console_log("ColdChip ChipVPN");
 	if(argv[1] != NULL) {
 		if(strcmp(argv[1], "genkey") == 0) {
-			char rand[32];
-			fill_random(rand, sizeof(rand));
-			for(int i = 0; i < sizeof(rand); i++) {
-				printf("%02x", rand[i] & 0xFF);
-			}
-			printf("\n");
+			printf("Unavailable\n");
 		} else {
 			run_core((char*)argv[1]);
 		}

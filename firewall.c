@@ -1,5 +1,3 @@
-#include <stdbool.h>
-#include <arpa/inet.h> 
 #include "chipvpn.h"
 
 bool validate_packet(char *stream) {

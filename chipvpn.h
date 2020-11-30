@@ -12,47 +12,29 @@ extern "C"
 #include <stdbool.h>
 #include <netinet/in.h>
 #include <stdint.h>
-#include "aes.h"
+#include <time.h>
+#include <string.h>
+#include <signal.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <arpa/inet.h> 
+#include <netinet/in.h>
+#include <sys/ioctl.h>
+#include <math.h>
+#include <linux/if.h>
+#include <linux/if_tun.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include "socket.h"
+#include "list.h"
 
 #define API extern
-
-#define PING_INTERVAL 1
 
 #define MAX_MTU 1500
 
 #define DIM(x) (sizeof(x)/sizeof(*(x)))
-
-// list.c
-
-typedef struct _ListNode
-{
-   struct _ListNode * next;
-   struct _ListNode * previous;
-} ListNode;
-
-typedef struct _List
-{
-   ListNode sentinel;
-} List;
-
-extern void list_clear (List *);
-
-extern ListNode * list_insert (ListNode *, void *);
-extern void * list_remove (ListNode *);
-extern ListNode * list_move (ListNode *, void *, void *);
-
-extern size_t list_size (List *);
-
-#define list_begin(list) ((list) -> sentinel.next)
-#define list_end(list) (& (list) -> sentinel)
-
-#define list_empty(list) (list_begin (list) == list_end (list))
-
-#define list_next(iterator) ((iterator) -> next)
-#define list_previous(iterator) ((iterator) -> previous)
-
-#define list_front(list) ((void *) (list) -> sentinel.next)
-#define list_back(list) ((void *) (list) -> sentinel.previous)
 
 // chipvpn.c
 
@@ -120,142 +102,16 @@ API char *read_string(FILE *file, char const *desired_name);
 API bool read_bool(FILE *file, char const *desired_name);
 API int read_int(FILE *file, char const *desired_name);
 API char *read_file_into_buffer(char *file);
-API void get_default_gateway(char *ip);
+API uint32_t get_default_gateway();
 API int exec_sprintf(char *format, ...);
 API void warning(char *format, ...);
 API void error(char *format, ...);
 API void console_log(char *format, ...);
-API void fill_random(char *buffer, int size);
 API char *format_size(uint64_t size);
 
 // firewall.c
 
 API bool validate_packet(char *stream);
-
-// socket.c
-
-typedef struct _Socket {
-	int fd;
-	int queue_size;
-	List frag_queue;
-	List peers;
-	uint32_t last_service_time;
-} Socket;
-
-typedef struct _Session {
-	char data[16];
-} Session;
-
-typedef enum {
-	RELIABLE,
-	DATAGRAM
-} SendType;
-
-typedef enum {
-	PT_CONNECT_SYN,
-	PT_CONNECT_ACK,
-	PT_PING,
-	PT_DATA
-} PacketType;
-
-typedef enum {
-	EVENT_CONNECT,
-	EVENT_RECEIVE,
-	EVENT_DISCONNECT,
-	EVENT_NONE
-} EventType;
-
-typedef enum {
-	STATE_DISCONNECTED,
-	STATE_CONNECTED
-} PeerState;
-
-typedef struct _Peer {
-	ListNode node;
-	PeerState state;
-	uint32_t internal_ip;
-	struct sockaddr_in addr;
-	char key[64];
-	int last_ping;
-	uint64_t tx;
-	uint64_t rx;
-	uint64_t quota;
-	Session session;
-	uint32_t seqid;
-	uint32_t ackid;
-} Peer;
-
-typedef struct _SocketEvent {
-	EventType type;
-	Peer *peer;
-	char *data;
-	int size;
-} SocketEvent;
-
-typedef struct _PacketHeader {
-	PacketType type;
-	int size;
-	Session session;
-	uint32_t seqid;
-	uint32_t ackid;
-} PacketHeader;
-
-typedef struct _PacketData {
-	char data[5000];
-} PacketData;
-
-typedef struct _Packet {
-	PacketHeader header;
-	PacketData   data;
-} Packet;
-
-typedef struct _FragmentHeader {
-	int size;
-	int count;
-	int index;
-	int id;
-	int offset;
-} FragmentHeader;
-
-typedef struct _FragmentData {
-	char data[10000];
-} FragmentData;
-
-typedef struct _Fragment {
-	FragmentHeader header;
-	FragmentData   data;
-} Fragment;
-
-typedef struct _FragmentEntry {
-	ListNode node;
-	uint32_t expiry;
-	struct sockaddr_in addr;
-	Fragment fragment;
-} FragmentEntry;
-
-API Socket *new_socket();
-API bool socket_bind(Socket *socket, char *ip, int port);
-API void socket_connect(Socket *socket, char *ip, int port);
-API int get_socket_fd(Socket *socket);
-API int socket_event(Socket *socket, SocketEvent *event);
-API void socket_send_fragment(Socket *socket, void *data, int size, struct sockaddr_in addr);
-API bool socket_recv_fragment(Socket *socket, void *data, int size, struct sockaddr_in *addr);
-API void socket_free(Socket *socket);
-
-void frag_queue_insert(Socket *socket, Fragment fragment, struct sockaddr_in addr);
-void frag_queue_remove(Socket *socket, uint32_t id);
-void free_frag_entry(FragmentEntry *entry);
-
-// peer.c
-
-API void socket_peer_update_ping(Peer *peer);
-API bool socket_peer_is_unpinged(Peer *peer);
-API void socket_peer_ping(Socket *socket, Peer *peer);
-API void socket_peer_send(Socket *socket, Peer *peer, char *data, int size, SendType type);
-API Peer *socket_peer_get_by_session(Socket *socket, Session id);
-
-API uint32_t get_peer_free_ip(List *peers);
-API Peer *get_peer_by_ip(List *peers, uint32_t ip);
 
 // tun.c
 
@@ -265,7 +121,7 @@ typedef struct _Tun {
 } Tun;
 
 API Tun *open_tun(char *dev);
-API void setifip(Tun *tun, char* local, char* mask, int mtu);
+API void setifip(Tun *tun, uint32_t ip, uint32_t mask, int mtu);
 API void ifup(Tun *tun);
 API void free_tun(Tun *tun);
 
