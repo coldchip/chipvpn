@@ -34,7 +34,7 @@ void socket_connect(Socket *socket, char *ip, int port) {
 	addr.sin_port        = htons(port);
 
 	Packet packet;
-	packet.header.type    = htonl(PT_CONNECT_SYN);
+	packet.header.type    = htonl(PT_CONNECT | PT_ACK);
 	packet.header.size    = htonl(0);
 	packet.header.seqid   = htonl(10);
 	packet.header.ackid   = htonl(0);
@@ -92,49 +92,31 @@ int socket_event(Socket *socket, SocketEvent *event) {
 		uint32_t packet_ackid   = ntohl(packet.header.ackid);
 		Session  packet_session = packet.header.session;
 
-		if(packet_type == PT_CONNECT_SYN && list_size(&socket->peers) < socket->peer_count) {
+		if(packet_type & PT_ACK) {
+			printf("ACK\n");
+		}
+
+		if((packet_type & PT_CONNECT)) {
 			// Do connect server side
-			Peer *peer   = malloc(sizeof(Peer));
-			peer->socket = socket;
-			peer->state  = STATE_CONNECTED;
-			peer->addr   = addr;
-			peer->seqid  = 0;
-			peer->ackid  = packet_seqid + 1;
-			socket_peer_update_ping(peer);
-			socket_fill_random((char*)&peer->session, sizeof(Session));
-			list_insert(list_end(&socket->peers), peer);
-
-			Packet synack;
-			synack.header.type     = htonl(PT_CONNECT_ACK);
-			synack.header.session  = peer->session;
-			synack.header.size     = htonl(0);
-			synack.header.seqid    = htonl(0);
-			synack.header.ackid    = htonl(0);
-
-			socket_send_fragment(socket, (char*)&synack, sizeof(PacketHeader), addr);
-			event->type = EVENT_CONNECT;
-			event->peer = peer;
-			return 1;
-		} else if(packet_type == PT_CONNECT_ACK && list_size(&socket->peers) < socket->peer_count) {
+			Peer *peer = socket_handle_connect(socket, addr);
+			if(peer) {
+				event->type = EVENT_CONNECT;
+				event->peer = peer;
+				return 1;
+			}
+		} else if((packet_type & PT_CONNECT_VERIFY)) {
 			// Client side
-			Peer *peer    = malloc(sizeof(Peer));
-			peer->socket  = socket;
-			peer->state   = STATE_CONNECTED;
-			peer->addr    = addr;
-			peer->seqid   = 0;
-			peer->ackid   = packet_seqid + 1;
-			peer->session = packet_session;
-			socket_peer_update_ping(peer);
-
-			list_insert(list_end(&socket->peers), peer);
-			event->type = EVENT_CONNECT;
-			event->peer = peer;
-			return 1;
+			Peer *peer = socket_handle_verify_connect(socket, packet_session, addr);
+			if(peer) {
+				event->type = EVENT_CONNECT;
+				event->peer = peer;
+				return 1;
+			}
 		} else {
 			Peer *peer = socket_peer_get_by_session(socket, packet_session);
 			if(peer) {
-				if(packet_type == PT_PING) {
-					printf("Update peer, %li peer(s) left\n", list_size(&socket->peers));
+				if(packet_type & PT_PING) {
+					printf("%li peer(s) left\n", list_size(&socket->peers));
 					socket_peer_update_ping(peer);
 				} else if(packet_type == PT_DATA && (packet_size > 0 && packet_size < 65535)) {
 					// TODO: check for packet_size to prevent buffer overflow
@@ -152,6 +134,50 @@ int socket_event(Socket *socket, SocketEvent *event) {
 	event->type = EVENT_NONE;
 	event->peer = NULL;
 	return 0;
+}
+
+Peer *socket_handle_connect(Socket *socket, struct sockaddr_in addr) {
+	if(list_size(&socket->peers) < socket->peer_count) {
+		Peer *peer   = malloc(sizeof(Peer));
+		peer->socket = socket;
+		peer->state  = STATE_CONNECTED;
+		peer->addr   = addr;
+		peer->seqid  = 0;
+		peer->ackid  = 0;
+		socket_peer_update_ping(peer);
+		socket_fill_random((char*)&peer->session, sizeof(Session));
+		list_insert(list_end(&socket->peers), peer);
+
+		Packet synack;
+		synack.header.type     = htonl(PT_CONNECT_VERIFY | PT_ACK);
+		synack.header.session  = peer->session;
+		synack.header.size     = htonl(0);
+		synack.header.seqid    = htonl(0);
+		synack.header.ackid    = htonl(0);
+
+		socket_send_fragment(socket, (char*)&synack, sizeof(PacketHeader), addr);
+
+		return peer;
+	}
+	return NULL;
+}
+
+Peer *socket_handle_verify_connect(Socket *socket, Session session, struct sockaddr_in addr) {
+	if(list_size(&socket->peers) < socket->peer_count) {
+		Peer *peer    = malloc(sizeof(Peer));
+		peer->socket  = socket;
+		peer->state   = STATE_CONNECTED;
+		peer->addr    = addr;
+		peer->seqid   = 0;
+		peer->ackid   = 0;
+		peer->session = session;
+		socket_peer_update_ping(peer);
+
+		list_insert(list_end(&socket->peers), peer);
+
+		return peer;
+	}
+	return NULL;
 }
 
 void socket_send_fragment(Socket *socket, void *data, int size, struct sockaddr_in addr) {
@@ -220,20 +246,6 @@ bool socket_recv_fragment(Socket *socket, void *data, int size, struct sockaddr_
 	return false;
 }
 
-void socket_fill_random(char *buffer, int size) {
-    syscall(SYS_getrandom, buffer, size, 1);
-}
-
-void socket_free(Socket *socket) {
-	close(socket->fd);
-	free(socket);
-}
-
-
-
-
-
-
 void frag_queue_insert(Socket *socket, Fragment fragment, struct sockaddr_in addr) {
 	FragmentEntry *entry = malloc(sizeof(FragmentEntry));
 	entry->expiry        = time(NULL) + 2;
@@ -263,4 +275,13 @@ void frag_queue_remove(Socket *socket, uint32_t id) {
 void free_frag_entry(FragmentEntry *entry) {
 	list_remove(&entry->node);
 	free(entry);
+}
+
+void socket_fill_random(char *buffer, int size) {
+    syscall(SYS_getrandom, buffer, size, 1);
+}
+
+void socket_free(Socket *socket) {
+	close(socket->fd);
+	free(socket);
 }

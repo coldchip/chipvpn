@@ -15,7 +15,7 @@ bool socket_peer_is_unpinged(Peer *peer) {
 
 void socket_peer_ping(Peer *peer) {
 	Packet packet;
-	packet.header.type     = htonl(PT_PING);
+	packet.header.type     = htonl(PT_PING | PT_ACK);
 	packet.header.session  = peer->session;
 	packet.header.size     = htonl(0);
 	packet.header.seqid    = htonl(peer->seqid);

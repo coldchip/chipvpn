@@ -34,10 +34,11 @@ typedef enum {
 } SendType;
 
 typedef enum {
-	PT_CONNECT_SYN,
-	PT_CONNECT_ACK,
-	PT_PING,
-	PT_DATA
+	PT_ACK = (1 << 1),
+	PT_CONNECT = (1 << 2),
+	PT_CONNECT_VERIFY = (1 << 3),
+	PT_PING = (1 << 4),
+	PT_DATA = (1 << 5)
 } PacketType;
 
 typedef enum {
@@ -122,15 +123,21 @@ bool socket_bind(Socket *socket, char *ip, int port);
 void socket_connect(Socket *socket, char *ip, int port);
 int get_socket_fd(Socket *socket);
 int socket_event(Socket *socket, SocketEvent *event);
+
+Peer *socket_handle_connect(Socket *socket, struct sockaddr_in addr);
+Peer *socket_handle_verify_connect(Socket *socket, Session session, struct sockaddr_in addr);
+
 void socket_send_fragment(Socket *socket, void *data, int size, struct sockaddr_in addr);
 bool socket_recv_fragment(Socket *socket, void *data, int size, struct sockaddr_in *addr);
-void socket_fill_random(char *buffer, int size);
-void socket_free(Socket *socket);
 
 void frag_queue_insert(Socket *socket, Fragment fragment, struct sockaddr_in addr);
 void frag_queue_remove(Socket *socket, uint32_t id);
 void free_frag_entry(FragmentEntry *entry);
 
+void socket_fill_random(char *buffer, int size);
+void socket_free(Socket *socket);
+
+// peer.c
 
 void socket_peer_update_ping(Peer *peer);
 bool socket_peer_is_unpinged(Peer *peer);
