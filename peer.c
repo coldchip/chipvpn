@@ -14,13 +14,15 @@ bool socket_peer_is_unpinged(Peer *peer) {
 }
 
 void socket_peer_ping(Peer *peer) {
-	Packet packet;
-	packet.header.type     = htonl(PT_PING | PT_ACK);
-	packet.header.session  = peer->session;
-	packet.header.size     = htonl(0);
-	packet.header.seqid    = htonl(peer->seqid);
-	packet.header.ackid    = htonl(peer->ackid);
-	socket_send_fragment(peer->socket, (char*)&packet, sizeof(PacketHeader), peer->addr);
+	if(peer->state == STATE_CONNECTED) {
+		Packet packet;
+		packet.header.type     = htonl(PT_PING | PT_ACK);
+		packet.header.session  = htonl(peer->session);
+		packet.header.size     = htonl(0);
+		packet.header.seqid    = htonl(peer->seqid);
+		peer->seqid++;
+		socket_send_fragment(peer->socket, (char*)&packet, sizeof(PacketHeader), peer->addr);
+	}
 }
 
 void socket_peer_send(Peer *peer, char *data, int size, SendType type) {
@@ -28,12 +30,16 @@ void socket_peer_send(Peer *peer, char *data, int size, SendType type) {
 	// Packet fragmentation will be handled in socket_send_fragment
 	if(peer->state == STATE_CONNECTED) {
 		Packet packet;
-		packet.header.type     = htonl(PT_DATA);
-		packet.header.session  = peer->session;
-		packet.header.size     = htonl(size);
-
-		packet.header.seqid    = htonl(peer->seqid);
-		packet.header.ackid    = htonl(peer->ackid);
+		if(type == RELIABLE) {
+			packet.header.type  = htonl(PT_DATA | PT_ACK);
+			packet.header.seqid = htonl(peer->seqid);
+			peer->seqid++;
+		} else {
+			packet.header.type  = htonl(PT_DATA);
+			packet.header.seqid = htonl(peer->seqid);
+		}
+		packet.header.session = htonl(peer->session);
+		packet.header.size    = htonl(size);
 
 		if(data != NULL) {
 			memcpy((char*)&packet.data, data, size);
@@ -42,10 +48,10 @@ void socket_peer_send(Peer *peer, char *data, int size, SendType type) {
 	}
 }
 
-Peer *socket_peer_get_by_session(Socket *socket, Session session) {
+Peer *socket_peer_get_by_session(Socket *socket, uint32_t session) {
 	for(ListNode *i = list_begin(&socket->peers); i != list_end(&socket->peers); i = list_next(i)) {
 		Peer *peer = (Peer*)i;
-		if(memcmp(&peer->session, &session, sizeof(Session)) == 0) {
+		if(peer->session == session) {
 			return peer;
 		}
 	}

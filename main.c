@@ -4,7 +4,7 @@
 
 int main(int argc, char const *argv[]) {
 	setbuf(stdout, NULL);
-	//srand((unsigned) time(NULL));
+	srand((unsigned) time(NULL));
 	printf("\e[1;1H\e[2J");
 	console_log("ColdChip ChipVPN");
 	if(argv[1] != NULL) {

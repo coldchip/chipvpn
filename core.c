@@ -80,24 +80,17 @@ void run_core(char *config) {
 							char data[3000];
 							event.peer->internal_ip  = alloc_ip;
 
-							uint32_t tun_ip        = alloc_ip;
-							uint32_t tun_subnet    = inet_addr("255.255.255.0");
-							uint32_t tun_gateway   = inet_addr("10.0.0.1");
-							uint32_t mtu           = htonl(MAX_MTU);
-
-							memcpy(((char*)&data) + (sizeof(uint32_t) * 0) + 4, &tun_ip,        sizeof(tun_ip));
-							memcpy(((char*)&data) + (sizeof(uint32_t) * 1) + 4, &tun_subnet,    sizeof(tun_subnet));
-							memcpy(((char*)&data) + (sizeof(uint32_t) * 2) + 4, &tun_gateway,   sizeof(tun_gateway));
-							memcpy(((char*)&data) + (sizeof(uint32_t) * 3) + 4, &mtu,           sizeof(mtu));
-
-							int p_type = htonl(69);
-							memcpy((char*)&data, &p_type, sizeof(p_type));
+							*(int*)(((char*)&data) + 0) = htonl(VPN_TYPE_ASSIGN);
+							*(int*)(((char*)&data) + 4) = alloc_ip;
+							*(int*)(((char*)&data) + 8) = inet_addr("255.255.255.0");
+							*(int*)(((char*)&data) + 12) = inet_addr("10.0.0.1");
+							*(int*)(((char*)&data) + 16) = htonl(MAX_MTU);
 
 							socket_peer_send(event.peer, data, sizeof(data), RELIABLE);
 						}
-						printf("Client Connected\n");
+						console_log("Client Connected");
 					} else {
-						printf("Connected to server\n");
+						console_log("Connected to server");
 					}
 				}
 				break;
@@ -107,15 +100,25 @@ void run_core(char *config) {
 					char *p_data = ((char*)event.data) + 4;
 					int size = event.size - 4;
 					switch(p_type) {
-						case 69: {
-							printf("received DHCP \n");
-							uint32_t peer_ip      = *(uint32_t*)(p_data);
-							uint32_t peer_subnet  = *(uint32_t*)(p_data += sizeof(uint32_t));
-							uint32_t peer_gateway = *(uint32_t*)(p_data += sizeof(uint32_t));
-							uint32_t peer_mtu     = *(uint32_t*)(p_data += sizeof(uint32_t));
+						case VPN_TYPE_ASSIGN: {
+							if(is_server) {
+								break;
+							}
+							uint32_t peer_ip      = *(uint32_t*)(p_data + 0);
+							uint32_t peer_subnet  = *(uint32_t*)(p_data + 4);
+							uint32_t peer_gateway = *(uint32_t*)(p_data + 8);
+							uint32_t peer_mtu     = *(uint32_t*)(p_data + 12);
 
 							setifip(tun, peer_ip, peer_subnet, peer_mtu);
 							ifup(tun);
+
+							uint8_t cidr = 0; 
+							while (peer_subnet) { 
+								cidr += peer_subnet & 1; 
+								peer_subnet >>= 1; 
+							} 
+
+							console_log("Assigned: ip %i.%i.%i.%i/%i gateway %i.%i.%i.%i", (peer_ip >> 0) & 0xFF, (peer_ip >> 8) & 0xFF, (peer_ip >> 16) & 0xFF, (peer_ip >> 24) & 0xFF, cidr, (peer_gateway >> 0) & 0xFF, (peer_gateway >> 8) & 0xFF, (peer_gateway >> 16) & 0xFF, (peer_gateway >> 24) & 0xFF);
 
 							if(server_pull_routes) {
 								uint32_t default_gateway = get_default_gateway();
@@ -126,7 +129,7 @@ void run_core(char *config) {
 							event.peer->internal_ip = peer_ip;
 						}
 						break;
-						case 32: {
+						case VPN_TYPE_DATA: {
 							IPPacket *ip_hdr = (IPPacket*)p_data;
 							if(
 								((ip_hdr->dst_addr == event.peer->internal_ip && !is_server) || 
@@ -147,9 +150,9 @@ void run_core(char *config) {
 				break;
 
 				case EVENT_DISCONNECT: {
-					printf("Disconnected\n");
+					console_log("Disconnected");
 					if(!is_server) {
-						printf("Reconnecting\n");
+						console_log("Reconnecting");
 						socket_connect(socket, server_ip, atoi(server_port));
 					}
 				}
@@ -175,7 +178,7 @@ void run_core(char *config) {
 			if(peer) {
 				tx += size;
 				peer->tx += size;
-				*p_type = htonl(32);
+				*p_type = htonl(VPN_TYPE_DATA);
 
 				socket_peer_send(peer, buf, size + 4, DATAGRAM);
 			}
