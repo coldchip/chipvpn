@@ -31,8 +31,9 @@ typedef enum {
 } SendType;
 
 typedef enum {
-	PT_ACK = (1 << 1),
-	PT_ACK_REPLY = (1 << 2),
+	PT_ACK = (1 << 0),
+	PT_ACK_REPLY = (1 << 1),
+	PT_RETRANSMIT = (1 << 2),
 	PT_CONNECT = (1 << 3),
 	PT_CONNECT_VERIFY = (1 << 4),
 	PT_PING = (1 << 5),
@@ -64,8 +65,9 @@ typedef struct _Peer {
 	uint64_t rx;
 	uint64_t quota;
 	uint32_t session;
-	uint32_t seqid;
-	uint32_t seqid_t;
+	uint32_t outgoing_seqid;
+	uint32_t incoming_seqid;
+	List ack_queue;
 } Peer;
 
 typedef struct _PacketHeader {
@@ -108,6 +110,13 @@ typedef struct _FragmentEntry {
 	Fragment fragment;
 } FragmentEntry;
 
+typedef struct _ACKEntry {
+	ListNode node;
+	uint32_t seqid;
+	Packet packet;
+	int size;
+} ACKEntry;
+
 typedef struct _SocketEvent {
 	EventType type;
 	Peer *peer;
@@ -140,6 +149,9 @@ void socket_peer_update_ping(Peer *peer);
 bool socket_peer_is_unpinged(Peer *peer);
 void socket_peer_ping(Peer *peer);
 void socket_peer_send(Peer *peer, char *data, int size, SendType type);
+void socket_peer_send_outgoing_command(Peer *peer, PacketHeader *header, char *data, int size);
+void socket_peer_queue_ack(Peer *peer, uint32_t seqid, Packet packet, int size);
+void socket_peer_remove_ack(Peer *peer, uint32_t seqid);
 Peer *socket_peer_get_by_session(Socket *socket, uint32_t session);
 void socket_peer_disconnect(Peer *peer);
 

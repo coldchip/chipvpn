@@ -15,13 +15,9 @@ bool socket_peer_is_unpinged(Peer *peer) {
 
 void socket_peer_ping(Peer *peer) {
 	if(peer->state == STATE_CONNECTED) {
-		Packet packet;
-		packet.header.type     = htonl(PT_PING | PT_ACK);
-		packet.header.session  = htonl(peer->session);
-		packet.header.size     = htonl(0);
-		packet.header.seqid    = htonl(peer->seqid);
-		peer->seqid++;
-		socket_send_fragment(peer->socket, (char*)&packet, sizeof(PacketHeader), peer->addr);
+		PacketHeader header;
+		header.type = PT_PING | PT_ACK;
+		socket_peer_send_outgoing_command(peer, &header, NULL, 0);
 	}
 }
 
@@ -29,22 +25,59 @@ void socket_peer_send(Peer *peer, char *data, int size, SendType type) {
 	// send_peer: Packet sequencing and reliability layer
 	// Packet fragmentation will be handled in socket_send_fragment
 	if(peer->state == STATE_CONNECTED) {
-		Packet packet;
+		PacketHeader header;
+		header.type = PT_DATA;
 		if(type == RELIABLE) {
-			packet.header.type  = htonl(PT_DATA | PT_ACK);
-			packet.header.seqid = htonl(peer->seqid);
-			peer->seqid++;
-		} else {
-			packet.header.type  = htonl(PT_DATA);
-			packet.header.seqid = htonl(peer->seqid);
+			header.type |= PT_ACK;
 		}
-		packet.header.session = htonl(peer->session);
-		packet.header.size    = htonl(size);
 
-		if(data != NULL) {
-			memcpy((char*)&packet.data, data, size);
+		socket_peer_send_outgoing_command(peer, &header, data, size);
+	}
+}
+
+void socket_peer_send_outgoing_command(Peer *peer, PacketHeader *header, char *data, int size) {
+	Packet packet;
+	packet.header.type    = htonl(header->type);
+	packet.header.size    = htonl(size);
+	packet.header.session = htonl(peer->session);
+	if(data) {
+		memcpy((char*)&packet.data, data, size);
+	}
+	if(header->type == PT_ACK_REPLY || header->type == PT_RETRANSMIT) {
+		packet.header.seqid = htonl(header->seqid);
+	} else {
+		packet.header.seqid = htonl(peer->outgoing_seqid);
+		if(header->type & PT_ACK) {
+			peer->outgoing_seqid++;
+			socket_peer_queue_ack(peer, peer->outgoing_seqid, packet, size);
 		}
-		socket_send_fragment(peer->socket, (char*)&packet, sizeof(PacketHeader) + size, peer->addr);
+	}
+	socket_send_fragment(peer->socket, (char*)&packet, sizeof(PacketHeader) + size, peer->addr);
+}
+
+void socket_peer_queue_ack(Peer *peer, uint32_t seqid, Packet packet, int size) {
+	ACKEntry *entry = malloc(sizeof(ACKEntry));
+	entry->seqid  = seqid;
+	entry->packet = packet;
+	entry->size   = size;
+	list_insert(list_end(&peer->ack_queue), entry);
+	
+	if(list_size(&peer->ack_queue) > 100) {
+		socket_peer_disconnect(peer);
+	}
+	
+}
+
+void socket_peer_remove_ack(Peer *peer, uint32_t seqid) {
+	ListNode *i = list_begin(&peer->ack_queue);
+
+	while(i != list_end(&peer->ack_queue)) {
+		ACKEntry *current = (ACKEntry*)i;
+		i = list_next(i);
+		if(current->seqid <= seqid) {
+			list_remove(&current->node);
+			free(current);
+		}
 	}
 }
 

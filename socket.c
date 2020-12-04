@@ -34,24 +34,21 @@ void socket_connect(Socket *socket, char *ip, int port) {
 	addr.sin_addr.s_addr = inet_addr(ip); 
 	addr.sin_port        = htons(port);
 
-	Peer *peer    = malloc(sizeof(Peer));
-	peer->socket  = socket;
-	peer->state   = STATE_CONNECTING;
-	peer->addr    = addr;
-	peer->seqid   = 0;
-	peer->seqid_t = 0;
-	peer->session = rand();
+	Peer *peer           = malloc(sizeof(Peer));
+	peer->socket         = socket;
+	peer->state          = STATE_CONNECTING;
+	peer->addr           = addr;
+	peer->incoming_seqid = 0;
+	peer->outgoing_seqid = 0;
+	peer->session        = rand();
+	list_clear(&peer->ack_queue);
 	socket_peer_update_ping(peer);
 	list_insert(list_end(&socket->peers), peer);
 
-	Packet packet;
-	packet.header.type    = htonl(PT_CONNECT | PT_ACK);
-	packet.header.session = htonl(peer->session);
-	packet.header.size    = htonl(0);
-	packet.header.seqid   = htonl(peer->seqid);
-	peer->seqid++;
+	PacketHeader header;
+	header.type = PT_CONNECT | PT_ACK;
 
-	socket_send_fragment(socket, (char*)&packet, sizeof(PacketHeader), addr);
+	socket_peer_send_outgoing_command(peer, &header, NULL, 0);
 }
 
 int get_socket_fd(Socket *socket) {
@@ -79,7 +76,7 @@ int socket_event(Socket *socket, SocketEvent *event) {
 				peer->state = STATE_DISCONNECTED;
 			} else if(socket_peer_is_unpinged(peer) && peer->state == STATE_CONNECTED) {
 				// Set peer to STATE_DISCONNECTING and wait for notify
-				peer->state = STATE_DISCONNECTING;
+				socket_peer_disconnect(peer);
 			} else if(peer->state == STATE_DISCONNECTING) {
 				// Notify disconnect
 				peer->state = STATE_DISCONNECTED;
@@ -89,14 +86,34 @@ int socket_event(Socket *socket, SocketEvent *event) {
 				return 1;
 			} else if(peer->state == STATE_DISCONNECTED) {
 				// Remove notified & disconnected peers
+				ListNode *x = list_begin(&peer->ack_queue);
+				while(x != list_end(&peer->ack_queue)) {
+					ACKEntry *entry = (ACKEntry*)x;
+					x = list_next(x);
+					list_remove(&entry->node);
+					free(entry);
+				}
+
 				list_remove(&peer->node);
 				free(peer);
-			} else {
+			} else if(peer->state == STATE_CONNECTED) {
 				socket_peer_ping(peer);
+			}
+
+			if(peer->state == STATE_CONNECTED || peer->state == STATE_CONNECTING) {
+				ListNode *x = list_begin(&peer->ack_queue);
+				while(x != list_end(&peer->ack_queue)) {
+					ACKEntry *entry = (ACKEntry*)x;
+					x = list_next(x);
+					socket_send_fragment(peer->socket, (char*)&entry->packet, sizeof(PacketHeader) + entry->size, peer->addr);
+				}
 			}
 		}
 		socket->last_service_time = time(NULL);
 	}
+
+	event->type = EVENT_NONE;
+	event->peer = NULL;
 
 	Packet packet;
 	struct sockaddr_in addr;
@@ -106,88 +123,93 @@ int socket_event(Socket *socket, SocketEvent *event) {
 		uint32_t packet_seqid   = ntohl(packet.header.seqid);
 		uint32_t packet_session = ntohl(packet.header.session);
 
-		if(packet_type & PT_ACK_REPLY) {
-			// printf("ACK_REPLY %i\n", packet_seqid);
-			event->type = EVENT_NONE;
-			event->peer = NULL;
-			return 0;
-		}
+		Peer *peer = NULL;
 
 		if((packet_type & PT_CONNECT)) {
 			// Do connect server side
-			Peer *peer = socket_handle_connect(socket, packet_session, addr);
-			if(packet_type & PT_ACK) {
-				Packet packet;
-				packet.header.type    = htonl(PT_ACK_REPLY);
-				packet.header.session = htonl(packet_session);
-				packet.header.size    = htonl(0);
-				packet.header.seqid   = htonl(packet_seqid);
-				socket_send_fragment(socket, (char*)&packet, sizeof(PacketHeader), addr);
-			}
+			peer = socket_handle_connect(socket, packet_session, addr);
 		} else {
-			Peer *peer = socket_peer_get_by_session(socket, packet_session);
-			if(peer) {
-				if(packet_type & PT_ACK) {
-					Packet packet;
-					packet.header.type    = htonl(PT_ACK_REPLY);
-					packet.header.session = htonl(packet_session);
-					packet.header.size    = htonl(0);
-					packet.header.seqid   = htonl(packet_seqid);
-					socket_send_fragment(socket, (char*)&packet, sizeof(PacketHeader), addr);
-					
-					if(peer->seqid_t == packet_seqid) {
-						peer->seqid_t++;
-					} else {
-						printf("Lost Reliable Packet: %i\n", peer->seqid_t);
-						peer->seqid_t = packet_seqid + 1;
-					}
+			peer = socket_peer_get_by_session(socket, packet_session);
+		}
+
+		if(peer && (packet_type == PT_ACK_REPLY)) {
+			socket_peer_remove_ack(peer, packet_seqid);
+			return 0;
+		}
+
+		if(peer && (packet_type == PT_RETRANSMIT)) {
+			ListNode *x = list_begin(&peer->ack_queue);
+			while(x != list_end(&peer->ack_queue)) {
+				ACKEntry *entry = (ACKEntry*)x;
+				x = list_next(x);
+				if(packet_seqid == entry->seqid) {
+					socket_send_fragment(peer->socket, (char*)&entry->packet, sizeof(PacketHeader) + entry->size, peer->addr);
 				}
-				if(packet_type & PT_CONNECT_VERIFY) {
-					if(socket_handle_verify_connect(socket, peer)) {
-						event->type = EVENT_CONNECT;
-						event->peer = peer;
-						return 1;
-					}
-				} else if(packet_type & PT_PING) {
-					printf("%li peer(s) left\n", list_size(&socket->peers));
-					socket_peer_update_ping(peer);
-				} else if(packet_type & PT_DATA && (packet_size > 0 && packet_size < 65535)) {
-					// TODO: check for packet_size to prevent buffer overflow
-					event->data = malloc(sizeof(char) * packet_size);
-					event->size = packet_size;
-					memcpy(event->data, (char*)&packet.data, packet_size);
-					event->type = EVENT_RECEIVE;
-					event->peer = peer;
-					return packet_size;
-				}
+			}
+			return 0;
+		}
+
+		if(peer && (packet_type & PT_ACK)) {
+			
+			if(packet_seqid > peer->incoming_seqid) {
+				PacketHeader header;
+				header.type  = PT_RETRANSMIT;
+				header.seqid = peer->incoming_seqid;
+				socket_peer_send_outgoing_command(peer, &header, NULL, 0);
+				return 0;
+			} else if(packet_seqid == peer->incoming_seqid) {
+				PacketHeader header;
+				header.type  = PT_ACK_REPLY;
+				header.seqid = packet_seqid;
+				socket_peer_send_outgoing_command(peer, &header, NULL, 0);
+				peer->incoming_seqid++;
+			} else {
+				return 0;
 			}
 		}
+		
+		if(peer) {
+			if(packet_type & PT_CONNECT_VERIFY) {
+				if(socket_handle_verify_connect(socket, peer)) {
+					event->type = EVENT_CONNECT;
+					event->peer = peer;
+					return 1;
+				}
+			} else if(packet_type & PT_PING) {
+				printf("%li peer(s) left\n", list_size(&socket->peers));
+				socket_peer_update_ping(peer);
+			} else if(packet_type & PT_DATA && (packet_size > 0 && packet_size < 65535)) {
+				// TODO: check for packet_size to prevent buffer overflow
+				event->data = malloc(sizeof(char) * packet_size);
+				event->size = packet_size;
+				memcpy(event->data, (char*)&packet.data, packet_size);
+				event->type = EVENT_RECEIVE;
+				event->peer = peer;
+				return 1;
+			}
+		}
+		
 	}
 
-	event->type = EVENT_NONE;
-	event->peer = NULL;
 	return 0;
 }
 
 Peer *socket_handle_connect(Socket *socket, uint32_t session, struct sockaddr_in addr) {
 	if(list_size(&socket->peers) < socket->peer_count) {
-		Peer *peer    = malloc(sizeof(Peer));
-		peer->socket  = socket;
-		peer->state   = STATE_CONNECTING;
-		peer->addr    = addr;
-		peer->seqid   = 0;
-		peer->seqid_t = 1;
-		peer->session = session;
+		Peer *peer           = malloc(sizeof(Peer));
+		peer->socket         = socket;
+		peer->state          = STATE_CONNECTING;
+		peer->addr           = addr;
+		peer->incoming_seqid = 0;
+		peer->outgoing_seqid = 0;
+		peer->session        = session;
+		list_clear(&peer->ack_queue);
 		socket_peer_update_ping(peer);
 		list_insert(list_end(&socket->peers), peer);
 
-		Packet synack;
-		synack.header.type     = htonl(PT_CONNECT_VERIFY | PT_ACK);
-		synack.header.session  = htonl(session);
-		synack.header.size     = htonl(0);
-		synack.header.seqid    = htonl(peer->seqid);
-		peer->seqid++;
-		socket_send_fragment(socket, (char*)&synack, sizeof(PacketHeader), addr);
+		PacketHeader header;
+		header.type = PT_CONNECT_VERIFY | PT_ACK;
+		socket_peer_send_outgoing_command(peer, &header, NULL, 0);
 
 		return peer;
 	}
@@ -198,20 +220,12 @@ bool socket_handle_verify_connect(Socket *socket, Peer *peer) {
 	if(peer->state == STATE_CONNECTING) {
 		peer->state = STATE_CONNECTED;
 
-		Packet synack;
-		synack.header.type     = htonl(PT_CONNECT_VERIFY | PT_ACK);
-		synack.header.session  = htonl(peer->session);
-		synack.header.size     = htonl(0);
-		synack.header.seqid    = htonl(peer->seqid);
-		peer->seqid++;
-		socket_send_fragment(socket, (char*)&synack, sizeof(PacketHeader), peer->addr);
+		PacketHeader header;
+		header.type = PT_CONNECT_VERIFY | PT_ACK;
+		socket_peer_send_outgoing_command(peer, &header, NULL, 0);
 		return true;
 	}
 	return false;
-}
-
-void socket_setup_outgoing_command() {
-
 }
 
 void socket_send_fragment(Socket *socket, void *data, int size, struct sockaddr_in addr) {
