@@ -48,21 +48,22 @@ void socket_peer_send_outgoing_command(Peer *peer, PacketHeader *header, char *d
 	} else {
 		packet.header.seqid = htonl(peer->outgoing_seqid);
 		if(header->type & PT_ACK) {
+			socket_peer_queue_ack(peer, peer->outgoing_seqid, (char*)&packet, sizeof(PacketHeader) + size);
 			peer->outgoing_seqid++;
-			socket_peer_queue_ack(peer, peer->outgoing_seqid, packet, size);
 		}
 	}
 	socket_send_fragment(peer->socket, (char*)&packet, sizeof(PacketHeader) + size, peer->addr);
 }
 
-void socket_peer_queue_ack(Peer *peer, uint32_t seqid, Packet packet, int size) {
+void socket_peer_queue_ack(Peer *peer, uint32_t seqid, char *packet, int size) {
 	ACKEntry *entry = malloc(sizeof(ACKEntry));
 	entry->seqid  = seqid;
-	entry->packet = packet;
+	entry->packet = malloc(sizeof(char) * size);
 	entry->size   = size;
+	memcpy(entry->packet, packet, size);
 	list_insert(list_end(&peer->ack_queue), entry);
 	
-	if(list_size(&peer->ack_queue) > 100) {
+	if(list_size(&peer->ack_queue) > 50) {
 		socket_peer_disconnect(peer);
 	}
 	
@@ -76,6 +77,7 @@ void socket_peer_remove_ack(Peer *peer, uint32_t seqid) {
 		i = list_next(i);
 		if(current->seqid <= seqid) {
 			list_remove(&current->node);
+			free(current->packet);
 			free(current);
 		}
 	}

@@ -113,7 +113,7 @@ typedef struct _FragmentEntry {
 typedef struct _ACKEntry {
 	ListNode node;
 	uint32_t seqid;
-	Packet packet;
+	char* packet;
 	int size;
 } ACKEntry;
 
@@ -150,7 +150,7 @@ bool socket_peer_is_unpinged(Peer *peer);
 void socket_peer_ping(Peer *peer);
 void socket_peer_send(Peer *peer, char *data, int size, SendType type);
 void socket_peer_send_outgoing_command(Peer *peer, PacketHeader *header, char *data, int size);
-void socket_peer_queue_ack(Peer *peer, uint32_t seqid, Packet packet, int size);
+void socket_peer_queue_ack(Peer *peer, uint32_t seqid, char *packet, int size);
 void socket_peer_remove_ack(Peer *peer, uint32_t seqid);
 Peer *socket_peer_get_by_session(Socket *socket, uint32_t session);
 void socket_peer_disconnect(Peer *peer);

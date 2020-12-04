@@ -71,10 +71,7 @@ int socket_event(Socket *socket, SocketEvent *event) {
 		while(j != list_end(&socket->peers)) {
 			Peer *peer = (Peer*)j;
 			j = list_next(j);
-			if(socket_peer_is_unpinged(peer) && peer->state == STATE_CONNECTING) {
-				// Immediately disconnect peer without notifying
-				peer->state = STATE_DISCONNECTED;
-			} else if(socket_peer_is_unpinged(peer) && peer->state == STATE_CONNECTED) {
+			if(socket_peer_is_unpinged(peer) && (peer->state == STATE_CONNECTED || peer->state == STATE_CONNECTING)) {
 				// Set peer to STATE_DISCONNECTING and wait for notify
 				socket_peer_disconnect(peer);
 			} else if(peer->state == STATE_DISCONNECTING) {
@@ -91,6 +88,7 @@ int socket_event(Socket *socket, SocketEvent *event) {
 					ACKEntry *entry = (ACKEntry*)x;
 					x = list_next(x);
 					list_remove(&entry->node);
+					free(entry->packet);
 					free(entry);
 				}
 
@@ -105,7 +103,7 @@ int socket_event(Socket *socket, SocketEvent *event) {
 				while(x != list_end(&peer->ack_queue)) {
 					ACKEntry *entry = (ACKEntry*)x;
 					x = list_next(x);
-					socket_send_fragment(peer->socket, (char*)&entry->packet, sizeof(PacketHeader) + entry->size, peer->addr);
+					socket_send_fragment(peer->socket, entry->packet, entry->size, peer->addr);
 				}
 			}
 		}
@@ -132,18 +130,18 @@ int socket_event(Socket *socket, SocketEvent *event) {
 			peer = socket_peer_get_by_session(socket, packet_session);
 		}
 
-		if(peer && (packet_type == PT_ACK_REPLY)) {
+		if(peer && (packet_type & PT_ACK_REPLY)) {
 			socket_peer_remove_ack(peer, packet_seqid);
 			return 0;
 		}
 
-		if(peer && (packet_type == PT_RETRANSMIT)) {
+		if(peer && (packet_type & PT_RETRANSMIT)) {
 			ListNode *x = list_begin(&peer->ack_queue);
 			while(x != list_end(&peer->ack_queue)) {
 				ACKEntry *entry = (ACKEntry*)x;
 				x = list_next(x);
-				if(packet_seqid == entry->seqid) {
-					socket_send_fragment(peer->socket, (char*)&entry->packet, sizeof(PacketHeader) + entry->size, peer->addr);
+				if(entry->seqid == packet_seqid) {
+					socket_send_fragment(peer->socket, entry->packet, entry->size, peer->addr);
 				}
 			}
 			return 0;
