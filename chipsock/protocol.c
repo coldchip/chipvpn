@@ -1,4 +1,4 @@
-#include "socket.h"
+#include "chipsock.h"
 
 Socket *new_socket(int peer_count) {
 	int sock = socket(AF_INET, SOCK_DGRAM, 0);
@@ -12,7 +12,11 @@ Socket *new_socket(int peer_count) {
 	socket->peer_count        = peer_count;
 	list_clear(&socket->frag_queue);
 	list_clear(&socket->ack_queue);
-	list_clear(&socket->peers);
+	Peer *peers = malloc(sizeof(Peer) * peer_count);
+	for(Peer *peer = peers; peer < &peers[peer_count]; ++peer) {
+		peer->state = STATE_DISCONNECTED;
+	}
+    socket->peers = peers;
 	return socket;
 }
 
@@ -28,27 +32,30 @@ bool socket_bind(Socket *socket, char *ip, int port) {
 	return false;
 }
 
-void socket_connect(Socket *socket, char *ip, int port) {
+Peer *socket_connect(Socket *socket, char *ip, int port) {
 	struct sockaddr_in     addr;
 	addr.sin_family      = AF_INET;
 	addr.sin_addr.s_addr = inet_addr(ip); 
 	addr.sin_port        = htons(port);
 
-	Peer *peer           = malloc(sizeof(Peer));
-	peer->socket         = socket;
-	peer->state          = STATE_CONNECTING;
-	peer->addr           = addr;
-	peer->incoming_seqid = 0;
-	peer->outgoing_seqid = 0;
-	peer->session        = rand();
-	list_clear(&peer->ack_queue);
-	socket_peer_update_ping(peer);
-	list_insert(list_end(&socket->peers), peer);
+	Peer *peer = socket_peer_get_disconnected(socket);
+	if(peer) {
+		peer->socket         = socket;
+		peer->state          = STATE_CONNECTING;
+		peer->addr           = addr;
+		peer->incoming_seqid = 0;
+		peer->outgoing_seqid = 0;
+		peer->session        = rand();
+		list_clear(&peer->ack_queue);
+		socket_peer_update_ping(peer);
 
-	PacketHeader header;
-	header.type = PT_CONNECT | PT_ACK;
+		PacketHeader header;
+		header.type = PT_CONNECT | PT_ACK;
 
-	socket_peer_send_outgoing_command(peer, &header, NULL, 0);
+		socket_peer_send_outgoing_command(peer, &header, NULL, 0);
+		return peer;
+	}
+	return NULL;
 }
 
 int get_socket_fd(Socket *socket) {
@@ -67,22 +74,19 @@ int socket_event(Socket *socket, SocketEvent *event) {
 			}
 		}
 
-		ListNode *j = list_begin(&socket->peers);
-		while(j != list_end(&socket->peers)) {
-			Peer *peer = (Peer*)j;
-			j = list_next(j);
-			if(socket_peer_is_unpinged(peer) && (peer->state == STATE_CONNECTED || peer->state == STATE_CONNECTING)) {
-				// Set peer to STATE_DISCONNECTING and wait for notify
-				socket_peer_disconnect(peer);
-			} else if(peer->state == STATE_DISCONNECTING) {
-				// Notify disconnect
-				peer->state = STATE_DISCONNECTED;
-
-				event->type = EVENT_DISCONNECT;
-				event->peer = peer;
-				return 1;
-			} else if(peer->state == STATE_DISCONNECTED) {
-				// Remove notified & disconnected peers
+		for(Peer *peer = socket->peers; peer < &socket->peers[socket->peer_count]; ++peer) {
+			if(socket_peer_is_unpinged(peer)) {
+				// Set peer to STATE_DISCONNECTING
+				if(peer->state == STATE_CONNECTED) {
+					socket_peer_disconnect(peer);
+				}
+				if(peer->state == STATE_CONNECTING) {
+					// no notify because not connected at the first place
+					peer->state = STATE_DISCONNECTED;
+				}
+			}
+			if(peer->state == STATE_DISCONNECTING) {
+				// Disconnect & notify
 				ListNode *x = list_begin(&peer->ack_queue);
 				while(x != list_end(&peer->ack_queue)) {
 					ACKEntry *entry = (ACKEntry*)x;
@@ -91,11 +95,12 @@ int socket_event(Socket *socket, SocketEvent *event) {
 					free(entry->packet);
 					free(entry);
 				}
-
-				list_remove(&peer->node);
-				free(peer);
-				continue;
-			} else if(peer->state == STATE_CONNECTED) {
+				peer->state = STATE_DISCONNECTED;
+				event->type = EVENT_DISCONNECT;
+				event->peer = peer;
+				return 1;
+			} 
+			if(peer->state == STATE_CONNECTED) {
 				socket_peer_ping(peer);
 			}
 
@@ -184,7 +189,7 @@ int socket_event(Socket *socket, SocketEvent *event) {
 					return 1;
 				}
 			} else if(packet_type & PT_PING) {
-				printf("%li peer(s) left\n", list_size(&socket->peers));
+				printf("%i peer(s) left\n", socket_peer_count_connected(socket));
 				socket_peer_update_ping(peer);
 			} else if(packet_type & PT_DATA && (packet_size > 0 && packet_size < 65535)) {
 				event->data = malloc(sizeof(char) * packet_size);
@@ -202,8 +207,8 @@ int socket_event(Socket *socket, SocketEvent *event) {
 }
 
 Peer *socket_handle_connect(Socket *socket, uint32_t session, struct sockaddr_in addr) {
-	if(list_size(&socket->peers) < socket->peer_count) {
-		Peer *peer           = malloc(sizeof(Peer));
+	Peer *peer = socket_peer_get_disconnected(socket);
+	if(peer) {
 		peer->socket         = socket;
 		peer->state          = STATE_CONNECTING;
 		peer->addr           = addr;
@@ -212,7 +217,6 @@ Peer *socket_handle_connect(Socket *socket, uint32_t session, struct sockaddr_in
 		peer->session        = session;
 		list_clear(&peer->ack_queue);
 		socket_peer_update_ping(peer);
-		list_insert(list_end(&socket->peers), peer);
 
 		PacketHeader header;
 		header.type = PT_CONNECT_VERIFY | PT_ACK;

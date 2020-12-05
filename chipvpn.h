@@ -27,7 +27,7 @@ extern "C"
 #include <linux/if_tun.h>
 #include <sys/stat.h>
 #include <fcntl.h>
-#include "socket.h"
+#include "chipsock/chipsock.h"
 #include "list.h"
 
 #define API extern
@@ -132,6 +132,10 @@ API void decrypt(char *key, char *data, int length);
 
 // core.c
 
+typedef struct _VPNPeer {
+	uint32_t internal_ip;
+} VPNPeer;
+
 typedef enum {
 	VPN_TYPE_DATA,
 	VPN_TYPE_ASSIGN,
@@ -139,7 +143,8 @@ typedef enum {
 } VPNPacketType;
 
 API void run_core(char *config);
-
+uint32_t get_peer_free_ip(Socket *socket);
+Peer *get_peer_by_ip(Socket *socket, uint32_t ip);
 void stop_core();
 
 

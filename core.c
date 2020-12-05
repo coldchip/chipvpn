@@ -42,7 +42,9 @@ void run_core(char *config) {
 		if(!socket) {
 			error("Unable to create socket");
 		}
-		socket_connect(socket, server_ip, atoi(server_port));
+		if(!socket_connect(socket, server_ip, atoi(server_port))) {
+			error("Unable to init connection with server");
+		}
 	} else {
 		socket = new_socket(server_max_peers);
 		if(!socket) {
@@ -66,8 +68,6 @@ void run_core(char *config) {
 		0x3e, 0xa1, 0x43, 0x71, 0xa0, 0xe6, 0x67, 0x60
 	};
 
-	uint64_t tx = 0;
-	uint64_t rx = 0;
 	fd_set rdset;
 	struct timeval tv;
 	SocketEvent event;
@@ -85,12 +85,15 @@ void run_core(char *config) {
 		while((socket_event(socket, &event) > 0)) {
 			switch(event.type) {
 				case EVENT_CONNECT: {
-					console_log("Connect");
+					console_log("Connected");
+					Peer *peer = event.peer;
+					peer->data = (void*)malloc(sizeof(VPNPeer));
+
 					if(!is_server) {
 						char data[8];
 						*(int*)(((char*)&data) + 0) = htonl(VPN_TYPE_AUTH);
-						*(int*)(((char*)&data) + 4) = htonl(394885);
-						socket_peer_send(event.peer, data, sizeof(data), RELIABLE);
+						*(int*)(((char*)&data) + 4) = htonl(54678762);
+						socket_peer_send(peer, data, sizeof(data), RELIABLE);
 					}
 				}
 				break;
@@ -99,18 +102,22 @@ void run_core(char *config) {
 					int  p_type = ntohl(*(int*)event.data);
 					char *p_data = ((char*)event.data) + 4;
 					int size = event.size - 4;
+
+					Peer *peer = event.peer;
+					VPNPeer *vpn_peer = ((VPNPeer*)(peer->data));
+
 					switch(p_type) {
 						case VPN_TYPE_AUTH: {
 							if(is_server) {
 								uint32_t token = ntohl(*(uint32_t*)(p_data + 0));
-								if(token != 394885) {
-									socket_peer_disconnect(event.peer);
+								if(token != 54678762) {
+									socket_peer_disconnect(peer);
 									break;
 								}
-								uint32_t alloc_ip = get_peer_free_ip(&socket->peers);
+								uint32_t alloc_ip = get_peer_free_ip(socket);
 								if(alloc_ip > 0) {
 									char data[3000];
-									event.peer->internal_ip  = alloc_ip;
+									vpn_peer->internal_ip = alloc_ip;
 
 									*(int*)(((char*)&data) + 0) = htonl(VPN_TYPE_ASSIGN);
 									*(int*)(((char*)&data) + 4) = alloc_ip;
@@ -118,9 +125,9 @@ void run_core(char *config) {
 									*(int*)(((char*)&data) + 12) = inet_addr("10.0.0.1");
 									*(int*)(((char*)&data) + 16) = htonl(MAX_MTU);
 
-									socket_peer_send(event.peer, data, sizeof(data), RELIABLE);
+									socket_peer_send(peer, data, sizeof(data), RELIABLE);
 								}
-								console_log("Client Connected");
+								console_log("Client Logged In");
 							}
 						}
 						break;
@@ -142,7 +149,7 @@ void run_core(char *config) {
 									if(exec_sprintf("ip route add 0.0.0.0/1 via %i.%i.%i.%i", (peer_gateway >> 0) & 0xFF, (peer_gateway >> 8) & 0xFF, (peer_gateway >> 16) & 0xFF, (peer_gateway >> 24) & 0xFF)) { }
 									if(exec_sprintf("ip route add 128.0.0.0/1 via %i.%i.%i.%i", (peer_gateway >> 0) & 0xFF, (peer_gateway >> 8) & 0xFF, (peer_gateway >> 16) & 0xFF, (peer_gateway >> 24) & 0xFF)) { }
 								}
-								event.peer->internal_ip = peer_ip;
+								vpn_peer->internal_ip = peer_ip;
 							}
 						}
 						break;
@@ -150,13 +157,11 @@ void run_core(char *config) {
 							decrypt((char*)&key, p_data, size);
 							IPPacket *ip_hdr = (IPPacket*)p_data;
 							if(
-								((ip_hdr->dst_addr == event.peer->internal_ip && !is_server) || 
-								(ip_hdr->src_addr == event.peer->internal_ip && is_server)) && 
+								((ip_hdr->dst_addr == vpn_peer->internal_ip && !is_server) || 
+								(ip_hdr->src_addr == vpn_peer->internal_ip && is_server)) && 
 								(size > 0 && size <= (MAX_MTU))
 							) {
 								// Check if source is same as peer(Prevents IP spoofing) and bound packet to mtu size
-								rx += size;
-								event.peer->rx += size;
 								if(write(tun->fd, p_data, size)) {}
 							}
 						}
@@ -167,7 +172,13 @@ void run_core(char *config) {
 				break;
 
 				case EVENT_DISCONNECT: {
+					Peer *peer = event.peer;
+					VPNPeer *vpn_peer = ((VPNPeer*)(peer->data));
+
+					free(vpn_peer);
+
 					console_log("Disconnected");
+					
 					if(!is_server) {
 						console_log("Reconnecting");
 						socket_connect(socket, server_ip, atoi(server_port));
@@ -191,10 +202,8 @@ void run_core(char *config) {
 
 			IPPacket *ip_hdr = (IPPacket*)p_data;
 
-			Peer *peer = get_peer_by_ip(&socket->peers, is_server ? ip_hdr->dst_addr : ip_hdr->src_addr);
+			Peer *peer = get_peer_by_ip(socket, is_server ? ip_hdr->dst_addr : ip_hdr->src_addr);
 			if(peer) {
-				tx += size;
-				peer->tx += size;
 				*p_type = htonl(VPN_TYPE_DATA);
 				encrypt((char*)&key, p_data, size);
 				socket_peer_send(peer, buf, size + 4, DATAGRAM);
@@ -203,8 +212,39 @@ void run_core(char *config) {
 	}
 }
 
-void vpn_sock_to_tun() {
+uint32_t get_peer_free_ip(Socket *socket) {
+	uint32_t start = inet_addr("10.0.0.100");
+	uint32_t end   = inet_addr("10.0.0.200");
+	bool     trip  = false;
 
+	for(uint32_t ip = ntohl(start); ip < ntohl(end); ip++) {
+		trip = false;
+		for(Peer *peer = socket->peers; peer < &socket->peers[socket->peer_count]; ++peer) {
+			if(
+				(peer->state == STATE_CONNECTED) && 
+				(((VPNPeer*)(peer->data))->internal_ip == htonl(ip))
+			) {
+				trip = true;
+			}
+		}
+		if(trip == false) {
+			return htonl(ip);
+		}
+	}
+
+	return 0;
+}
+
+Peer *get_peer_by_ip(Socket *socket, uint32_t ip) {
+	for(Peer *peer = socket->peers; peer < &socket->peers[socket->peer_count]; ++peer) {
+		if(
+			(peer->state == STATE_CONNECTED) && 
+			(((VPNPeer*)(peer->data))->internal_ip == ip)
+		) {
+			return peer;
+		}
+	}
+	return NULL;
 }
 
 void stop_core() {

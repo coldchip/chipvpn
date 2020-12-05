@@ -11,7 +11,7 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
-#include "list.h"
+#include "../list.h"
 
 #define PING_INTERVAL 1
 
@@ -20,7 +20,7 @@ typedef struct _Socket {
 	int queue_size;
 	List frag_queue;
 	List ack_queue;
-	List peers;
+	struct _Peer *peers;
 	uint32_t last_service_time;
 	int peer_count;
 } Socket;
@@ -55,19 +55,15 @@ typedef enum {
 } PeerState;
 
 typedef struct _Peer {
-	ListNode node;
 	Socket *socket;
 	PeerState state;
-	uint32_t internal_ip;
 	struct sockaddr_in addr;
 	int last_ping;
-	uint64_t tx;
-	uint64_t rx;
-	uint64_t quota;
 	uint32_t session;
 	uint32_t outgoing_seqid;
 	uint32_t incoming_seqid;
 	List ack_queue;
+	void *data; // Custom Data
 } Peer;
 
 typedef struct _PacketHeader {
@@ -126,7 +122,7 @@ typedef struct _SocketEvent {
 
 Socket *new_socket(int peer_count);
 bool socket_bind(Socket *socket, char *ip, int port);
-void socket_connect(Socket *socket, char *ip, int port);
+Peer *socket_connect(Socket *socket, char *ip, int port);
 int get_socket_fd(Socket *socket);
 int socket_event(Socket *socket, SocketEvent *event);
 
@@ -154,8 +150,7 @@ void socket_peer_queue_ack(Peer *peer, uint32_t seqid, char *packet, int size);
 void socket_peer_remove_ack(Peer *peer, uint32_t seqid);
 Peer *socket_peer_get_by_session(Socket *socket, uint32_t session);
 void socket_peer_disconnect(Peer *peer);
-
-uint32_t get_peer_free_ip(List *peers);
-Peer *get_peer_by_ip(List *peers, uint32_t ip);
+Peer *socket_peer_get_disconnected(Socket *socket);
+int socket_peer_count_connected(Socket *socket);
 
 #endif
