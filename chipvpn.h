@@ -134,10 +134,12 @@ API void decrypt(char *key, char *data, int length);
 
 typedef enum {
 	VPN_TYPE_DATA,
-	VPN_TYPE_ASSIGN
+	VPN_TYPE_ASSIGN,
+	VPN_TYPE_AUTH
 } VPNPacketType;
 
 API void run_core(char *config);
+
 void stop_core();
 
 

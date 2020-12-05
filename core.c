@@ -85,23 +85,12 @@ void run_core(char *config) {
 		while((socket_event(socket, &event) > 0)) {
 			switch(event.type) {
 				case EVENT_CONNECT: {
-					if(is_server) {
-						uint32_t alloc_ip = get_peer_free_ip(&socket->peers);
-						if(alloc_ip > 0) {
-							char data[3000];
-							event.peer->internal_ip  = alloc_ip;
-
-							*(int*)(((char*)&data) + 0) = htonl(VPN_TYPE_ASSIGN);
-							*(int*)(((char*)&data) + 4) = alloc_ip;
-							*(int*)(((char*)&data) + 8) = inet_addr("255.255.255.0");
-							*(int*)(((char*)&data) + 12) = inet_addr("10.0.0.1");
-							*(int*)(((char*)&data) + 16) = htonl(MAX_MTU);
-
-							socket_peer_send(event.peer, data, sizeof(data), RELIABLE);
-						}
-						console_log("Client Connected");
-					} else {
-						console_log("Connected to server");
+					console_log("Connect");
+					if(!is_server) {
+						char data[8];
+						*(int*)(((char*)&data) + 0) = htonl(VPN_TYPE_AUTH);
+						*(int*)(((char*)&data) + 4) = htonl(394885);
+						socket_peer_send(event.peer, data, sizeof(data), RELIABLE);
 					}
 				}
 				break;
@@ -111,33 +100,50 @@ void run_core(char *config) {
 					char *p_data = ((char*)event.data) + 4;
 					int size = event.size - 4;
 					switch(p_type) {
-						case VPN_TYPE_ASSIGN: {
+						case VPN_TYPE_AUTH: {
 							if(is_server) {
-								break;
+								uint32_t token = ntohl(*(uint32_t*)(p_data + 0));
+								if(token != 394885) {
+									socket_peer_disconnect(event.peer);
+									break;
+								}
+								uint32_t alloc_ip = get_peer_free_ip(&socket->peers);
+								if(alloc_ip > 0) {
+									char data[3000];
+									event.peer->internal_ip  = alloc_ip;
+
+									*(int*)(((char*)&data) + 0) = htonl(VPN_TYPE_ASSIGN);
+									*(int*)(((char*)&data) + 4) = alloc_ip;
+									*(int*)(((char*)&data) + 8) = inet_addr("255.255.255.0");
+									*(int*)(((char*)&data) + 12) = inet_addr("10.0.0.1");
+									*(int*)(((char*)&data) + 16) = htonl(MAX_MTU);
+
+									socket_peer_send(event.peer, data, sizeof(data), RELIABLE);
+								}
+								console_log("Client Connected");
 							}
-							uint32_t peer_ip      = *(uint32_t*)(p_data + 0);
-							uint32_t peer_subnet  = *(uint32_t*)(p_data + 4);
-							uint32_t peer_gateway = *(uint32_t*)(p_data + 8);
-							uint32_t peer_mtu     = *(uint32_t*)(p_data + 12);
+						}
+						break;
+						case VPN_TYPE_ASSIGN: {
+							if(!is_server) {
+								uint32_t peer_ip      = *(uint32_t*)(p_data + 0);
+								uint32_t peer_subnet  = *(uint32_t*)(p_data + 4);
+								uint32_t peer_gateway = *(uint32_t*)(p_data + 8);
+								uint32_t peer_mtu     = *(uint32_t*)(p_data + 12);
 
-							setifip(tun, peer_ip, peer_subnet, peer_mtu);
-							ifup(tun);
+								setifip(tun, peer_ip, peer_subnet, peer_mtu);
+								ifup(tun);
+				
+								console_log("Assigned: ip %i.%i.%i.%i gateway %i.%i.%i.%i", (peer_ip >> 0) & 0xFF, (peer_ip >> 8) & 0xFF, (peer_ip >> 16) & 0xFF, (peer_ip >> 24) & 0xFF, (peer_gateway >> 0) & 0xFF, (peer_gateway >> 8) & 0xFF, (peer_gateway >> 16) & 0xFF, (peer_gateway >> 24) & 0xFF);
 
-							uint8_t cidr = 0; 
-							while (peer_subnet) { 
-								cidr += peer_subnet & 1; 
-								peer_subnet >>= 1; 
-							} 
-
-							console_log("Assigned: ip %i.%i.%i.%i/%i gateway %i.%i.%i.%i", (peer_ip >> 0) & 0xFF, (peer_ip >> 8) & 0xFF, (peer_ip >> 16) & 0xFF, (peer_ip >> 24) & 0xFF, cidr, (peer_gateway >> 0) & 0xFF, (peer_gateway >> 8) & 0xFF, (peer_gateway >> 16) & 0xFF, (peer_gateway >> 24) & 0xFF);
-
-							if(server_pull_routes) {
-								uint32_t default_gateway = get_default_gateway();
-								if(exec_sprintf("ip route add %s via %i.%i.%i.%i", server_ip, (default_gateway >> 0) & 0xFF, (default_gateway >> 8) & 0xFF, (default_gateway >> 16) & 0xFF, (default_gateway >> 24) & 0xFF)) { }
-								if(exec_sprintf("ip route add 0.0.0.0/1 via %i.%i.%i.%i", (peer_gateway >> 0) & 0xFF, (peer_gateway >> 8) & 0xFF, (peer_gateway >> 16) & 0xFF, (peer_gateway >> 24) & 0xFF)) { }
-								if(exec_sprintf("ip route add 128.0.0.0/1 via %i.%i.%i.%i", (peer_gateway >> 0) & 0xFF, (peer_gateway >> 8) & 0xFF, (peer_gateway >> 16) & 0xFF, (peer_gateway >> 24) & 0xFF)) { }
+								if(server_pull_routes) {
+									uint32_t default_gateway = get_default_gateway();
+									if(exec_sprintf("ip route add %s via %i.%i.%i.%i", server_ip, (default_gateway >> 0) & 0xFF, (default_gateway >> 8) & 0xFF, (default_gateway >> 16) & 0xFF, (default_gateway >> 24) & 0xFF)) { }
+									if(exec_sprintf("ip route add 0.0.0.0/1 via %i.%i.%i.%i", (peer_gateway >> 0) & 0xFF, (peer_gateway >> 8) & 0xFF, (peer_gateway >> 16) & 0xFF, (peer_gateway >> 24) & 0xFF)) { }
+									if(exec_sprintf("ip route add 128.0.0.0/1 via %i.%i.%i.%i", (peer_gateway >> 0) & 0xFF, (peer_gateway >> 8) & 0xFF, (peer_gateway >> 16) & 0xFF, (peer_gateway >> 24) & 0xFF)) { }
+								}
+								event.peer->internal_ip = peer_ip;
 							}
-							event.peer->internal_ip = peer_ip;
 						}
 						break;
 						case VPN_TYPE_DATA: {
@@ -156,7 +162,6 @@ void run_core(char *config) {
 						}
 						break;
 					}
-
 					free(event.data);
 				}
 				break;
@@ -196,6 +201,10 @@ void run_core(char *config) {
 			}
 		}
 	}
+}
+
+void vpn_sock_to_tun() {
+
 }
 
 void stop_core() {

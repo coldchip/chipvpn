@@ -63,7 +63,7 @@ void socket_peer_queue_ack(Peer *peer, uint32_t seqid, char *packet, int size) {
 	memcpy(entry->packet, packet, size);
 	list_insert(list_end(&peer->ack_queue), entry);
 	
-	if(list_size(&peer->ack_queue) > 50) {
+	if(list_size(&peer->ack_queue) > 500) {
 		socket_peer_disconnect(peer);
 	}
 	
@@ -96,7 +96,6 @@ Peer *socket_peer_get_by_session(Socket *socket, uint32_t session) {
 void socket_peer_disconnect(Peer *peer) {
 	peer->state = STATE_DISCONNECTING;
 }
-
 
 
 

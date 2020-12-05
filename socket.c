@@ -94,6 +94,7 @@ int socket_event(Socket *socket, SocketEvent *event) {
 
 				list_remove(&peer->node);
 				free(peer);
+				continue;
 			} else if(peer->state == STATE_CONNECTED) {
 				socket_peer_ping(peer);
 			}
@@ -128,6 +129,15 @@ int socket_event(Socket *socket, SocketEvent *event) {
 			peer = socket_handle_connect(socket, packet_session, addr);
 		} else {
 			peer = socket_peer_get_by_session(socket, packet_session);
+		}
+
+		if(
+			(peer) && 
+			((peer->addr.sin_addr.s_addr != addr.sin_addr.s_addr) ||
+			(peer->addr.sin_port != addr.sin_port))
+		) {
+			// Reject packets that does not match ip addr of peer's
+			return 0;
 		}
 
 		if(peer && (packet_type & PT_ACK_REPLY)) {
@@ -177,7 +187,6 @@ int socket_event(Socket *socket, SocketEvent *event) {
 				printf("%li peer(s) left\n", list_size(&socket->peers));
 				socket_peer_update_ping(peer);
 			} else if(packet_type & PT_DATA && (packet_size > 0 && packet_size < 65535)) {
-				// TODO: check for packet_size to prevent buffer overflow
 				event->data = malloc(sizeof(char) * packet_size);
 				event->size = packet_size;
 				memcpy(event->data, (char*)&packet.data, packet_size);
