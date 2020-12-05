@@ -9,7 +9,7 @@
 #include <stdio.h>
 #include <math.h>
 #include <string.h>
-#include <time.h>
+#include <sys/time.h>
 #include <unistd.h>
 #include "../list.h"
 
@@ -138,6 +138,8 @@ void free_frag_entry(FragmentEntry *entry);
 
 void socket_fill_random(char *buffer, int size);
 void socket_free(Socket *socket);
+
+uint32_t socket_get_time();
 
 // peer.c
 

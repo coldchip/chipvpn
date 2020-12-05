@@ -64,12 +64,12 @@ int get_socket_fd(Socket *socket) {
 
 int socket_event(Socket *socket, SocketEvent *event) {
 	// @return: 0 = not ready, > 0 data available
-	if((time(NULL) - socket->last_service_time) >= PING_INTERVAL) {
+	if((socket_get_time() - socket->last_service_time) >= PING_INTERVAL) {
 		ListNode *i = list_begin(&socket->frag_queue);
 		while(i != list_end(&socket->frag_queue)) {
 			FragmentEntry *entry = (FragmentEntry*)i;
 			i = list_next(i);
-			if(time(NULL) > entry->expiry) {
+			if(socket_get_time() > entry->expiry) {
 				free_frag_entry(entry);
 			}
 		}
@@ -113,7 +113,7 @@ int socket_event(Socket *socket, SocketEvent *event) {
 				}
 			}
 		}
-		socket->last_service_time = time(NULL);
+		socket->last_service_time = socket_get_time();
 	}
 
 	event->type = EVENT_NONE;
@@ -307,7 +307,7 @@ bool socket_recv_fragment(Socket *socket, void *data, int size, struct sockaddr_
 
 void frag_queue_insert(Socket *socket, Fragment fragment, struct sockaddr_in addr) {
 	FragmentEntry *entry = malloc(sizeof(FragmentEntry));
-	entry->expiry        = time(NULL) + 2;
+	entry->expiry        = socket_get_time() + 2;
 	entry->addr          = addr;
 	entry->fragment      = fragment;
 
@@ -343,4 +343,11 @@ void socket_fill_random(char *buffer, int size) {
 void socket_free(Socket *socket) {
 	close(socket->fd);
 	free(socket);
+}
+
+uint32_t socket_get_time() {
+	// Second prisesion
+	struct timeval tv;
+	gettimeofday(&tv, NULL);
+	return (tv.tv_sec * 1000 + tv.tv_usec / 1000) / 1000;
 }

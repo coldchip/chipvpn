@@ -2,13 +2,13 @@
 
 void socket_peer_update_ping(Peer *peer) {
 	if(peer) {
-		peer->last_ping = time(NULL);
+		peer->last_ping = socket_get_time(NULL);
 	}
 }
 
 bool socket_peer_is_unpinged(Peer *peer) {
 	if(peer) {
-		return (time(NULL) - peer->last_ping) >= 10;
+		return (socket_get_time(NULL) - peer->last_ping) >= 10;
 	}
 	return true;
 }
