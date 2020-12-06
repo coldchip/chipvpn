@@ -1,68 +1,6 @@
 #include "chipsock.h"
 
-Socket *new_socket(int peer_count) {
-	int sock = socket(AF_INET, SOCK_DGRAM, 0);
-	if(sock < 0) {
-		return NULL;
-	}
-	Socket *socket = malloc(sizeof(Socket));
-	socket->fd                = sock;
-	socket->last_service_time = 0;
-	socket->queue_size        = 50;
-	socket->peer_count        = peer_count;
-	list_clear(&socket->frag_queue);
-	list_clear(&socket->ack_queue);
-	Peer *peers = malloc(sizeof(Peer) * peer_count);
-	for(Peer *peer = peers; peer < &peers[peer_count]; ++peer) {
-		peer->state = STATE_DISCONNECTED;
-	}
-    socket->peers = peers;
-	return socket;
-}
-
-bool socket_bind(Socket *socket, char *ip, int port) {
-	struct sockaddr_in     addr;
-	addr.sin_family      = AF_INET;
-	addr.sin_addr.s_addr = inet_addr(ip); 
-	addr.sin_port        = htons(port);
-
-	if(bind(socket->fd, (struct sockaddr *)&addr, sizeof(addr)) == 0) { 
-		return true;
-	}
-	return false;
-}
-
-Peer *socket_connect(Socket *socket, char *ip, int port) {
-	struct sockaddr_in     addr;
-	addr.sin_family      = AF_INET;
-	addr.sin_addr.s_addr = inet_addr(ip); 
-	addr.sin_port        = htons(port);
-
-	Peer *peer = socket_peer_get_disconnected(socket);
-	if(peer) {
-		peer->socket         = socket;
-		peer->state          = STATE_CONNECTING;
-		peer->addr           = addr;
-		peer->incoming_seqid = 0;
-		peer->outgoing_seqid = 0;
-		peer->session        = rand();
-		list_clear(&peer->ack_queue);
-		socket_peer_update_ping(peer);
-
-		PacketHeader header;
-		header.type = PT_CONNECT | PT_ACK;
-
-		socket_peer_send_outgoing_command(peer, &header, NULL, 0);
-		return peer;
-	}
-	return NULL;
-}
-
-int get_socket_fd(Socket *socket) {
-	return socket->fd;
-}
-
-int socket_event(Socket *socket, SocketEvent *event) {
+int chip_host_event(Socket *socket, SocketEvent *event) {
 	// @return: 0 = not ready, > 0 data available
 	if((socket_get_time() - socket->last_service_time) >= PING_INTERVAL) {
 		ListNode *i = list_begin(&socket->frag_queue);
@@ -70,19 +8,22 @@ int socket_event(Socket *socket, SocketEvent *event) {
 			FragmentEntry *entry = (FragmentEntry*)i;
 			i = list_next(i);
 			if(socket_get_time() > entry->expiry) {
-				free_frag_entry(entry);
+				chip_proto_frag_entry_free(entry);
 			}
 		}
 
 		for(Peer *peer = socket->peers; peer < &socket->peers[socket->peer_count]; ++peer) {
-			if(socket_peer_is_unpinged(peer)) {
+			if(chip_peer_is_unpinged(peer)) {
 				// Set peer to STATE_DISCONNECTING
 				if(peer->state == STATE_CONNECTED) {
-					socket_peer_disconnect(peer);
+					chip_peer_disconnect(peer);
 				}
 				if(peer->state == STATE_CONNECTING) {
 					// no notify because not connected at the first place
 					peer->state = STATE_DISCONNECTED;
+					event->type = EVENT_CONNECT_TIMEOUT;
+					event->peer = peer;
+					return 1;
 				}
 			}
 			if(peer->state == STATE_DISCONNECTING) {
@@ -101,7 +42,7 @@ int socket_event(Socket *socket, SocketEvent *event) {
 				return 1;
 			} 
 			if(peer->state == STATE_CONNECTED) {
-				socket_peer_ping(peer);
+				chip_peer_ping(peer);
 			}
 
 			if(peer->state == STATE_CONNECTED || peer->state == STATE_CONNECTING) {
@@ -109,7 +50,7 @@ int socket_event(Socket *socket, SocketEvent *event) {
 				while(x != list_end(&peer->ack_queue)) {
 					ACKEntry *entry = (ACKEntry*)x;
 					x = list_next(x);
-					socket_send_fragment(peer->socket, entry->packet, entry->size, peer->addr);
+					chip_proto_send_fragment(peer->socket, entry->packet, entry->size, peer->addr);
 				}
 			}
 		}
@@ -121,7 +62,7 @@ int socket_event(Socket *socket, SocketEvent *event) {
 
 	Packet packet;
 	struct sockaddr_in addr;
-	if(socket_recv_fragment(socket, (char*)&packet, sizeof(Packet), &addr)) {
+	if(chip_proto_recv_fragment(socket, (char*)&packet, sizeof(Packet), &addr)) {
 		int      packet_type    = ntohl(packet.header.type);
 		int      packet_size    = ntohl(packet.header.size);
 		uint32_t packet_seqid   = ntohl(packet.header.seqid);
@@ -131,9 +72,9 @@ int socket_event(Socket *socket, SocketEvent *event) {
 
 		if((packet_type & PT_CONNECT)) {
 			// Do connect server side
-			peer = socket_handle_connect(socket, packet_session, addr);
+			peer = chip_proto_handle_connect(socket, packet_session, addr);
 		} else {
-			peer = socket_peer_get_by_session(socket, packet_session);
+			peer = chip_peer_get_by_session(socket, packet_session);
 		}
 
 		if(
@@ -146,7 +87,7 @@ int socket_event(Socket *socket, SocketEvent *event) {
 		}
 
 		if(peer && (packet_type & PT_ACK_REPLY)) {
-			socket_peer_remove_ack(peer, packet_seqid);
+			chip_peer_remove_ack(peer, packet_seqid);
 			return 0;
 		}
 
@@ -156,7 +97,7 @@ int socket_event(Socket *socket, SocketEvent *event) {
 				ACKEntry *entry = (ACKEntry*)x;
 				x = list_next(x);
 				if(entry->seqid == packet_seqid) {
-					socket_send_fragment(peer->socket, entry->packet, entry->size, peer->addr);
+					chip_proto_send_fragment(peer->socket, entry->packet, entry->size, peer->addr);
 				}
 			}
 			return 0;
@@ -168,13 +109,13 @@ int socket_event(Socket *socket, SocketEvent *event) {
 				PacketHeader header;
 				header.type  = PT_RETRANSMIT;
 				header.seqid = peer->incoming_seqid;
-				socket_peer_send_outgoing_command(peer, &header, NULL, 0);
+				chip_peer_send_outgoing_command(peer, &header, NULL, 0);
 				return 0;
 			} else if(packet_seqid == peer->incoming_seqid) {
 				PacketHeader header;
 				header.type  = PT_ACK_REPLY;
 				header.seqid = packet_seqid;
-				socket_peer_send_outgoing_command(peer, &header, NULL, 0);
+				chip_peer_send_outgoing_command(peer, &header, NULL, 0);
 				peer->incoming_seqid++;
 			} else {
 				return 0;
@@ -183,14 +124,14 @@ int socket_event(Socket *socket, SocketEvent *event) {
 		
 		if(peer) {
 			if(packet_type & PT_CONNECT_VERIFY) {
-				if(socket_handle_verify_connect(socket, peer)) {
+				if(chip_proto_handle_verify_connect(socket, peer)) {
 					event->type = EVENT_CONNECT;
 					event->peer = peer;
 					return 1;
 				}
 			} else if(packet_type & PT_PING) {
-				printf("%i peer(s) left\n", socket_peer_count_connected(socket));
-				socket_peer_update_ping(peer);
+				printf("%i peer(s) left\n", chip_peer_count_connected(socket));
+				chip_peer_update_ping(peer);
 			} else if(packet_type & PT_DATA && (packet_size > 0 && packet_size < 65535)) {
 				event->data = malloc(sizeof(char) * packet_size);
 				event->size = packet_size;
@@ -206,8 +147,8 @@ int socket_event(Socket *socket, SocketEvent *event) {
 	return 0;
 }
 
-Peer *socket_handle_connect(Socket *socket, uint32_t session, struct sockaddr_in addr) {
-	Peer *peer = socket_peer_get_disconnected(socket);
+Peer *chip_proto_handle_connect(Socket *socket, uint32_t session, struct sockaddr_in addr) {
+	Peer *peer = chip_peer_get_disconnected(socket);
 	if(peer) {
 		peer->socket         = socket;
 		peer->state          = STATE_CONNECTING;
@@ -216,30 +157,30 @@ Peer *socket_handle_connect(Socket *socket, uint32_t session, struct sockaddr_in
 		peer->outgoing_seqid = 0;
 		peer->session        = session;
 		list_clear(&peer->ack_queue);
-		socket_peer_update_ping(peer);
+		chip_peer_update_ping(peer);
 
 		PacketHeader header;
 		header.type = PT_CONNECT_VERIFY | PT_ACK;
-		socket_peer_send_outgoing_command(peer, &header, NULL, 0);
+		chip_peer_send_outgoing_command(peer, &header, NULL, 0);
 
 		return peer;
 	}
 	return NULL;
 }
 
-bool socket_handle_verify_connect(Socket *socket, Peer *peer) {
+bool chip_proto_handle_verify_connect(Socket *socket, Peer *peer) {
 	if(peer->state == STATE_CONNECTING) {
 		peer->state = STATE_CONNECTED;
 
 		PacketHeader header;
 		header.type = PT_CONNECT_VERIFY | PT_ACK;
-		socket_peer_send_outgoing_command(peer, &header, NULL, 0);
+		chip_peer_send_outgoing_command(peer, &header, NULL, 0);
 		return true;
 	}
 	return false;
 }
 
-void socket_send_fragment(Socket *socket, void *data, int size, struct sockaddr_in addr) {
+void chip_proto_send_fragment(Socket *socket, void *data, int size, struct sockaddr_in addr) {
 	uint32_t id = rand();
 
 	Fragment fragment;
@@ -264,13 +205,13 @@ void socket_send_fragment(Socket *socket, void *data, int size, struct sockaddr_
 	}
 }
 
-bool socket_recv_fragment(Socket *socket, void *data, int size, struct sockaddr_in *addr) {
+bool chip_proto_recv_fragment(Socket *socket, void *data, int size, struct sockaddr_in *addr) {
 	socklen_t len = sizeof(struct sockaddr_in);
 
 	Fragment fragment;
 
 	if(recvfrom(socket->fd, (char*)&fragment, sizeof(Fragment), MSG_DONTWAIT, (struct sockaddr *)addr, &len) > 0) {
-		frag_queue_insert(socket, fragment, *addr);
+		chip_proto_frag_queue_insert(socket, fragment, *addr);
 	}
 
 	for(ListNode *i = list_begin(&socket->frag_queue); i != list_end(&socket->frag_queue); i = list_next(i)) {
@@ -291,11 +232,11 @@ bool socket_recv_fragment(Socket *socket, void *data, int size, struct sockaddr_
 					counter++;
 					memcpy(data + entry_offset, (char*)&entry->fragment.data, entry_size);
 					if(counter > head_count) {
-						frag_queue_remove(socket, head_id);
+						chip_proto_frag_queue_remove(socket, head_id);
 						return true;
 					}
 				} else {
-					frag_queue_remove(socket, head_id);
+					chip_proto_frag_queue_remove(socket, head_id);
 					return false;
 				}
 			}
@@ -305,7 +246,7 @@ bool socket_recv_fragment(Socket *socket, void *data, int size, struct sockaddr_
 	return false;
 }
 
-void frag_queue_insert(Socket *socket, Fragment fragment, struct sockaddr_in addr) {
+void chip_proto_frag_queue_insert(Socket *socket, Fragment fragment, struct sockaddr_in addr) {
 	FragmentEntry *entry = malloc(sizeof(FragmentEntry));
 	entry->expiry        = socket_get_time() + 2;
 	entry->addr          = addr;
@@ -315,38 +256,29 @@ void frag_queue_insert(Socket *socket, Fragment fragment, struct sockaddr_in add
 
 	if(list_size(&socket->frag_queue) > socket->queue_size) {
 		FragmentEntry *current = (FragmentEntry*)list_begin(&socket->frag_queue);
-		free_frag_entry(current);
+		chip_proto_frag_entry_free(current);
 	}
 }
 
-void frag_queue_remove(Socket *socket, uint32_t id) {
+void chip_proto_frag_queue_remove(Socket *socket, uint32_t id) {
 	ListNode *i = list_begin(&socket->frag_queue);
 
 	while(i != list_end(&socket->frag_queue)) {
 		FragmentEntry *current = (FragmentEntry*)i;
 		i = list_next(i);
 		if(ntohl(current->fragment.header.id) == id) {
-			free_frag_entry(current);
+			chip_proto_frag_entry_free(current);
 		}
 	}
 }
 
-void free_frag_entry(FragmentEntry *entry) {
+void chip_proto_frag_entry_free(FragmentEntry *entry) {
 	list_remove(&entry->node);
 	free(entry);
 }
 
-void socket_fill_random(char *buffer, int size) {
-    syscall(SYS_getrandom, buffer, size, 1);
-}
-
-void socket_free(Socket *socket) {
-	close(socket->fd);
-	free(socket);
-}
-
 uint32_t socket_get_time() {
-	// Second prisesion
+	// Second precision
 	struct timeval tv;
 	gettimeofday(&tv, NULL);
 	return (tv.tv_sec * 1000 + tv.tv_usec / 1000) / 1000;

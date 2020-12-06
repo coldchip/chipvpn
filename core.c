@@ -38,19 +38,19 @@ void run_core(char *config) {
 	Socket *socket;
 
 	if(!is_server) {
-		socket = new_socket(1);
+		socket = chip_host_create(1);
 		if(!socket) {
 			error("Unable to create socket");
 		}
-		if(!socket_connect(socket, server_ip, atoi(server_port))) {
+		if(!chip_host_connect(socket, server_ip, atoi(server_port))) {
 			error("Unable to init connection with server");
 		}
 	} else {
-		socket = new_socket(server_max_peers);
+		socket = chip_host_create(server_max_peers);
 		if(!socket) {
 			error("Unable to create socket");
 		}
-		if(!socket_bind(socket, server_ip, atoi(server_port))) {
+		if(!chip_host_bind(socket, server_ip, atoi(server_port))) {
 			error("Bind failed");
 		}
 		setifip(tun, inet_addr("10.0.0.1"), inet_addr("255.255.255.0"), MAX_MTU);
@@ -78,11 +78,11 @@ void run_core(char *config) {
 
 		FD_ZERO(&rdset);
 		FD_SET(tun->fd, &rdset);
-		FD_SET(get_socket_fd(socket), &rdset);
+		FD_SET(chip_host_get_fd(socket), &rdset);
 
-		select(max(tun->fd, get_socket_fd(socket)) + 1, &rdset, NULL, NULL, &tv);
+		select(max(tun->fd, chip_host_get_fd(socket)) + 1, &rdset, NULL, NULL, &tv);
 
-		while((socket_event(socket, &event) > 0)) {
+		while((chip_host_event(socket, &event) > 0)) {
 			switch(event.type) {
 				case EVENT_CONNECT: {
 					console_log("Connected");
@@ -93,7 +93,7 @@ void run_core(char *config) {
 						char data[8];
 						*(int*)(((char*)&data) + 0) = htonl(VPN_TYPE_AUTH);
 						*(int*)(((char*)&data) + 4) = htonl(54678762);
-						socket_peer_send(peer, data, sizeof(data), RELIABLE);
+						chip_peer_send(peer, data, sizeof(data), RELIABLE);
 					}
 				}
 				break;
@@ -111,7 +111,7 @@ void run_core(char *config) {
 							if(is_server) {
 								uint32_t token = ntohl(*(uint32_t*)(p_data + 0));
 								if(token != 54678762) {
-									socket_peer_disconnect(peer);
+									chip_peer_disconnect(peer);
 									break;
 								}
 								uint32_t alloc_ip = get_peer_free_ip(socket);
@@ -125,7 +125,7 @@ void run_core(char *config) {
 									*(int*)(((char*)&data) + 12) = inet_addr("10.0.0.1");
 									*(int*)(((char*)&data) + 16) = htonl(MAX_MTU);
 
-									socket_peer_send(peer, data, sizeof(data), RELIABLE);
+									chip_peer_send(peer, data, sizeof(data), RELIABLE);
 								}
 								console_log("Client Logged In");
 							}
@@ -181,7 +181,15 @@ void run_core(char *config) {
 					
 					if(!is_server) {
 						console_log("Reconnecting");
-						socket_connect(socket, server_ip, atoi(server_port));
+						chip_host_connect(socket, server_ip, atoi(server_port));
+					}
+				}
+				break;
+
+				case EVENT_CONNECT_TIMEOUT: {
+					if(!is_server) {
+						console_log("Timeout, Reconnecting");
+						chip_host_connect(socket, server_ip, atoi(server_port));
 					}
 				}
 				break;
@@ -206,7 +214,7 @@ void run_core(char *config) {
 			if(peer) {
 				*p_type = htonl(VPN_TYPE_DATA);
 				encrypt((char*)&key, p_data, size);
-				socket_peer_send(peer, buf, size + 4, DATAGRAM);
+				chip_peer_send(peer, buf, size + 4, DATAGRAM);
 			}
 		}
 	}
