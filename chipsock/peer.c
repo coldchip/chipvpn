@@ -2,13 +2,13 @@
 
 void chip_peer_update_ping(Peer *peer) {
 	if(peer) {
-		peer->last_ping = socket_get_time(NULL);
+		peer->last_ping = chip_proto_get_time(NULL);
 	}
 }
 
 bool chip_peer_is_unpinged(Peer *peer) {
 	if(peer) {
-		return (socket_get_time(NULL) - peer->last_ping) >= 10;
+		return (chip_proto_get_time(NULL) - peer->last_ping) >= 10;
 	}
 	return true;
 }
@@ -49,7 +49,7 @@ void chip_peer_send_outgoing_command(Peer *peer, PacketHeader *header, char *dat
 		} else {
 			packet.header.seqid = htonl(peer->outgoing_seqid);
 			if(header->type & PT_ACK) {
-				chip_peer_queue_ack(peer, peer->outgoing_seqid, (char*)&packet, sizeof(PacketHeader) + size);
+				chip_peer_insert_ack(peer, peer->outgoing_seqid, (char*)&packet, sizeof(PacketHeader) + size);
 				peer->outgoing_seqid++;
 			}
 		}
@@ -57,7 +57,7 @@ void chip_peer_send_outgoing_command(Peer *peer, PacketHeader *header, char *dat
 	}
 }
 
-void chip_peer_queue_ack(Peer *peer, uint32_t seqid, char *packet, int size) {
+void chip_peer_insert_ack(Peer *peer, uint32_t seqid, char *packet, int size) {
 	if(peer->state != STATE_DISCONNECTED) {
 		ACKEntry *entry = malloc(sizeof(ACKEntry));
 		entry->seqid  = seqid;
@@ -72,20 +72,38 @@ void chip_peer_queue_ack(Peer *peer, uint32_t seqid, char *packet, int size) {
 	}
 }
 
+ACKEntry *chip_peer_get_ack(Peer *peer, uint32_t seqid) {
+	if(peer->state != STATE_DISCONNECTED) {
+		ListNode *x = list_begin(&peer->ack_queue);
+		while(x != list_end(&peer->ack_queue)) {
+			ACKEntry *entry = (ACKEntry*)x;
+			x = list_next(x);
+			if(entry->seqid == seqid) {
+				return entry;
+			}
+		}
+	}
+	return NULL;
+}
+
 void chip_peer_remove_ack(Peer *peer, uint32_t seqid) {
 	if(peer->state != STATE_DISCONNECTED) {
 		ListNode *i = list_begin(&peer->ack_queue);
 
 		while(i != list_end(&peer->ack_queue)) {
-			ACKEntry *current = (ACKEntry*)i;
+			ACKEntry *entry = (ACKEntry*)i;
 			i = list_next(i);
-			if(current->seqid <= seqid) {
-				list_remove(&current->node);
-				free(current->packet);
-				free(current);
+			if(entry->seqid <= seqid) {
+				chip_peer_free_ack(entry);
 			}
 		}
 	}
+}
+
+void chip_peer_free_ack(ACKEntry *entry) {
+	list_remove(&entry->node);
+	free(entry->packet);
+	free(entry);
 }
 
 Peer *chip_peer_get_by_session(Socket *socket, uint32_t session) {

@@ -72,15 +72,16 @@ int read_int(FILE *file, char const *desired_name) {
 }
 
 uint32_t get_default_gateway() {
-    char ip[20];
-    char cmd[] = "ip route show default | awk '/default/ {print $3}'";
+    char ip_addr[16];
+    char cmd[] = "ip route show default | awk '/default/ {print $3}' |  tr -cd '[a-zA-Z0-9]._-'";
     FILE* fp = popen(cmd, "r");
 
-    if(fgets(ip, 16, fp) != NULL){
+    if(fgets(ip_addr, 16, fp) != NULL){
         //printf("%s\n", line);
     }
     pclose(fp);
-    return inet_addr(ip);
+    ip_addr[15] = '\0';
+    return inet_addr(ip_addr);
 }
 
 int exec_sprintf(char *format, ...) {

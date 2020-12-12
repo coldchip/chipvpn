@@ -29,6 +29,7 @@ extern "C"
 #include <fcntl.h>
 #include "chipsock/chipsock.h"
 #include "list.h"
+#include "aes.h"
 
 #define API extern
 
@@ -127,12 +128,20 @@ API void free_tun(Tun *tun);
 
 // encryption.c
 
-API void encrypt(char *key, char *data, int length);
-API void decrypt(char *key, char *data, int length);
+typedef struct _EncryptCTX {
+	struct AES_ctx aes_ctx;
+} EncryptCTX;
+
+API EncryptCTX *chip_encrypt_init();
+API void chip_encrypt_set_key(EncryptCTX *ctx, char *key);
+API void chip_encrypt_buf(EncryptCTX *ctx, char *data, int length);
+API void chip_decrypt_buf(EncryptCTX *ctx, char *data, int length);
+API void chip_decrypt_free(EncryptCTX *ctx);
 
 // core.c
 
 typedef struct _VPNPeer {
+	EncryptCTX *enc_ctx;
 	uint32_t internal_ip;
 } VPNPeer;
 
@@ -142,12 +151,10 @@ typedef enum {
 	VPN_TYPE_AUTH
 } VPNPacketType;
 
-API void run_core(char *config);
-uint32_t get_peer_free_ip(Socket *socket);
-Peer *get_peer_by_ip(Socket *socket, uint32_t ip);
-void stop_core();
-
-
+void     chipvpn_event_loop(char *config);
+uint32_t chipvpn_get_peer_free_ip(Socket *socket);
+Peer    *chipvpn_get_peer_by_ip(Socket *socket, uint32_t ip);
+void     chipvpn_fill_pseudo_random(char *src, int len);
 
 #ifdef __cplusplus
 }

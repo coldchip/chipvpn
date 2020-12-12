@@ -121,37 +121,38 @@ typedef struct _SocketEvent {
 	int size;
 } SocketEvent;
 
-Peer    *chip_proto_handle_connect(Socket *socket, uint32_t session, struct sockaddr_in addr);
-bool     chip_proto_handle_verify_connect(Socket *socket, Peer *peer);
-void     chip_proto_send_fragment(Socket *socket, void *data, int size, struct sockaddr_in addr);
-bool     chip_proto_recv_fragment(Socket *socket, void *data, int size, struct sockaddr_in *addr);
-void     chip_proto_frag_queue_insert(Socket *socket, Fragment fragment, struct sockaddr_in addr);
-void     chip_proto_frag_queue_remove(Socket *socket, uint32_t id);
-void     chip_proto_frag_entry_free(FragmentEntry *entry);
-// ?
-uint32_t socket_get_time();
+Peer     *chip_proto_handle_connect(Socket *socket, uint32_t session, struct sockaddr_in addr);
+bool      chip_proto_handle_verify_connect(Socket *socket, Peer *peer);
+void      chip_proto_send_fragment(Socket *socket, void *data, int size, struct sockaddr_in addr);
+bool      chip_proto_recv_fragment(Socket *socket, void *data, int size, struct sockaddr_in *addr);
+void      chip_proto_insert_frag(Socket *socket, Fragment fragment, struct sockaddr_in addr);
+void      chip_proto_remove_frag(Socket *socket, uint32_t id);
+void      chip_proto_free_frag(FragmentEntry *entry);
+uint32_t  chip_proto_get_time();
 
 // host.c
 
-Socket  *chip_host_create(int peer_count);
-bool     chip_host_bind(Socket *socket, char *ip, int port);
-Peer    *chip_host_connect(Socket *socket, char *ip, int port);
-int      chip_host_event(Socket *socket, SocketEvent *event);
-int      chip_host_get_fd(Socket *socket);
-void     chip_host_free(Socket *socket);
+Socket   *chip_host_create(int peer_count);
+bool      chip_host_bind(Socket *socket, char *ip, int port);
+Peer     *chip_host_connect(Socket *socket, char *ip, int port);
+int       chip_host_event(Socket *socket, SocketEvent *event);
+int       chip_host_get_fd(Socket *socket);
+void      chip_host_free(Socket *socket);
 
 // peer.c
 
-void     chip_peer_update_ping(Peer *peer);
-bool     chip_peer_is_unpinged(Peer *peer);
-void     chip_peer_ping(Peer *peer);
-void     chip_peer_send(Peer *peer, char *data, int size, SendType type);
-void     chip_peer_send_outgoing_command(Peer *peer, PacketHeader *header, char *data, int size);
-void     chip_peer_queue_ack(Peer *peer, uint32_t seqid, char *packet, int size);
-void     chip_peer_remove_ack(Peer *peer, uint32_t seqid);
-Peer    *chip_peer_get_by_session(Socket *socket, uint32_t session);
-void     chip_peer_disconnect(Peer *peer);
-Peer    *chip_peer_get_disconnected(Socket *socket);
-int      chip_peer_count_connected(Socket *socket);
+void      chip_peer_update_ping(Peer *peer);
+bool      chip_peer_is_unpinged(Peer *peer);
+void      chip_peer_ping(Peer *peer);
+void      chip_peer_send(Peer *peer, char *data, int size, SendType type);
+void      chip_peer_send_outgoing_command(Peer *peer, PacketHeader *header, char *data, int size);
+void      chip_peer_insert_ack(Peer *peer, uint32_t seqid, char *packet, int size);
+ACKEntry *chip_peer_get_ack(Peer *peer, uint32_t seqid);
+void      chip_peer_remove_ack(Peer *peer, uint32_t seqid);
+void      chip_peer_free_ack(ACKEntry *entry);
+Peer     *chip_peer_get_by_session(Socket *socket, uint32_t session);
+void      chip_peer_disconnect(Peer *peer);
+Peer     *chip_peer_get_disconnected(Socket *socket);
+int       chip_peer_count_connected(Socket *socket);
 
 #endif

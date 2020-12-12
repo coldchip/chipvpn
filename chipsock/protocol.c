@@ -2,13 +2,13 @@
 
 int chip_host_event(Socket *socket, SocketEvent *event) {
 	// @return: 0 = not ready, > 0 data available
-	if((socket_get_time() - socket->last_service_time) >= PING_INTERVAL) {
+	if((chip_proto_get_time() - socket->last_service_time) >= PING_INTERVAL) {
 		ListNode *i = list_begin(&socket->frag_queue);
 		while(i != list_end(&socket->frag_queue)) {
 			FragmentEntry *entry = (FragmentEntry*)i;
 			i = list_next(i);
-			if(socket_get_time() > entry->expiry) {
-				chip_proto_frag_entry_free(entry);
+			if(chip_proto_get_time() > entry->expiry) {
+				chip_proto_free_frag(entry);
 			}
 		}
 
@@ -32,9 +32,7 @@ int chip_host_event(Socket *socket, SocketEvent *event) {
 				while(x != list_end(&peer->ack_queue)) {
 					ACKEntry *entry = (ACKEntry*)x;
 					x = list_next(x);
-					list_remove(&entry->node);
-					free(entry->packet);
-					free(entry);
+					chip_peer_free_ack(entry);
 				}
 				peer->state = STATE_DISCONNECTED;
 				event->type = EVENT_DISCONNECT;
@@ -54,7 +52,7 @@ int chip_host_event(Socket *socket, SocketEvent *event) {
 				}
 			}
 		}
-		socket->last_service_time = socket_get_time();
+		socket->last_service_time = chip_proto_get_time();
 	}
 
 	event->type = EVENT_NONE;
@@ -92,13 +90,9 @@ int chip_host_event(Socket *socket, SocketEvent *event) {
 		}
 
 		if(peer && (packet_type & PT_RETRANSMIT)) {
-			ListNode *x = list_begin(&peer->ack_queue);
-			while(x != list_end(&peer->ack_queue)) {
-				ACKEntry *entry = (ACKEntry*)x;
-				x = list_next(x);
-				if(entry->seqid == packet_seqid) {
-					chip_proto_send_fragment(peer->socket, entry->packet, entry->size, peer->addr);
-				}
+			ACKEntry *entry = chip_peer_get_ack(peer, packet_seqid);
+			if(entry) {
+				chip_proto_send_fragment(peer->socket, entry->packet, entry->size, peer->addr);
 			}
 			return 0;
 		}
@@ -184,7 +178,7 @@ void chip_proto_send_fragment(Socket *socket, void *data, int size, struct socka
 	uint32_t id = rand();
 
 	Fragment fragment;
-	int mss    = 1300;
+	int mss    = 1200;
 	int pieces = floor(size / mss);
 
 	for(int i = 0; i <= pieces; i++) {
@@ -211,7 +205,7 @@ bool chip_proto_recv_fragment(Socket *socket, void *data, int size, struct socka
 	Fragment fragment;
 
 	if(recvfrom(socket->fd, (char*)&fragment, sizeof(Fragment), MSG_DONTWAIT, (struct sockaddr *)addr, &len) > 0) {
-		chip_proto_frag_queue_insert(socket, fragment, *addr);
+		chip_proto_insert_frag(socket, fragment, *addr);
 	}
 
 	for(ListNode *i = list_begin(&socket->frag_queue); i != list_end(&socket->frag_queue); i = list_next(i)) {
@@ -232,11 +226,11 @@ bool chip_proto_recv_fragment(Socket *socket, void *data, int size, struct socka
 					counter++;
 					memcpy(data + entry_offset, (char*)&entry->fragment.data, entry_size);
 					if(counter > head_count) {
-						chip_proto_frag_queue_remove(socket, head_id);
+						chip_proto_remove_frag(socket, head_id);
 						return true;
 					}
 				} else {
-					chip_proto_frag_queue_remove(socket, head_id);
+					chip_proto_remove_frag(socket, head_id);
 					return false;
 				}
 			}
@@ -246,9 +240,9 @@ bool chip_proto_recv_fragment(Socket *socket, void *data, int size, struct socka
 	return false;
 }
 
-void chip_proto_frag_queue_insert(Socket *socket, Fragment fragment, struct sockaddr_in addr) {
+void chip_proto_insert_frag(Socket *socket, Fragment fragment, struct sockaddr_in addr) {
 	FragmentEntry *entry = malloc(sizeof(FragmentEntry));
-	entry->expiry        = socket_get_time() + 2;
+	entry->expiry        = chip_proto_get_time() + 2;
 	entry->addr          = addr;
 	entry->fragment      = fragment;
 
@@ -256,28 +250,28 @@ void chip_proto_frag_queue_insert(Socket *socket, Fragment fragment, struct sock
 
 	if(list_size(&socket->frag_queue) > socket->queue_size) {
 		FragmentEntry *current = (FragmentEntry*)list_begin(&socket->frag_queue);
-		chip_proto_frag_entry_free(current);
+		chip_proto_free_frag(current);
 	}
 }
 
-void chip_proto_frag_queue_remove(Socket *socket, uint32_t id) {
+void chip_proto_remove_frag(Socket *socket, uint32_t id) {
 	ListNode *i = list_begin(&socket->frag_queue);
 
 	while(i != list_end(&socket->frag_queue)) {
 		FragmentEntry *current = (FragmentEntry*)i;
 		i = list_next(i);
 		if(ntohl(current->fragment.header.id) == id) {
-			chip_proto_frag_entry_free(current);
+			chip_proto_free_frag(current);
 		}
 	}
 }
 
-void chip_proto_frag_entry_free(FragmentEntry *entry) {
+void chip_proto_free_frag(FragmentEntry *entry) {
 	list_remove(&entry->node);
 	free(entry);
 }
 
-uint32_t socket_get_time() {
+uint32_t chip_proto_get_time() {
 	// Second precision
 	struct timeval tv;
 	gettimeofday(&tv, NULL);
