@@ -1,6 +1,6 @@
 {
 	"connect": "34.87.165.28",
-	"port": 443,
+	"port": 8192,
 	"token": "CJ9AUUwf7fDEsFqQmY4uR3tkcajaYQ7m",
 	"pull_routes": true
 }
