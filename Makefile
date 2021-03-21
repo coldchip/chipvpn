@@ -5,7 +5,7 @@ OUTPUT=build/chipvpn
 .PHONY: install
 
 module:
-	$(COMPILER) json/*.c chipsock/*.c *.c -o $(OUTPUT) -Wall -Ofast -s
+	$(COMPILER) json/*.c chipsock/*.c *.c -o $(OUTPUT) -Ofast
 	#$(COMPILER1) *.c -o $(OUTPUT1) -Wall -lm -lpthread -Ofast
 install:
 	-systemctl stop chipvpn

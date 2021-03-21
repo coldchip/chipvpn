@@ -62,7 +62,8 @@ void chipvpn_event_loop(char *config_file) {
 	}
 
 	if(!is_server) {
-		if(!chip_host_connect(socket, ip, port)) {
+		Peer *peer = chip_host_connect(socket, ip, port);
+		if(!peer) {
 			error("Unable to init connection with server");
 		}
 	} else {
@@ -73,23 +74,15 @@ void chipvpn_event_loop(char *config_file) {
 		ifup(tun);
 	}
 
-	fd_set rdset;
-	struct timeval tv;
+	chip_host_select(socket, tun->fd);
+
 	SocketEvent event;
 
 	while(1) {
-		tv.tv_sec  = PING_INTERVAL;
-		tv.tv_usec = 0;
-
-		FD_ZERO(&rdset);
-		FD_SET(tun->fd, &rdset);
-		FD_SET(chip_host_get_fd(socket), &rdset);
-
-		select(max(tun->fd, chip_host_get_fd(socket)) + 1, &rdset, NULL, NULL, &tv);
-
-		while((chip_host_event(socket, &event) > 0)) {
+		if((chip_host_event(socket, &event) > 0)) {
 			switch(event.type) {
 				case EVENT_CONNECT: {
+					
 					console_log("Connected");
 
 					// Allocate VPN Client
@@ -107,6 +100,7 @@ void chipvpn_event_loop(char *config_file) {
 						memcpy((((char*)&data) + 4), token, strlen(token));
 						chip_peer_send(peer, data, sizeof(data), RELIABLE);
 					}
+					
 				}
 				break;
 
@@ -186,11 +180,12 @@ void chipvpn_event_loop(char *config_file) {
 						}
 						break;
 					}
-					free(event.data);
+					
 				}
 				break;
 
 				case EVENT_DISCONNECT: {
+					
 					Peer *peer = event.peer;
 					VPNPeer *vpn_peer = ((VPNPeer*)(peer->data));
 					chip_decrypt_free(vpn_peer->enc_ctx);
@@ -199,16 +194,27 @@ void chipvpn_event_loop(char *config_file) {
 					console_log("Disconnected");
 					
 					if(!is_server) {
-						console_log("Reconnecting");
-						chip_host_connect(socket, ip, port);
+						exit(0);
 					}
+					
 				}
 				break;
 
-				case EVENT_CONNECT_TIMEOUT: {
-					if(!is_server) {
-						console_log("Timeout, Reconnecting");
-						chip_host_connect(socket, ip, port);
+				case EVENT_SOCKET_SELECT: {
+					char buf[3000];
+					int  *p_type = (int*)&buf;
+					char *p_data = ((char*)&buf) + 4;
+
+					int size = read(tun->fd, p_data, sizeof(buf) - 4);
+
+					IPPacket *ip_hdr = (IPPacket*)p_data;
+
+					Peer *peer = chipvpn_get_peer_by_ip(socket, is_server ? ip_hdr->dst_addr : ip_hdr->src_addr);
+					if(peer) {
+						VPNPeer *vpn_peer = (VPNPeer*)peer->data;
+						*p_type = htonl(VPN_TYPE_DATA);
+						chip_encrypt_buf(vpn_peer->enc_ctx, p_data, size);
+						chip_peer_send(peer, buf, size + 4, DATAGRAM);
 					}
 				}
 				break;
@@ -217,24 +223,6 @@ void chipvpn_event_loop(char *config_file) {
 
 				}
 				break;
-			}
-		}
-
-		if(FD_ISSET(tun->fd, &rdset)) {
-			char buf[3000];
-			int  *p_type = (int*)&buf;
-			char *p_data = ((char*)&buf) + 4;
-
-			int size = read(tun->fd, p_data, sizeof(buf) - 4);
-
-			IPPacket *ip_hdr = (IPPacket*)p_data;
-
-			Peer *peer = chipvpn_get_peer_by_ip(socket, is_server ? ip_hdr->dst_addr : ip_hdr->src_addr);
-			if(peer) {
-				VPNPeer *vpn_peer = (VPNPeer*)peer->data;
-				*p_type = htonl(VPN_TYPE_DATA);
-				chip_encrypt_buf(vpn_peer->enc_ctx, p_data, size);
-				chip_peer_send(peer, buf, size + 4, DATAGRAM);
 			}
 		}
 	}
