@@ -34,26 +34,33 @@ void chipvpn_event_loop(char *config_file) {
 	) {
 		if(cjson_connect && cJSON_IsString(cjson_connect)) {
 			is_server = false;
-			struct hostent *he = gethostbyname(cjson_connect->valuestring);
-			if(he == NULL) {
-				error("domain resolution error");
+			while(true) {
+				struct hostent *he = gethostbyname(cjson_connect->valuestring);
+				if(he != NULL) {
+					struct in_addr *domain = ((struct in_addr **)he->h_addr_list)[0];
+					if(domain != NULL) {
+						strcpy(ip, inet_ntoa(*domain));
+						break;
+					}
+				}
+				console_log("Unable to resolve hostname, retrying");
+				sleep(1);
 			}
-			struct in_addr *domain = ((struct in_addr **)he->h_addr_list)[0];
-			if(domain == NULL) {
-				error("domain resolution error");
-			}
-			strcpy(ip, inet_ntoa(*domain));
 		} else {
 			is_server = true;
-			struct hostent *he = gethostbyname(cjson_connect->valuestring);
-			if(he == NULL) {
-				error("domain resolution error");
+			while(true) {
+				struct hostent *he = gethostbyname(cjson_bind->valuestring);
+				if(he != NULL) {
+					struct in_addr *domain = ((struct in_addr **)he->h_addr_list)[0];
+					if(domain != NULL) {
+						strcpy(ip, inet_ntoa(*domain));
+						break;
+					}
+				}
+				console_log("Unable to resolve hostname, retrying");
+				sleep(1);
 			}
-			struct in_addr *domain = ((struct in_addr **)he->h_addr_list)[0];
-			if(domain == NULL) {
-				error("domain resolution error");
-			}
-			strcpy(ip, inet_ntoa(*domain));
+			
 		}
 		if(cjson_pull_routes && cJSON_IsTrue(cjson_pull_routes)) {
 			pull_routes = true;
