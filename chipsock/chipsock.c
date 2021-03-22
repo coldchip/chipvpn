@@ -1,6 +1,6 @@
 #include "chipsock.h"
 
-Socket *chip_host_create(int peer_count) {
+CSHost *chip_host_create(CSAddress *addr, int peer_count) {
 	signal(SIGPIPE, SIG_IGN);
 	int sock = socket(AF_INET, SOCK_STREAM, 0);
 	if(sock < 0) {
@@ -11,66 +11,61 @@ Socket *chip_host_create(int peer_count) {
 		return NULL;
 	}
 
-	Socket *socket = malloc(sizeof(Socket));
-	socket->fd         = sock;
-	socket->fd2        = -1;
-	socket->peer_count = peer_count;
-	Peer *peers = malloc(sizeof(Peer) * peer_count);
-	for(Peer *peer = peers; peer < &peers[peer_count]; ++peer) {
+	if(addr) {
+		struct sockaddr_in       addr_s;
+		addr_s.sin_family      = AF_INET;
+		addr_s.sin_addr.s_addr = addr->ip; 
+		addr_s.sin_port        = addr->port;
+		if(bind(sock, (struct sockaddr *)&addr_s, sizeof(addr_s)) != 0) { 
+			return NULL;
+		}
+		if(listen(sock, 5) != 0) { 
+			return NULL;
+		}
+	}
+
+	CSHost *host = malloc(sizeof(CSHost));
+	host->fd         = sock;
+	host->fd2        = -1;
+	host->is_host    = addr == NULL ? false : true;
+	host->peer_count = peer_count;
+	CSPeer *peers = malloc(sizeof(CSPeer) * peer_count);
+	for(CSPeer *peer = peers; peer < &peers[peer_count]; ++peer) {
 		peer->state = STATE_DISCONNECTED;
 	}
-    socket->peers = peers;
-    list_clear(&socket->notify);
-	return socket;
+    host->peers = peers;
+    list_clear(&host->notify);
+	return host;
 }
 
-bool chip_host_bind(Socket *socket, char *ip, int port) {
-	struct sockaddr_in     addr;
-	addr.sin_family      = AF_INET;
-	addr.sin_addr.s_addr = inet_addr(ip); 
-	addr.sin_port        = htons(port);
+CSPeer *chip_host_connect(CSHost *host, CSAddress *addr) {
+	struct sockaddr_in       addr_s;
+	addr_s.sin_family      = AF_INET;
+	addr_s.sin_addr.s_addr = addr->ip; 
+	addr_s.sin_port        = addr->port;
 
-	printf("%s %i\n", ip, port);
-
-	if(bind(socket->fd, (struct sockaddr *)&addr, sizeof(addr)) != 0) { 
-		return false;
-	}
-
-	if(listen(socket->fd, 5) != 0) { 
-        return false;
-    } 
-
-	return true;
-}
-
-Peer *chip_host_connect(Socket *socket, char *ip, int port) {
-	struct sockaddr_in     addr;
-	addr.sin_family      = AF_INET;
-	addr.sin_addr.s_addr = inet_addr(ip); 
-	addr.sin_port        = htons(port);
-
-	Peer *peer = chip_peer_get_disconnected(socket);
+	CSPeer *peer = chip_peer_get_disconnected(host);
 	if(peer) {
-		if(connect(socket->fd, (struct sockaddr*)&addr, sizeof(addr)) == 0) {
+		if(connect(host->fd, (struct sockaddr*)&addr_s, sizeof(addr_s)) == 0) {
 			chip_peer_update_ping(peer);
-			peer->host       = socket;
+			peer->host       = host;
 			peer->buffer_pos = 0;
-			peer->fd = socket->fd;
+			peer->fd = host->fd;
 			peer->state = STATE_CONNECTED;
 
-			ChipSockNotification *notification = malloc(sizeof(ChipSockNotification));
+			CSNotification *notification = malloc(sizeof(CSNotification));
 			notification->peer = peer;
 			notification->type = EVENT_CONNECT;
-			list_insert(list_end(&socket->notify), notification);
+			list_insert(list_end(&host->notify), notification);
 			return peer;
 		}
 	}
 	return NULL;
 }
 
-int chip_host_service(Socket *socket) {
-	if((chip_proto_get_time() - socket->last_service_time) >= PING_INTERVAL) {
-		for(Peer *peer = socket->peers; peer < &socket->peers[socket->peer_count]; ++peer) {
+int chip_host_ping_service(CSHost *host) {
+	if((chip_proto_get_time() - host->last_service_time) >= PING_INTERVAL) {
+		for(CSPeer *peer = host->peers; peer < &host->peers[host->peer_count]; ++peer) {
 			if(chip_peer_is_unpinged(peer)) {
 				if(peer->state == STATE_CONNECTED) {
 					chip_peer_disconnect(peer);
@@ -79,15 +74,13 @@ int chip_host_service(Socket *socket) {
 				chip_peer_ping(peer);
 			}
 		}
-		socket->last_service_time = chip_proto_get_time();
+		host->last_service_time = chip_proto_get_time();
 	}
 }
 
-int chip_host_event(Socket *socket, SocketEvent *event) {
-	chip_host_service(socket);
-
-	while(!list_empty(&socket->notify)) {
-		ChipSockNotification *notification = (ChipSockNotification*)list_remove(list_begin(&socket->notify));
+int chip_host_notification_service(CSHost *host, CSEvent *event) {
+	while(!list_empty(&host->notify)) {
+		CSNotification *notification = (CSNotification*)list_remove(list_begin(&host->notify));
 
 		event->peer = notification->peer;
 		event->type = notification->type;
@@ -96,25 +89,33 @@ int chip_host_event(Socket *socket, SocketEvent *event) {
 		return 1;
 	}
 
-	int max = socket->fd;
+	return 0;
+}
 
-	FD_ZERO(&socket->rdset);
+int chip_host_event(CSHost *host, CSEvent *event) {
+	chip_host_ping_service(host);
+	if(chip_host_notification_service(host, event) > 0) {
+		return 1;
+	}
 
-	FD_SET(socket->fd, &socket->rdset);
+	int max = host->fd;
 
-	for(Peer *peer = socket->peers; peer < &socket->peers[socket->peer_count]; ++peer) {
+	FD_ZERO(&host->rdset);
+	FD_SET(host->fd, &host->rdset);
+
+	for(CSPeer *peer = host->peers; peer < &host->peers[host->peer_count]; ++peer) {
 		if(peer->state == STATE_CONNECTED) {
-			FD_SET(peer->fd, &socket->rdset);
+			FD_SET(peer->fd, &host->rdset);
 			if(peer->fd > max) {
 				max = peer->fd;
 			}
 		}
 	}
 
-	if(socket->fd2 != -1) {
-		FD_SET(socket->fd2, &socket->rdset);
-		if(socket->fd2 > max) {
-			max = socket->fd2;
+	if(host->fd2 != -1) {
+		FD_SET(host->fd2, &host->rdset);
+		if(host->fd2 > max) {
+			max = host->fd2;
 		}
 	}
 
@@ -122,15 +123,15 @@ int chip_host_event(Socket *socket, SocketEvent *event) {
 	tv.tv_sec  = 1;
 	tv.tv_usec = 0;
 
-	select(max + 1, &socket->rdset, NULL, NULL, &tv);
+	select(max + 1, &host->rdset, NULL, NULL, &tv);
 
-	if(FD_ISSET(socket->fd, &socket->rdset) && socket->peer_count > 1) {
-		Peer *peer = chip_peer_get_disconnected(socket);
+	if(FD_ISSET(host->fd, &host->rdset) && host->is_host == true) {
+		CSPeer *peer = chip_peer_get_disconnected(host);
 		if(peer) {
 			socklen_t len = sizeof(peer->addr);
 			chip_peer_update_ping(peer);
-			peer->host  = socket;
-			peer->fd    = accept(socket->fd, (struct sockaddr*)&peer->addr, &len);
+			peer->host  = host;
+			peer->fd    = accept(host->fd, (struct sockaddr*)&peer->addr, &len);
 			peer->state = STATE_CONNECTED;
 
 			event->peer = peer;
@@ -139,17 +140,17 @@ int chip_host_event(Socket *socket, SocketEvent *event) {
 		}
 	}
 
-	for(Peer *peer = socket->peers; peer < &socket->peers[socket->peer_count]; ++peer) {
+	for(CSPeer *peer = host->peers; peer < &host->peers[host->peer_count]; ++peer) {
 		if(peer->state == STATE_CONNECTED) {
-			if(FD_ISSET(peer->fd, &socket->rdset)) {
-				PacketHeader *header = (PacketHeader*)&peer->buffer;
+			if(FD_ISSET(peer->fd, &host->rdset)) {
+				CSPacketHeader *header = (CSPacketHeader*)&peer->buffer;
 
 				int left = 0;
 
-				if(peer->buffer_pos < sizeof(PacketHeader)) {
-					left = sizeof(PacketHeader) - peer->buffer_pos;
+				if(peer->buffer_pos < sizeof(CSPacketHeader)) {
+					left = sizeof(CSPacketHeader) - peer->buffer_pos;
 				} else {
-					left = ntohl(header->size) + sizeof(PacketHeader) - peer->buffer_pos;
+					left = ntohl(header->size) + sizeof(CSPacketHeader) - peer->buffer_pos;
 				}
 
 				int readed = read(peer->fd, ((char*)&peer->buffer) + peer->buffer_pos, left);
@@ -158,7 +159,7 @@ int chip_host_event(Socket *socket, SocketEvent *event) {
 					break;
 				} else {
 					peer->buffer_pos += readed;
-					if(peer->buffer_pos >= ntohl(header->size) + sizeof(PacketHeader) && peer->buffer_pos >= sizeof(PacketHeader)) {
+					if(peer->buffer_pos >= ntohl(header->size) + sizeof(CSPacketHeader) && peer->buffer_pos >= sizeof(CSPacketHeader)) {
 						if(ntohl(header->type) == PT_PING) {
 							peer->buffer_pos = 0;
 							chip_peer_update_ping(peer);
@@ -166,7 +167,7 @@ int chip_host_event(Socket *socket, SocketEvent *event) {
 						if(ntohl(header->type) == PT_DATA) {
 							peer->buffer_pos = 0;
 							event->peer = peer;
-							event->data = ((char*)&peer->buffer) + sizeof(PacketHeader);
+							event->data = ((char*)&peer->buffer) + sizeof(CSPacketHeader);
 							event->size = ntohl(header->size);
 							event->type = EVENT_RECEIVE;
 							return 1;
@@ -177,7 +178,7 @@ int chip_host_event(Socket *socket, SocketEvent *event) {
 		}
 	}
 
-	if(FD_ISSET(socket->fd2, &socket->rdset)) {
+	if(FD_ISSET(host->fd2, &host->rdset)) {
 		event->peer = NULL;
 		event->type = EVENT_SOCKET_SELECT;
 		return 1;
@@ -187,8 +188,8 @@ int chip_host_event(Socket *socket, SocketEvent *event) {
 	return 0;
 }
 
-void chip_host_select(Socket *socket, int fd) {
-	socket->fd2 = fd;
+void chip_host_select(CSHost *host, int fd) {
+	host->fd2 = fd;
 }
 
 uint32_t chip_proto_get_time() {
@@ -198,7 +199,19 @@ uint32_t chip_proto_get_time() {
 	return (tv.tv_sec * 1000 + tv.tv_usec / 1000) / 1000;
 }
 
-void chip_host_free(Socket *socket) {
-	close(socket->fd);
-	free(socket);
+void chip_host_free(CSHost *host) {
+	for(CSPeer *peer = host->peers; peer < &host->peers[host->peer_count]; ++peer) {
+		if(peer->state == STATE_CONNECTED) {
+			close(peer->fd);
+		}
+	}
+	close(host->fd);
+
+	while(!list_empty(&host->notify)) {
+		CSNotification *notification = (CSNotification*)list_remove(list_begin(&host->notify));
+		free(notification);
+	}
+
+	free(host->peers);
+	free(host);
 }

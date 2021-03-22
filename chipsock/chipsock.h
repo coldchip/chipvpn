@@ -16,25 +16,26 @@
 
 #define PING_INTERVAL 1
 
-typedef struct _Socket {
+typedef struct _CSAddress {
+	uint32_t ip;
+	uint16_t port;
+} CSAddress;
+
+typedef struct _CSHost {
 	int fd;
 	int fd2;
+	bool is_host;
 	fd_set rdset;
-	struct _Peer *peers;
+	struct _CSPeer *peers;
 	int peer_count;
 	int last_service_time;
 	List notify;
-} Socket;
-
-typedef enum {
-	RELIABLE,
-	DATAGRAM
-} SendType;
+} CSHost;
 
 typedef enum {
 	PT_DATA,
 	PT_PING
-} PacketType;
+} CSPacketType;
 
 typedef enum {
 	EVENT_CONNECT,
@@ -42,71 +43,62 @@ typedef enum {
 	EVENT_DISCONNECT,
 	EVENT_SOCKET_SELECT,
 	EVENT_NONE
-} EventType;
+} CSEventType;
 
 typedef enum {
 	STATE_DISCONNECTED,
 	STATE_CONNECTED,
-} PeerState;
+} CSPeerState;
 
-typedef struct _Peer {
-	Socket *host;
+typedef struct _CSPeer {
+	CSHost *host;
 	int fd;
 	int last_ping;
-	PeerState state;
+	CSPeerState state;
 	struct sockaddr_in addr;
 	char buffer[65535];
 	int buffer_pos;
 	void *data;
-} Peer;
+} CSPeer;
 
-typedef struct _PacketHeader {
-	PacketType type;
+typedef struct _CSPacketHeader {
+	CSPacketType type;
 	int size;
-	
-} PacketHeader;
+} CSPacketHeader;
 
-typedef struct _PacketData {
-	char data[5000];
-} PacketData;
-
-typedef struct _Packet {
-	PacketHeader header;
-	PacketData   data;
-} Packet;
-
-typedef struct _SocketEvent {
-	EventType type;
-	Peer *peer;
+typedef struct _CSEvent {
+	CSEventType type;
+	CSPeer *peer;
 	char *data;
 	int size;
-} SocketEvent;
+} CSEvent;
 
-typedef struct _ChipSockNotification {
+typedef struct _CSNotification {
 	ListNode node;
-	Peer *peer;
-	EventType type;
-} ChipSockNotification;
+	CSPeer *peer;
+	CSEventType type;
+} CSNotification;
 
 // chipsock.c
 
-Socket   *chip_host_create(int peer_count);
-bool      chip_host_bind(Socket *socket, char *ip, int port);
-Peer     *chip_host_connect(Socket *socket, char *ip, int port);
-int       chip_host_event(Socket *socket, SocketEvent *event);
-void      chip_host_select(Socket *socket, int fd);
+CSHost   *chip_host_create(CSAddress *addr, int peer_count);
+CSPeer   *chip_host_connect(CSHost *host, CSAddress *addr);
+int       chip_host_ping_service(CSHost *host);
+int       chip_host_notification_service(CSHost *host, CSEvent *event);
+int       chip_host_event(CSHost *host, CSEvent *event);
+void      chip_host_select(CSHost *host, int fd);
 uint32_t  chip_proto_get_time();
-void      chip_host_free(Socket *socket);
+void      chip_host_free(CSHost *host);
 
 // peer.c
 
-void      chip_peer_update_ping(Peer *peer);
-bool      chip_peer_is_unpinged(Peer *peer);
-void      chip_peer_ping(Peer *peer);
-void      chip_peer_send(Peer *peer, char *data, int size, SendType type);
-Peer     *chip_peer_get_by_session(Socket *socket, uint32_t session);
-void      chip_peer_disconnect(Peer *peer);
-Peer     *chip_peer_get_disconnected(Socket *socket);
-int       chip_peer_count_connected(Socket *socket);
+void      chip_peer_update_ping(CSPeer *peer);
+bool      chip_peer_is_unpinged(CSPeer *peer);
+void      chip_peer_ping(CSPeer *peer);
+void      chip_peer_send(CSPeer *peer, char *data, int size);
+CSPeer   *chip_peer_get_by_session(CSHost *host, uint32_t session);
+void      chip_peer_disconnect(CSPeer *peer);
+CSPeer   *chip_peer_get_disconnected(CSHost *host);
+int       chip_peer_count_connected(CSHost *host);
 
 #endif

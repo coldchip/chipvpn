@@ -27,6 +27,7 @@ extern "C"
 #include <linux/if_tun.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include<netdb.h>
 #include "chipsock/chipsock.h"
 #include "list.h"
 #include "aes.h"
@@ -141,7 +142,7 @@ API void chip_decrypt_free(EncryptCTX *ctx);
 // core.c
 
 typedef struct _VPNPeer {
-	EncryptCTX *enc_ctx;
+	bool is_authed;
 	uint32_t internal_ip;
 } VPNPeer;
 
@@ -152,9 +153,8 @@ typedef enum {
 } VPNPacketType;
 
 void     chipvpn_event_loop(char *config);
-uint32_t chipvpn_get_peer_free_ip(Socket *socket);
-Peer    *chipvpn_get_peer_by_ip(Socket *socket, uint32_t ip);
-void     chipvpn_fill_pseudo_random(char *src, int len);
+uint32_t chipvpn_get_peer_free_ip(CSHost *socket);
+CSPeer  *chipvpn_get_peer_by_ip(CSHost *socket, uint32_t ip);
 
 #ifdef __cplusplus
 }
