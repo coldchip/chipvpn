@@ -92,9 +92,39 @@ int chip_host_notification_service(CSHost *host, CSEvent *event) {
 	return 0;
 }
 
+int chip_host_packet_dispatch_service(CSHost *host, CSEvent *event) {
+	for(CSPeer *peer = host->peers; peer < &host->peers[host->peer_count]; ++peer) {
+		if(peer->state == STATE_CONNECTED) {
+			CSPacketHeader *header = (CSPacketHeader*)&peer->buffer;
+			if(peer->buffer_pos >= ntohl(header->size) + sizeof(CSPacketHeader) && peer->buffer_pos >= sizeof(CSPacketHeader)) {
+				switch(ntohl(header->type)) {
+					case PT_PING: {
+						peer->buffer_pos = 0;
+						chip_peer_update_ping(peer);
+					}
+					break;
+					case PT_DATA: {
+						peer->buffer_pos = 0;
+						event->peer = peer;
+						event->data = ((char*)&peer->buffer) + sizeof(CSPacketHeader);
+						event->size = ntohl(header->size);
+						event->type = EVENT_RECEIVE;
+						return 1;
+					}
+					break;
+				}
+			}
+		}
+	}
+	return 0;
+}
+
 int chip_host_event(CSHost *host, CSEvent *event) {
 	chip_host_ping_service(host);
 	if(chip_host_notification_service(host, event) > 0) {
+		return 1;
+	}
+	if(chip_host_packet_dispatch_service(host, event) > 0) {
 		return 1;
 	}
 
@@ -130,9 +160,10 @@ int chip_host_event(CSHost *host, CSEvent *event) {
 		if(peer) {
 			socklen_t len = sizeof(peer->addr);
 			chip_peer_update_ping(peer);
-			peer->host  = host;
-			peer->fd    = accept(host->fd, (struct sockaddr*)&peer->addr, &len);
-			peer->state = STATE_CONNECTED;
+			peer->host       = host;
+			peer->buffer_pos = 0;
+			peer->fd         = accept(host->fd, (struct sockaddr*)&peer->addr, &len);
+			peer->state      = STATE_CONNECTED;
 
 			event->peer = peer;
 			event->type = EVENT_CONNECT;
@@ -153,26 +184,11 @@ int chip_host_event(CSHost *host, CSEvent *event) {
 					left = ntohl(header->size) + sizeof(CSPacketHeader) - peer->buffer_pos;
 				}
 
-				int readed = read(peer->fd, ((char*)&peer->buffer) + peer->buffer_pos, left);
+				int readed = recv(peer->fd, ((char*)&peer->buffer) + peer->buffer_pos, left, MSG_WAITALL);
 				if(readed < 1) {
 					chip_peer_disconnect(peer);
-					break;
 				} else {
 					peer->buffer_pos += readed;
-					if(peer->buffer_pos >= ntohl(header->size) + sizeof(CSPacketHeader) && peer->buffer_pos >= sizeof(CSPacketHeader)) {
-						if(ntohl(header->type) == PT_PING) {
-							peer->buffer_pos = 0;
-							chip_peer_update_ping(peer);
-						}
-						if(ntohl(header->type) == PT_DATA) {
-							peer->buffer_pos = 0;
-							event->peer = peer;
-							event->data = ((char*)&peer->buffer) + sizeof(CSPacketHeader);
-							event->size = ntohl(header->size);
-							event->type = EVENT_RECEIVE;
-							return 1;
-						}
-					}
 				}
 			}
 		}

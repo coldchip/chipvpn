@@ -32,8 +32,6 @@ extern "C"
 #include "list.h"
 #include "aes.h"
 
-#define API extern
-
 #define MAX_MTU 1500
 
 #define DIM(x) (sizeof(x)/sizeof(*(x)))
@@ -100,20 +98,20 @@ typedef struct _ICMPHeader {
 	} un;
 } ICMPHeader;
 
-API char *read_string(FILE *file, char const *desired_name);
-API bool read_bool(FILE *file, char const *desired_name);
-API int read_int(FILE *file, char const *desired_name);
-API char *read_file_into_buffer(char *file);
-API uint32_t get_default_gateway();
-API int exec_sprintf(char *format, ...);
-API void warning(char *format, ...);
-API void error(char *format, ...);
-API void console_log(char *format, ...);
-API char *format_size(uint64_t size);
+char *read_string(FILE *file, char const *desired_name);
+bool read_bool(FILE *file, char const *desired_name);
+int read_int(FILE *file, char const *desired_name);
+char *read_file_into_buffer(char *file);
+uint32_t get_default_gateway();
+int exec_sprintf(char *format, ...);
+void warning(char *format, ...);
+void error(char *format, ...);
+void console_log(char *format, ...);
+char *format_size(uint64_t size);
 
 // firewall.c
 
-API bool validate_packet(char *stream);
+bool validate_packet(char *stream);
 
 // tun.c
 
@@ -122,10 +120,10 @@ typedef struct _Tun {
 	int fd;
 } Tun;
 
-API Tun *open_tun(char *dev);
-API void setifip(Tun *tun, uint32_t ip, uint32_t mask, int mtu);
-API void ifup(Tun *tun);
-API void free_tun(Tun *tun);
+Tun *open_tun(char *dev);
+void setifip(Tun *tun, uint32_t ip, uint32_t mask, int mtu);
+void ifup(Tun *tun);
+void free_tun(Tun *tun);
 
 // encryption.c
 
@@ -133,11 +131,8 @@ typedef struct _EncryptCTX {
 	struct AES_ctx aes_ctx;
 } EncryptCTX;
 
-API EncryptCTX *chip_encrypt_init();
-API void chip_encrypt_set_key(EncryptCTX *ctx, char *key);
-API void chip_encrypt_buf(EncryptCTX *ctx, char *data, int length);
-API void chip_decrypt_buf(EncryptCTX *ctx, char *data, int length);
-API void chip_decrypt_free(EncryptCTX *ctx);
+void chip_encrypt_buf(char *data, int length);
+void chip_decrypt_buf(char *data, int length);
 
 // core.c
 

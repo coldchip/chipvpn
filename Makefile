@@ -1,12 +1,10 @@
 COMPILER=gcc
-#COMPILER=/home/ryan/source-18.06.9/staging_dir/toolchain-mipsel_24kc_gcc-7.3.0_musl/bin/mipsel-openwrt-linux-gcc
 OUTPUT=build/chipvpn
 
 .PHONY: install
 
 module:
 	$(COMPILER) json/*.c chipsock/*.c *.c -o $(OUTPUT) -Ofast
-	#$(COMPILER1) *.c -o $(OUTPUT1) -Wall -lm -lpthread -Ofast
 install:
 	-systemctl stop chipvpn
 	-mkdir -p /etc/chipvpn

@@ -201,6 +201,7 @@ void chipvpn_event_loop(char *config_file) {
 						}
 						break;
 						case VPN_TYPE_DATA: {
+							chip_decrypt_buf(p_data, size);
 							IPPacket *ip_hdr = (IPPacket*)p_data;
 							if(
 								vpn_peer->is_authed == true &&
@@ -251,6 +252,7 @@ void chipvpn_event_loop(char *config_file) {
 						VPNPeer *vpn_peer = (VPNPeer*)peer->data;
 						if(vpn_peer->is_authed == true) {
 							*p_type = htonl(VPN_TYPE_DATA);
+							chip_encrypt_buf(p_data, size);
 							chip_peer_send(peer, buf, size + 4);
 						}
 					}

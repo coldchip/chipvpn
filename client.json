@@ -1,6 +1,6 @@
 {
-	"connect": "0.tcp.ngrok.io",
-	"port": 12729,
+	"connect": "13.250.36.82",
+	"port": 8192,
 	"token": "CJ9AUUwf7fDEsFqQmY4uR3tkcajaYQ7m",
 	"pull_routes": true
 }
