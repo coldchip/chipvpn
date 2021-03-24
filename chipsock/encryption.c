@@ -1,4 +1,4 @@
-#include "chipvpn.h"
+#include "chipsock.h"
 
 void chip_encrypt_buf(char *data, int length) {
 	uint8_t key[16] = {
@@ -7,7 +7,8 @@ void chip_encrypt_buf(char *data, int length) {
 	};
 	for(int i = 0; i < length; i++) {
 		key[i % sizeof(key)] ^= (i | key[i % sizeof(key)]);
-		*(data + i) ^= key[i % sizeof(key)];
+		*(data + i) ^= (key[(i + 0) % sizeof(key)] ^ (i));
+		*(data + i) ^= (key[(i + 1) % sizeof(key)] | 0x7F);
 	}
 }
 
@@ -18,7 +19,8 @@ void chip_decrypt_buf(char *data, int length) {
 	};
 	for(int i = 0; i < length; i++) {
 		key[i % sizeof(key)] ^= (i | key[i % sizeof(key)]);
-		*(data + i) ^= key[i % sizeof(key)];
+		*(data + i) ^= (key[(i + 0) % sizeof(key)] ^ (i));
+		*(data + i) ^= (key[(i + 1) % sizeof(key)] | 0x7F);
 	}
 }
 

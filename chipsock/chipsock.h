@@ -57,13 +57,14 @@ typedef struct _CSPeer {
 	CSPeerState state;
 	struct sockaddr_in addr;
 	char buffer[65535];
-	int buffer_pos;
+	uint32_t buffer_pos;
 	void *data;
 } CSPeer;
 
 typedef struct _CSPacketHeader {
 	CSPacketType type;
 	int size;
+	char identifier[16];
 } CSPacketHeader;
 
 typedef struct _CSEvent {
@@ -101,5 +102,10 @@ CSPeer   *chip_peer_get_by_session(CSHost *host, uint32_t session);
 void      chip_peer_disconnect(CSPeer *peer);
 CSPeer   *chip_peer_get_disconnected(CSHost *host);
 int       chip_peer_count_connected(CSHost *host);
+
+// encryption.c
+
+void      chip_encrypt_buf(char *data, int length);
+void      chip_decrypt_buf(char *data, int length);
 
 #endif

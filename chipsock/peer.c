@@ -19,7 +19,9 @@ void chip_peer_ping(CSPeer *peer) {
 		header.type = htonl(PT_PING);
 		header.size = htonl(0);
 
-		write(peer->fd, &header, sizeof(header));
+		if(write(peer->fd, &header, sizeof(header)) <= 0) {
+			chip_peer_disconnect(peer);
+		}
 	}
 }
 
@@ -28,12 +30,16 @@ void chip_peer_send(CSPeer *peer, char *data, int size) {
 		CSPacketHeader header;
 		header.type = htonl(PT_DATA);
 		header.size = htonl(size);
+		strcpy(header.identifier, "CHIPSOCKET/1.1");
 
 		char packet[sizeof(CSPacketHeader) + size];
 
 		memcpy(packet, (char*)&header, sizeof(CSPacketHeader));
+		chip_encrypt_buf(data, size);
 		memcpy(packet + sizeof(CSPacketHeader), data, size);
-		write(peer->fd, packet, sizeof(packet));
+		if(write(peer->fd, &packet, sizeof(packet)) <= 0) {
+			chip_peer_disconnect(peer);
+		}
 	}
 }
 

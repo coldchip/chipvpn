@@ -30,7 +30,6 @@ extern "C"
 #include<netdb.h>
 #include "chipsock/chipsock.h"
 #include "list.h"
-#include "aes.h"
 
 #define MAX_MTU 1500
 
@@ -124,15 +123,6 @@ Tun *open_tun(char *dev);
 void setifip(Tun *tun, uint32_t ip, uint32_t mask, int mtu);
 void ifup(Tun *tun);
 void free_tun(Tun *tun);
-
-// encryption.c
-
-typedef struct _EncryptCTX {
-	struct AES_ctx aes_ctx;
-} EncryptCTX;
-
-void chip_encrypt_buf(char *data, int length);
-void chip_decrypt_buf(char *data, int length);
 
 // core.c
 

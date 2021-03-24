@@ -96,7 +96,10 @@ int chip_host_packet_dispatch_service(CSHost *host, CSEvent *event) {
 	for(CSPeer *peer = host->peers; peer < &host->peers[host->peer_count]; ++peer) {
 		if(peer->state == STATE_CONNECTED) {
 			CSPacketHeader *header = (CSPacketHeader*)&peer->buffer;
-			if(peer->buffer_pos >= ntohl(header->size) + sizeof(CSPacketHeader) && peer->buffer_pos >= sizeof(CSPacketHeader)) {
+			if(
+				peer->buffer_pos >= (ntohl(header->size) + sizeof(CSPacketHeader)) && 
+				peer->buffer_pos >= sizeof(CSPacketHeader)
+			) {
 				switch(ntohl(header->type)) {
 					case PT_PING: {
 						peer->buffer_pos = 0;
@@ -104,9 +107,10 @@ int chip_host_packet_dispatch_service(CSHost *host, CSEvent *event) {
 					}
 					break;
 					case PT_DATA: {
+						chip_decrypt_buf(&peer->buffer[sizeof(CSPacketHeader)], ntohl(header->size));
 						peer->buffer_pos = 0;
 						event->peer = peer;
-						event->data = ((char*)&peer->buffer) + sizeof(CSPacketHeader);
+						event->data = &peer->buffer[sizeof(CSPacketHeader)];
 						event->size = ntohl(header->size);
 						event->type = EVENT_RECEIVE;
 						return 1;
@@ -176,19 +180,21 @@ int chip_host_event(CSHost *host, CSEvent *event) {
 			if(FD_ISSET(peer->fd, &host->rdset)) {
 				CSPacketHeader *header = (CSPacketHeader*)&peer->buffer;
 
-				int left = 0;
+				uint32_t left = sizeof(CSPacketHeader) - peer->buffer_pos;
 
-				if(peer->buffer_pos < sizeof(CSPacketHeader)) {
-					left = sizeof(CSPacketHeader) - peer->buffer_pos;
-				} else {
-					left = ntohl(header->size) + sizeof(CSPacketHeader) - peer->buffer_pos;
+				if(peer->buffer_pos >= sizeof(CSPacketHeader)) {
+					left += ntohl(header->size);
 				}
 
-				int readed = recv(peer->fd, ((char*)&peer->buffer) + peer->buffer_pos, left, MSG_WAITALL);
-				if(readed < 1) {
-					chip_peer_disconnect(peer);
+				if((left + peer->buffer_pos) < sizeof(peer->buffer)) {
+					int readed = recv(peer->fd, &peer->buffer[peer->buffer_pos], left, 0);
+					if(readed > 0) {
+						peer->buffer_pos += readed;
+					} else {
+						chip_peer_disconnect(peer);
+					}
 				} else {
-					peer->buffer_pos += readed;
+					chip_peer_disconnect(peer);
 				}
 			}
 		}
