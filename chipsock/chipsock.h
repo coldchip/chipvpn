@@ -64,7 +64,7 @@ typedef struct _CSPeer {
 typedef struct _CSPacketHeader {
 	CSPacketType type;
 	int size;
-	char identifier[16];
+	char identifier[64]; // for debugging
 } CSPacketHeader;
 
 typedef struct _CSEvent {

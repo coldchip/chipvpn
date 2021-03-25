@@ -94,24 +94,29 @@ int chip_host_notification_service(CSHost *host, CSEvent *event) {
 
 int chip_host_packet_dispatch_service(CSHost *host, CSEvent *event) {
 	for(CSPeer *peer = host->peers; peer < &host->peers[host->peer_count]; ++peer) {
-		if(peer->state == STATE_CONNECTED) {
+		if(peer->state & STATE_CONNECTED) {
+
 			CSPacketHeader *header = (CSPacketHeader*)&peer->buffer;
+			CSPacketType    type = ntohl(header->type);
+			uint32_t        size = ntohl(header->size);
+			char           *data = &peer->buffer[sizeof(CSPacketHeader)];
+
 			if(
-				peer->buffer_pos >= (ntohl(header->size) + sizeof(CSPacketHeader)) && 
+				peer->buffer_pos >= (size + sizeof(CSPacketHeader)) && 
 				peer->buffer_pos >= sizeof(CSPacketHeader)
 			) {
-				switch(ntohl(header->type)) {
+				peer->buffer_pos = 0;
+
+				switch(type) {
 					case PT_PING: {
-						peer->buffer_pos = 0;
 						chip_peer_update_ping(peer);
 					}
 					break;
 					case PT_DATA: {
-						chip_decrypt_buf(&peer->buffer[sizeof(CSPacketHeader)], ntohl(header->size));
-						peer->buffer_pos = 0;
+						chip_decrypt_buf(data, size);
 						event->peer = peer;
-						event->data = &peer->buffer[sizeof(CSPacketHeader)];
-						event->size = ntohl(header->size);
+						event->data = data;
+						event->size = size;
 						event->type = EVENT_RECEIVE;
 						return 1;
 					}
