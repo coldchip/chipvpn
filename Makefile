@@ -18,3 +18,5 @@ upload2:
 	scp -r /home/ryan/chipvpn/* ryan@192.168.0.100:/home/ryan/chipvpn
 upload3:
 	scp -r /home/ryan/chipvpn/* ryan@vpn.coldchip.ru:/home/ryan/chipvpn
+upload4:
+	scp -r /home/ryan/chipvpn/* root@192.168.0.148:/root/chipvpn

@@ -128,7 +128,10 @@ void free_tun(Tun *tun);
 
 typedef struct _VPNPeer {
 	bool is_authed;
+	uint32_t uid;
 	uint32_t internal_ip;
+	uint64_t tx;
+	uint64_t rx;
 } VPNPeer;
 
 typedef enum {
@@ -137,9 +140,40 @@ typedef enum {
 	VPN_TYPE_AUTH
 } VPNPacketType;
 
-void     chipvpn_event_loop(char *config);
-uint32_t chipvpn_get_peer_free_ip(CSHost *socket);
-CSPeer  *chipvpn_get_peer_by_ip(CSHost *socket, uint32_t ip);
+typedef struct _VPNAuthPacket {
+	char token[128];
+} VPNAuthPacket;
+
+typedef struct _VPNAssignPacket {
+	uint32_t ip;
+	uint32_t subnet;
+	uint32_t gateway;
+	uint32_t mtu;
+} VPNAssignPacket;
+
+typedef struct _VPNDataPacket {
+	char data[8192];
+} VPNDataPacket;
+
+typedef struct _VPNPacket {
+	struct {
+		VPNPacketType type;
+		uint32_t size;
+	} header;
+	union {
+		VPNAuthPacket   p_auth;
+		VPNAssignPacket p_assign;
+		VPNDataPacket   p_data;
+	} data;
+} VPNPacket;
+
+void               chipvpn_event_loop(char *config);
+void               chipvpn_peer_send(CSPeer *peer, VPNPacketType type, void *data, int size);
+uint32_t           chipvpn_get_peer_free_ip(CSHost *socket);
+CSPeer            *chipvpn_get_peer_by_ip(CSHost *socket, uint32_t ip);
+CSPeer            *chipvpn_get_peer_by_uid(CSHost *host, uint32_t uid);
+static const char *chipvpn_bytes_pretty_print(uint64_t bytes);
+unsigned int       chipvpn_crc32b(unsigned char *message, int size);
 
 #ifdef __cplusplus
 }

@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <arpa/inet.h> 
+#include <netinet/tcp.h>
 #include <sys/syscall.h>
 #include <stdio.h>
 #include <math.h>
@@ -28,7 +29,7 @@ typedef struct _CSHost {
 	fd_set rdset;
 	struct _CSPeer *peers;
 	int peer_count;
-	int last_service_time;
+	uint32_t last_service_time;
 	List notify;
 } CSHost;
 

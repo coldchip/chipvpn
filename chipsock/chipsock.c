@@ -11,6 +11,10 @@ CSHost *chip_host_create(CSAddress *addr, int peer_count) {
 		return NULL;
 	}
 
+	if(setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, &(int){1}, sizeof(int)) < 0){
+		return NULL;
+	}
+
 	if(addr) {
 		struct sockaddr_in       addr_s;
 		addr_s.sin_family      = AF_INET;
@@ -113,7 +117,6 @@ int chip_host_packet_dispatch_service(CSHost *host, CSEvent *event) {
 					}
 					break;
 					case PT_DATA: {
-						chip_decrypt_buf(data, size);
 						event->peer = peer;
 						event->data = data;
 						event->size = size;

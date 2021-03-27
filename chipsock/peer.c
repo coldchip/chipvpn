@@ -33,10 +33,9 @@ void chip_peer_send(CSPeer *peer, char *data, int size) {
 		strcpy(header.identifier, "CHIPSOCKET/1.1");
 
 		char packet[sizeof(CSPacketHeader) + size];
-
 		memcpy(packet, (char*)&header, sizeof(CSPacketHeader));
-		chip_encrypt_buf(data, size);
 		memcpy(packet + sizeof(CSPacketHeader), data, size);
+		
 		if(write(peer->fd, &packet, sizeof(packet)) <= 0) {
 			chip_peer_disconnect(peer);
 		}
