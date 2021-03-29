@@ -85,7 +85,7 @@ typedef struct _CSNotification {
 
 CSHost   *chip_host_create(CSAddress *addr, int peer_count);
 CSPeer   *chip_host_connect(CSHost *host, CSAddress *addr);
-int       chip_host_ping_service(CSHost *host);
+void      chip_host_ping_service(CSHost *host);
 int       chip_host_notification_service(CSHost *host, CSEvent *event);
 int       chip_host_packet_dispatch_service(CSHost *host, CSEvent *event);
 int       chip_host_event(CSHost *host, CSEvent *event);

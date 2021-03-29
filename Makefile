@@ -1,17 +1,16 @@
-COMPILER=gcc
-OUTPUT=build/chipvpn
+.PHONY: clean install
 
-.PHONY: install
-
-module:
-	$(COMPILER) json/*.c chipsock/*.c *.c -o $(OUTPUT) -Ofast
+all:
+	./build.sh compile
 install:
 	-systemctl stop chipvpn
 	-mkdir -p /etc/chipvpn
 	-touch /etc/chipvpn/chipvpn.json
 	cp install/chipvpn.service /etc/systemd/system
-	cp build/chipvpn /usr/local/sbin
+	cp bin/chipvpn /usr/local/sbin
 	systemctl daemon-reload
+clean:
+	./build.sh clean
 upload:
 	scp -r /home/ryan/chipvpn/* ryan@34.87.165.28:/home/ryan/chipvpn
 upload2:

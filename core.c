@@ -1,6 +1,8 @@
 #include "json/include/cJSON.h"
 #include "chipvpn.h"
 
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+
 void chipvpn_event_loop(char *config_file) {
 	char     ip[32];
 	int      port        = 0;
@@ -80,6 +82,9 @@ void chipvpn_event_loop(char *config_file) {
 	}
 
 	reconnect:;
+
+	List login_response_queue;
+	list_clear(&login_response_queue);
 
 	CSHost *socket = NULL;
 
@@ -167,27 +172,18 @@ void chipvpn_event_loop(char *config_file) {
 						case VPN_TYPE_AUTH: {
 							if(is_server) {
 								VPNAuthPacket p_auth = r_packet->data.p_auth;
-								if(r_size == strlen(token) && memcmp(p_auth.token, token, strlen(token)) == 0) {
-									uint32_t alloc_ip = chipvpn_get_peer_free_ip(socket);
-									if(alloc_ip > 0) {
-										vpn_peer->uid = chipvpn_crc32b(p_auth.token, r_size);
-										vpn_peer->internal_ip = alloc_ip;
+								
+								VPNLoginQueue *queue = malloc(sizeof(VPNLoginQueue));
+								queue->id = rand();
+								strncpy(queue->token, p_auth.token, strlen(token));
+								queue->token[strlen(token)] = '\0';
+								queue->response_queue = &login_response_queue;
 
-										VPNAssignPacket data;
-										data.ip      = alloc_ip;
-										data.subnet  = inet_addr("255.255.255.0");
-										data.gateway = inet_addr("10.0.0.1");
-										data.mtu     = htonl(MAX_MTU);
-										chipvpn_peer_send(peer, VPN_TYPE_ASSIGN, &data, sizeof(data));
-										
-										vpn_peer->is_authed = true;
-										console_log("Client Logged In %u", vpn_peer->uid);
-									} else {
-										chip_peer_disconnect(peer);
-									}
-								} else {
-									chip_peer_disconnect(peer);
-								}
+								pthread_t thread_t;
+								pthread_create(&thread_t, NULL, chipvpn_login_thread, (void*)queue);
+								pthread_detach(thread_t);
+
+								vpn_peer->login_id = queue->id;
 							}
 						}
 						break;
@@ -211,7 +207,7 @@ void chipvpn_event_loop(char *config_file) {
 									if(exec_sprintf("ip route add 0.0.0.0/1 via %i.%i.%i.%i", (peer_gateway >> 0) & 0xFF, (peer_gateway >> 8) & 0xFF, (peer_gateway >> 16) & 0xFF, (peer_gateway >> 24) & 0xFF)) { }
 									if(exec_sprintf("ip route add 128.0.0.0/1 via %i.%i.%i.%i", (peer_gateway >> 0) & 0xFF, (peer_gateway >> 8) & 0xFF, (peer_gateway >> 16) & 0xFF, (peer_gateway >> 24) & 0xFF)) { }
 								}
-								vpn_peer->uid = chipvpn_crc32b(token, strlen(token));
+								vpn_peer->uid = chipvpn_crc32b((unsigned char *)token, strlen(token));
 								vpn_peer->is_authed = true;
 								vpn_peer->internal_ip = peer_ip;
 								console_log("initialization Sequence Complete");
@@ -301,8 +297,160 @@ void chipvpn_event_loop(char *config_file) {
 				fclose(quota);
 			}
 			last_update_quota = chip_proto_get_time();
+
+			if(is_server) {
+				pthread_t thread_t;
+				pthread_create(&thread_t, NULL, chipvpn_sync_thread, socket);
+				pthread_detach(thread_t);
+			}
+		}
+
+		while(!list_empty(&login_response_queue)) {
+			VPNLoginQueue *entry = (VPNLoginQueue*)list_remove(list_begin(&login_response_queue));
+			for(CSPeer *peer = socket->peers; peer < &socket->peers[socket->peer_count]; ++peer) {
+				if((peer->state == STATE_CONNECTED)) {
+					VPNPeer *vpn_peer = (VPNPeer*)(peer->data);
+					if(entry->id == vpn_peer->login_id) {
+						if(entry->success == true) {
+							uint32_t alloc_ip = chipvpn_get_peer_free_ip(socket);
+							if(alloc_ip > 0) {
+								vpn_peer->uid         = entry->uid;
+								vpn_peer->internal_ip = alloc_ip;
+								vpn_peer->tx          = entry->tx;
+								vpn_peer->rx          = entry->rx;
+
+								VPNAssignPacket data;
+								data.ip      = alloc_ip;
+								data.subnet  = inet_addr("255.255.255.0");
+								data.gateway = inet_addr("10.0.0.1");
+								data.mtu     = htonl(MAX_MTU);
+								chipvpn_peer_send(peer, VPN_TYPE_ASSIGN, &data, sizeof(data));
+								
+								vpn_peer->is_authed = true;
+								console_log("Client Logged In %u", vpn_peer->uid);
+							} else {
+								chip_peer_disconnect(peer);
+							}
+						} else {
+							chip_peer_disconnect(peer);
+						}
+					}
+				}
+			}
+			free(entry);
 		}
 	}
+}
+
+void *chipvpn_sync_thread(void *data) {
+	CSHost *socket = (CSHost*)data;
+
+	cJSON *json = cJSON_CreateArray();
+	for(CSPeer *peer = socket->peers; peer < &socket->peers[socket->peer_count]; ++peer) {
+		if((peer->state == STATE_CONNECTED)) {
+			cJSON *j = cJSON_CreateObject();
+			VPNPeer *vpn_peer = (VPNPeer*)(peer->data);
+			cJSON_AddNumberToObject(j, "uid", vpn_peer->uid);
+			cJSON_AddNumberToObject(j, "tx", vpn_peer->tx);
+			cJSON_AddNumberToObject(j, "rx", vpn_peer->rx);
+			cJSON_AddItemToArray(json, j);
+		}
+	}
+	char *json_data = cJSON_Print(json);
+
+
+	struct MemoryStruct chunk;
+
+	chunk.memory = malloc(1);
+	chunk.size = 0;
+
+	char json_data_e[(strlen(json_data) * 3) + 5];
+	uri_encode(json_data, strlen(json_data), json_data_e);
+
+	char *post_data = chipvpn_malloc_fmt("mode=update&api_key=%s&data=%s", "EDV53TBNWnNJhqsLYGR5zHrFygGR9EF3", json_data_e);
+	CURL *curl = curl_easy_init();
+	curl_easy_setopt(curl, CURLOPT_URL, "https://auth.coldchip.ru/");
+	curl_easy_setopt(curl, CURLOPT_POSTFIELDS, post_data);
+	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curl_WriteMemoryCallback);
+	curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&chunk);
+	curl_easy_setopt(curl, CURLOPT_USERAGENT, "ChipVPN Backend 1.0");
+
+	int res = curl_easy_perform(curl);
+
+	if(res == CURLE_OK) {
+		
+	}
+
+	curl_easy_cleanup(curl);
+	free(chunk.memory);
+
+
+
+
+
+
+	free(json_data);
+	cJSON_free(json);
+	return NULL;
+}
+
+void *chipvpn_login_thread(void *data) {
+	VPNLoginQueue *queue = (VPNLoginQueue*)data;
+
+	struct MemoryStruct chunk;
+
+	chunk.memory = malloc(1);
+	chunk.size = 0;
+
+	char token_e[(strlen(queue->token) * 3) + 5];
+	uri_encode(queue->token, strlen(queue->token), token_e);
+	
+	char *post_data = chipvpn_malloc_fmt("mode=auth&api_key=%s&token=%s", "EDV53TBNWnNJhqsLYGR5zHrFygGR9EF3", token_e);
+	CURL *curl = curl_easy_init();
+	curl_easy_setopt(curl, CURLOPT_URL, "https://auth.coldchip.ru/");
+	curl_easy_setopt(curl, CURLOPT_POSTFIELDS, post_data);
+	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curl_WriteMemoryCallback);
+	curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&chunk);
+	curl_easy_setopt(curl, CURLOPT_USERAGENT, "ChipVPN Backend 1.0");
+
+	int res = curl_easy_perform(curl);
+
+	queue->success = false;
+	queue->tx = 0;
+	queue->rx = 0;
+
+	if(res == CURLE_OK) {
+		cJSON *json = cJSON_Parse(chunk.memory);
+		if(json) {
+			cJSON *cjson_success   = cJSON_GetObjectItem(json, "success");
+			cJSON *cjson_uid       = cJSON_GetObjectItem(json, "uid");
+			cJSON *cjson_tx        = cJSON_GetObjectItem(json, "tx");
+			cJSON *cjson_rx        = cJSON_GetObjectItem(json, "rx");
+			if((cjson_success && cJSON_IsBool(cjson_success)) && (cjson_uid && cJSON_IsNumber(cjson_uid))) {
+				if(cJSON_IsTrue(cjson_success)) {
+					queue->success = true;
+					queue->uid = cJSON_GetNumberValue(cjson_uid);
+					if(
+						(cjson_tx && cJSON_IsNumber(cjson_tx)) &&
+						(cjson_rx && cJSON_IsNumber(cjson_rx))
+					) {
+						queue->tx = cJSON_GetNumberValue(cjson_tx);
+						queue->rx = cJSON_GetNumberValue(cjson_rx);
+					}
+				}
+			}
+			cJSON_free(json);
+		}
+	}
+
+	pthread_mutex_lock(&mutex);
+	list_insert(list_end(queue->response_queue), queue);
+	pthread_mutex_unlock(&mutex);
+
+	curl_easy_cleanup(curl);
+	free(post_data);
+	free(chunk.memory);
+	return NULL;
 }
 
 uint32_t chipvpn_get_peer_free_ip(CSHost *socket) {
@@ -360,7 +508,7 @@ CSPeer *chipvpn_get_peer_by_uid(CSHost *host, uint32_t uid) {
 	return NULL;
 }
 
-static const char *chipvpn_bytes_pretty_print(uint64_t bytes) {
+const char *chipvpn_bytes_pretty_print(uint64_t bytes) {
 	char *suffix[] = {"B", "KB", "MB", "GB", "TB", "PB", "EB"};
 	char length = sizeof(suffix) / sizeof(suffix[0]);
 
@@ -378,15 +526,13 @@ static const char *chipvpn_bytes_pretty_print(uint64_t bytes) {
 }
 
 unsigned int chipvpn_crc32b(unsigned char *message, int size) {
-   int i, j;
    unsigned int byte, crc, mask;
 
-   i = 0;
    crc = 0xFFFFFFFF;
    for(int i = 0; i < size; i++) {
       byte = message[i];            // Get next byte.
       crc = crc ^ byte;
-      for (j = 7; j >= 0; j--) {    // Do eight times.
+      for (int j = 7; j >= 0; j--) {    // Do eight times.
          mask = -(crc & 1);
          crc = (crc >> 1) ^ (0xEDB88320 & mask);
       }

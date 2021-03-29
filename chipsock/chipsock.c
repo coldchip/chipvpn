@@ -67,7 +67,7 @@ CSPeer *chip_host_connect(CSHost *host, CSAddress *addr) {
 	return NULL;
 }
 
-int chip_host_ping_service(CSHost *host) {
+void chip_host_ping_service(CSHost *host) {
 	if((chip_proto_get_time() - host->last_service_time) >= PING_INTERVAL) {
 		for(CSPeer *peer = host->peers; peer < &host->peers[host->peer_count]; ++peer) {
 			if(chip_peer_is_unpinged(peer)) {
