@@ -195,7 +195,7 @@ typedef enum {
 } VPNPacketType;
 
 typedef struct _VPNAuthPacket {
-	char token[128];
+	char data[8192];
 } VPNAuthPacket;
 
 typedef struct _VPNAssignPacket {
@@ -226,15 +226,13 @@ typedef struct _VPNLoginQueue {
 	bool success;
 	uint32_t id;
 	uint32_t uid;
-	char token[100];
+	char *token;
 	uint64_t tx;
 	uint64_t rx;
 	List *response_queue;
 } VPNLoginQueue;
 
 void               chipvpn_event_loop(char *config);
-void 			  *chipvpn_sync_thread(void *data);
-void               chipvpn_login_enqueue(CSHost *socket, List *response_queue, VPNLoginQueue *queue);
 void              *chipvpn_login_thread(void *data);
 uint32_t           chipvpn_get_peer_free_ip(CSHost *socket);
 void               chipvpn_peer_send(CSPeer *peer, VPNPacketType type, void *data, int size);

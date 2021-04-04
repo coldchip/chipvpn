@@ -143,9 +143,10 @@ void chipvpn_event_loop(char *config_file) {
 
 					if(!is_server) {
 						console_log("Authenticating");
+
 						VPNAuthPacket p_auth;
-						memcpy((char*)&p_auth, token, strlen(token));
-						chipvpn_peer_send(peer, VPN_TYPE_AUTH, &p_auth, strlen(token));
+						strcpy((char*)&p_auth, token);
+						chipvpn_peer_send(peer, VPN_TYPE_AUTH, &p_auth, strlen(token) + 1);
 					}
 					
 				}
@@ -163,7 +164,7 @@ void chipvpn_event_loop(char *config_file) {
 					CSPeer *peer = event.peer;
 					VPNPeer *vpn_peer = ((VPNPeer*)(peer->data));
 
-					if(r_size > sizeof(r_packet->data)) {
+					if(r_size <= 0 || r_size > sizeof(r_packet->data)) {
 						chip_peer_disconnect(peer);
 						break;
 					}
@@ -171,12 +172,12 @@ void chipvpn_event_loop(char *config_file) {
 					switch(r_type) {
 						case VPN_TYPE_AUTH: {
 							if(is_server) {
-								VPNAuthPacket p_auth = r_packet->data.p_auth;
-								
+								char *auth_data = (char*)&r_packet->data.p_auth;
+								auth_data[sizeof(VPNAuthPacket) - 1] = '\0';
+
 								VPNLoginQueue *queue = malloc(sizeof(VPNLoginQueue));
 								queue->id = rand();
-								strncpy(queue->token, p_auth.token, strlen(token));
-								queue->token[strlen(token)] = '\0';
+								queue->token = strdup(auth_data);
 								queue->response_queue = &login_response_queue;
 
 								pthread_t thread_t;
@@ -280,29 +281,8 @@ void chipvpn_event_loop(char *config_file) {
 		}
 
 		if((chip_proto_get_time() - last_update_quota) >= 2) {
-			FILE *quota = fopen("/tmp/chipvpn_quota.txt", "w+");
-			if(quota) {
-				fprintf(quota, "[\n");
-				for(CSPeer *peer = socket->peers; peer < &socket->peers[socket->peer_count]; ++peer) {
-					if((peer->state == STATE_CONNECTED)) {
-						VPNPeer *vpn_peer = (VPNPeer*)(peer->data);
-						fprintf(quota, "\t{\n");
-						fprintf(quota, "\t\t\"uid\": \"%u\",\n", vpn_peer->uid);
-						fprintf(quota, "\t\t\"tx\": \"%s\",\n", chipvpn_bytes_pretty_print(vpn_peer->tx));
-						fprintf(quota, "\t\t\"rx\": \"%s\"\n", chipvpn_bytes_pretty_print(vpn_peer->rx));
-						fprintf(quota, "\t},\n");
-					}
-				}
-				fprintf(quota, "]\n");
-				fclose(quota);
-			}
+			// 
 			last_update_quota = chip_proto_get_time();
-
-			if(is_server) {
-				pthread_t thread_t;
-				pthread_create(&thread_t, NULL, chipvpn_sync_thread, socket);
-				pthread_detach(thread_t);
-			}
 		}
 
 		while(!list_empty(&login_response_queue)) {
@@ -337,61 +317,10 @@ void chipvpn_event_loop(char *config_file) {
 					}
 				}
 			}
+			free(entry->token);
 			free(entry);
 		}
 	}
-}
-
-void *chipvpn_sync_thread(void *data) {
-	CSHost *socket = (CSHost*)data;
-
-	cJSON *json = cJSON_CreateArray();
-	for(CSPeer *peer = socket->peers; peer < &socket->peers[socket->peer_count]; ++peer) {
-		if((peer->state == STATE_CONNECTED)) {
-			cJSON *j = cJSON_CreateObject();
-			VPNPeer *vpn_peer = (VPNPeer*)(peer->data);
-			cJSON_AddNumberToObject(j, "uid", vpn_peer->uid);
-			cJSON_AddNumberToObject(j, "tx", vpn_peer->tx);
-			cJSON_AddNumberToObject(j, "rx", vpn_peer->rx);
-			cJSON_AddItemToArray(json, j);
-		}
-	}
-	char *json_data = cJSON_Print(json);
-
-
-	struct MemoryStruct chunk;
-
-	chunk.memory = malloc(1);
-	chunk.size = 0;
-
-	char json_data_e[(strlen(json_data) * 3) + 5];
-	uri_encode(json_data, strlen(json_data), json_data_e);
-
-	char *post_data = chipvpn_malloc_fmt("mode=update&api_key=%s&data=%s", "EDV53TBNWnNJhqsLYGR5zHrFygGR9EF3", json_data_e);
-	CURL *curl = curl_easy_init();
-	curl_easy_setopt(curl, CURLOPT_URL, "https://auth.coldchip.ru/");
-	curl_easy_setopt(curl, CURLOPT_POSTFIELDS, post_data);
-	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curl_WriteMemoryCallback);
-	curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&chunk);
-	curl_easy_setopt(curl, CURLOPT_USERAGENT, "ChipVPN Backend 1.0");
-
-	int res = curl_easy_perform(curl);
-
-	if(res == CURLE_OK) {
-		
-	}
-
-	curl_easy_cleanup(curl);
-	free(chunk.memory);
-
-
-
-
-
-
-	free(json_data);
-	cJSON_free(json);
-	return NULL;
 }
 
 void *chipvpn_login_thread(void *data) {
