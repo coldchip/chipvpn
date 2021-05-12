@@ -29,7 +29,6 @@ extern "C"
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <netdb.h>
-#include <curl/curl.h>
 #include <pthread.h>
 #include "bn.h"
 #include "list.h"
