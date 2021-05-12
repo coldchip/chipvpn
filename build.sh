@@ -10,22 +10,17 @@ compile() {
 
 	for d in ./*.c; do
 		echo "$GREEN[Compiling] $NC $d"
-	    gcc -Wall -c -Ofast -s -o bin/$(echo $(basename "$d") | sed "s/\.c/$rep/") $d
+	    gcc -g -Wall -c -o bin/$(echo $(basename "$d") | sed "s/\.c/$rep/") $d
 	done
 
 	for d in ./json/*.c; do
 		echo "$GREEN[Compiling] $NC $d"
-	    gcc -Wall -c -Ofast -s -o bin/$(echo $(basename "$d") | sed "s/\.c/$rep/") $d
-	done
-
-	for d in ./chipsock/*.c; do
-		echo "$GREEN[Compiling] $NC $d"
-	    gcc -Wall -c -Ofast -s -o bin/$(echo $(basename "$d") | sed "s/\.c/$rep/") $d
+	    gcc -g -Wall -c -o bin/$(echo $(basename "$d") | sed "s/\.c/$rep/") $d
 	done
 
 	echo "$GREEN[Linking] $NC $( ls ./bin/* )"
 
-	gcc -o bin/$OUTPUT bin/*.o -s -Ofast -lpthread -lcurl
+	gcc -o bin/$OUTPUT bin/*.o -g -lpthread -lcurl
 }
 
 run() {

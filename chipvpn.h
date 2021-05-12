@@ -17,6 +17,7 @@ extern "C"
 #include <signal.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <netinet/tcp.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <arpa/inet.h> 
@@ -30,7 +31,7 @@ extern "C"
 #include <netdb.h>
 #include <curl/curl.h>
 #include <pthread.h>
-#include "chipsock/chipsock.h"
+#include "bn.h"
 #include "list.h"
 
 #define MAX_MTU 1500
@@ -177,21 +178,48 @@ void setifip(Tun *tun, uint32_t ip, uint32_t mask, int mtu);
 void ifup(Tun *tun);
 void free_tun(Tun *tun);
 
+// rsa.c
+
+void pow_mod_faster(struct bn* a, struct bn* b, struct bn* n, struct bn* res);
+
+// encryption.c
+
+typedef struct _ChipKey {
+	char key[16];
+} ChipKey;
+
+void chip_randomize_keys(ChipKey *key);
+void chip_encrypt_buf(char *data, int length, ChipKey *key);
+void chip_decrypt_buf(char *data, int length, ChipKey *key);
+
 // core.c
 
+typedef enum {
+	STATE_DISCONNECTED,
+	STATE_CONNECTED,
+} VPNPeerState;
+
 typedef struct _VPNPeer {
+	int fd;
+	VPNPeerState state;
+	ChipKey key;
 	bool is_authed;
 	uint32_t login_id;
 	uint32_t uid;
 	uint32_t internal_ip;
 	uint64_t tx;
 	uint64_t rx;
+
+	int buffer_pos;
+	char buffer[16384];
 } VPNPeer;
 
 typedef enum {
 	VPN_TYPE_DATA,
 	VPN_TYPE_ASSIGN,
-	VPN_TYPE_AUTH
+	VPN_TYPE_AUTH,
+	VPN_TYPE_SET_KEY,
+	VPN_TYPE_SET_SUCCESS
 } VPNPacketType;
 
 typedef struct _VPNAuthPacket {
@@ -209,15 +237,17 @@ typedef struct _VPNDataPacket {
 	char data[8192];
 } VPNDataPacket;
 
+typedef struct _VPNPacketHeader {
+	VPNPacketType type;
+	int size;
+} VPNPacketHeader;
+
 typedef struct _VPNPacket {
-	struct {
-		VPNPacketType type;
-		uint32_t size;
-	} header;
+	VPNPacketHeader header;
 	union {
-		VPNAuthPacket   p_auth;
-		VPNAssignPacket p_assign;
-		VPNDataPacket   p_data;
+		VPNAuthPacket auth_packet;
+		VPNAssignPacket dhcp_packet;
+		VPNDataPacket data_packet;
 	} data;
 } VPNPacket;
 
@@ -233,11 +263,14 @@ typedef struct _VPNLoginQueue {
 } VPNLoginQueue;
 
 void               chipvpn_event_loop(char *config);
-void              *chipvpn_login_thread(void *data);
-uint32_t           chipvpn_get_peer_free_ip(CSHost *socket);
-void               chipvpn_peer_send(CSPeer *peer, VPNPacketType type, void *data, int size);
-CSPeer            *chipvpn_get_peer_by_ip(CSHost *socket, uint32_t ip);
+VPNPeer           *chipvpn_peer_allocate(VPNPeer *peers, int count);
+void               chipvpn_peer_disconnect(VPNPeer *peer);
+void               chipvpn_peer_send(VPNPeer *peer, VPNPacketType type, void *data, int size);
+uint32_t           chipvpn_get_peer_free_ip(VPNPeer *peers, int count);
+VPNPeer           *chipvpn_get_peer_by_ip(VPNPeer *peers, int count, uint32_t ip);
+/*
 CSPeer            *chipvpn_get_peer_by_uid(CSHost *host, uint32_t uid);
+*/
 const char        *chipvpn_bytes_pretty_print(uint64_t bytes);
 unsigned int       chipvpn_crc32b(unsigned char *message, int size);
 
