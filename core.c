@@ -1,17 +1,19 @@
 #include "json/include/cJSON.h"
 #include "chipvpn.h"
 
-pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+Tun *tun = NULL;
+
+char     ip[32];
+int      port        = 0;
+char    *token       = NULL;
+bool     is_server   = false;
+bool     pull_routes = false;
+int      max_peers   = 8;
+
+List peers;
 
 void chipvpn_event_loop(char *config_file) {
 	signal(SIGPIPE, SIG_IGN);
-
-	char     ip[32];
-	int      port        = 0;
-	char    *token       = NULL;
-	bool     is_server   = false;
-	bool     pull_routes = false;
-	int      max_peers   = 8;
 
 	char *config = read_file_into_buffer(config_file);
 
@@ -78,17 +80,12 @@ void chipvpn_event_loop(char *config_file) {
 		error("Incomplete config");
 	}
 
-	Tun *tun = open_tun("");
+	tun = open_tun("");
 	if(tun < 0 || tun  == NULL) {
 		error("Tuntap adaptor creation failed, please run as sudo");
 	}
 
-	VPNPeer peers[max_peers];
-
-	for(int i = 0; i < max_peers; i++) {
-		VPNPeer *peer = &peers[i];
-		peer->state = STATE_DISCONNECTED;
-	}
+	list_clear(&peers);
 
 	int sock = socket(AF_INET, SOCK_STREAM, 0);
 	if(sock < 0) {
@@ -137,14 +134,14 @@ void chipvpn_event_loop(char *config_file) {
 
 		console_log("connected");
 
-		peers[0].state = STATE_CONNECTED;
-		peers[0].fd = sock;
-		peers[0].buffer_pos = 0;
+		VPNPeer *peer = chipvpn_peer_alloc();
+		peer->fd = sock;
+		list_insert(list_end(&peers), peer);
 
 		VPNAuthPacket auth;
 		strcpy(auth.data, token);
 
-		chipvpn_peer_send(&peers[0], VPN_TYPE_AUTH, &auth, sizeof(auth));
+		chipvpn_peer_send(peer, VPN_TYPE_AUTH, &auth, sizeof(auth));
 
 	}
 
@@ -156,11 +153,9 @@ void chipvpn_event_loop(char *config_file) {
 		FD_SET(sock, &rdset);
 		FD_SET(tun->fd, &rdset);
 
-		for(int i = 0; i < max_peers; i++) {
-			VPNPeer *peer = &peers[i];
-			if(peer->state == STATE_CONNECTED) {
-				FD_SET(peer->fd, &rdset);
-			}
+		for(ListNode *i = list_begin(&peers); i != list_end(&peers); i = list_next(i)) {
+			VPNPeer *peer = (VPNPeer*)i;
+			FD_SET(peer->fd, &rdset);
 		}
 
 		select(1024, &rdset, NULL, NULL, NULL);
@@ -171,40 +166,9 @@ void chipvpn_event_loop(char *config_file) {
 				socklen_t len = sizeof(addr);
 				int fd = accept(sock, (struct sockaddr*)&addr, &len);
 
-				VPNPeer *peer = chipvpn_peer_allocate(peers, max_peers);
-				if(peer) {
-					peer->buffer_pos = 0;
-					peer->state = STATE_CONNECTED;
-					peer->fd = fd;
-				} else {
-					close(fd);
-				}
-			}
-		}
-
-		for(int i = 0; i < max_peers; i++) {
-			VPNPeer *peer = &peers[i];
-			if(peer->state == STATE_CONNECTED) {
-				if(FD_ISSET(peer->fd, &rdset)) {
-					VPNPacketHeader *header = (VPNPacketHeader*)&peer->buffer;
-
-					uint32_t left = sizeof(VPNPacketHeader) - peer->buffer_pos;
-
-					if(peer->buffer_pos >= sizeof(VPNPacketHeader)) {
-						left += ntohl(header->size);
-					}
-
-					if((left + peer->buffer_pos) < sizeof(peer->buffer)) {
-						int readed = recv(peer->fd, &peer->buffer[peer->buffer_pos], left, 0);
-						if(readed > 0) {
-							peer->buffer_pos += readed;
-						} else {
-							chipvpn_peer_disconnect(peer);
-						}
-					} else {
-						chipvpn_peer_disconnect(peer);
-					}
-				}
+				VPNPeer *peer = chipvpn_peer_alloc();
+				peer->fd = fd;
+				list_insert(list_end(&peers), peer);
 			}
 		}
 
@@ -215,7 +179,7 @@ void chipvpn_event_loop(char *config_file) {
 
 			IPPacket *ip_hdr = (IPPacket*)&packet;
 
-			VPNPeer *peer = chipvpn_get_peer_by_ip(peers, max_peers, is_server ? ip_hdr->dst_addr : ip_hdr->src_addr);
+			VPNPeer *peer = chipvpn_get_peer_by_ip(is_server ? ip_hdr->dst_addr : ip_hdr->src_addr);
 			if(peer) {
 				if(peer->is_authed == true) {
 					peer->tx += size;
@@ -225,102 +189,129 @@ void chipvpn_event_loop(char *config_file) {
 			}
 		}
 
-		for(int i = 0; i < max_peers; i++) {
-			VPNPeer *peer = &peers[i];
-			if(peer->state == STATE_CONNECTED) {
-				VPNPacketHeader *header = (VPNPacketHeader*)&peer->buffer;
-				VPNPacketType      type = ntohl(header->type);
-				uint32_t           size = ntohl(header->size);
-				VPNPacket         *packet = (VPNPacket*)&peer->buffer;
+		for(ListNode *i = list_begin(&peers); i != list_end(&peers); i = list_next(i)) {
+			VPNPeer *peer = (VPNPeer*)i;
+			if(FD_ISSET(peer->fd, &rdset)) {
+				chipvpn_read_packet(peer);
+			}
+		}
 
-
-
-				if(
-					peer->buffer_pos >= (size + sizeof(VPNPacketHeader)) && 
-					peer->buffer_pos >= sizeof(VPNPacketHeader)
-				) {
-					peer->buffer_pos = 0;
-
-					if(type == VPN_TYPE_AUTH) {
-						if(is_server) {
-							uint32_t alloc_ip = chipvpn_get_peer_free_ip((VPNPeer*)&peers, max_peers);
-							if(alloc_ip > 0) {
-								VPNAssignPacket data;
-								data.ip      = alloc_ip;
-								data.subnet  = inet_addr("255.255.255.0");
-								data.gateway = inet_addr("10.0.0.1");
-								data.mtu     = htonl(MAX_MTU);
-								// chip_encrypt_buf((char*)&data, sizeof(data), &vpn_peer->key);
-								chipvpn_peer_send(peer, VPN_TYPE_ASSIGN, &data, sizeof(data));
-
-								peer->is_authed = true;
-								peer->internal_ip = alloc_ip;
-							}
-						}
-					} else if(type == VPN_TYPE_ASSIGN) {
-						if(!is_server) {
-							VPNAssignPacket *p_assign = &packet->data.dhcp_packet;
-
-							uint32_t peer_ip      = (p_assign->ip);
-							uint32_t peer_subnet  = (p_assign->subnet);
-							uint32_t peer_gateway = (p_assign->gateway);
-							uint32_t peer_mtu     = ntohl(p_assign->mtu);
-
-							setifip(tun, peer_ip, peer_subnet, peer_mtu);
-							ifup(tun);
-			
-							console_log("assigned dhcp: ip [%i.%i.%i.%i] gateway [%i.%i.%i.%i]", (peer_ip >> 0) & 0xFF, (peer_ip >> 8) & 0xFF, (peer_ip >> 16) & 0xFF, (peer_ip >> 24) & 0xFF, (peer_gateway >> 0) & 0xFF, (peer_gateway >> 8) & 0xFF, (peer_gateway >> 16) & 0xFF, (peer_gateway >> 24) & 0xFF);
-
-							if(pull_routes) {
-								console_log("setting routes");
-								uint32_t default_gateway = get_default_gateway();
-								if(exec_sprintf("ip route add %s via %i.%i.%i.%i", ip, (default_gateway >> 0) & 0xFF, (default_gateway >> 8) & 0xFF, (default_gateway >> 16) & 0xFF, (default_gateway >> 24) & 0xFF)) { }
-								if(exec_sprintf("ip route add 0.0.0.0/1 via %i.%i.%i.%i", (peer_gateway >> 0) & 0xFF, (peer_gateway >> 8) & 0xFF, (peer_gateway >> 16) & 0xFF, (peer_gateway >> 24) & 0xFF)) { }
-								if(exec_sprintf("ip route add 128.0.0.0/1 via %i.%i.%i.%i", (peer_gateway >> 0) & 0xFF, (peer_gateway >> 8) & 0xFF, (peer_gateway >> 16) & 0xFF, (peer_gateway >> 24) & 0xFF)) { }
-							}
-							peer->is_authed   = true;
-							peer->internal_ip = peer_ip;
-							peer->tx          = 0;
-							peer->rx          = 0;
-							console_log("initialization sequence complete");
-						}
-					} else if(type == VPN_TYPE_DATA) {
-						VPNDataPacket *p_data = (VPNDataPacket*)&packet->data.data_packet;
-						// chip_decrypt_buf((char*)p_data, r_size, &vpn_peer->key);
-						IPPacket *ip_hdr = (IPPacket*)(p_data);
-						if(
-							peer->is_authed == true &&
-							((ip_hdr->dst_addr == peer->internal_ip && !is_server) || 
-							(ip_hdr->src_addr == peer->internal_ip && is_server)) && 
-							(size > 0 && size <= (MAX_MTU))
-							
-						) {
-							// Check if source is same as peer(Prevents IP spoofing) and bound packet to mtu size
-							peer->rx += size;
-							if(write(tun->fd, (char*)p_data, size)) {}
-						}
-					}
-				}
+		for(ListNode *i = list_begin(&peers); i != list_end(&peers); i = list_next(i)) {
+			VPNPeer *peer = (VPNPeer*)i;
+			if(FD_ISSET(peer->fd, &rdset)) {
+				chipvpn_process_packet(peer);
 			}
 		}
 	}
 }
 
-VPNPeer *chipvpn_peer_allocate(VPNPeer *peers, int count) {
-	for(int i = 0; i < count; i++) {
-		VPNPeer *peer = &peers[i];
-		if(peer->state == STATE_DISCONNECTED) {
-			console_log("client connected");
-			return peer;
-		}
+void chipvpn_read_packet(VPNPeer *peer) {
+	VPNPacketHeader *header = (VPNPacketHeader*)&peer->buffer;
+
+	uint32_t left = sizeof(VPNPacketHeader) - peer->buffer_pos;
+
+	if(peer->buffer_pos >= sizeof(VPNPacketHeader)) {
+		left += ntohl(header->size);
 	}
-	return NULL;
+
+	if((left + peer->buffer_pos) < sizeof(peer->buffer)) {
+		int readed = recv(peer->fd, &peer->buffer[peer->buffer_pos], left, 0);
+		if(readed > 0) {
+			peer->buffer_pos += readed;
+		} else {
+			chipvpn_peer_dealloc(peer);
+		}
+	} else {
+		chipvpn_peer_dealloc(peer);
+	}	
 }
 
-void chipvpn_peer_disconnect(VPNPeer *peer) {
+void chipvpn_process_packet(VPNPeer *peer) {
+	VPNPacketHeader *header = (VPNPacketHeader*)&peer->buffer;
+	VPNPacketType      type = ntohl(header->type);
+	uint32_t           size = ntohl(header->size);
+	VPNPacket         *packet = (VPNPacket*)&peer->buffer;
+
+	if(
+		peer->buffer_pos >= (size + sizeof(VPNPacketHeader)) && 
+		peer->buffer_pos >= sizeof(VPNPacketHeader)
+	) {
+		peer->buffer_pos = 0;
+
+		if(type == VPN_TYPE_AUTH) {
+			if(is_server) {
+				uint32_t alloc_ip = chipvpn_get_peer_free_ip();
+				if(alloc_ip > 0) {
+					VPNAssignPacket data;
+					data.ip      = alloc_ip;
+					data.subnet  = inet_addr("255.255.255.0");
+					data.gateway = inet_addr("10.0.0.1");
+					data.mtu     = htonl(MAX_MTU);
+					// chip_encrypt_buf((char*)&data, sizeof(data), &vpn_peer->key);
+					chipvpn_peer_send(peer, VPN_TYPE_ASSIGN, &data, sizeof(data));
+
+					peer->is_authed = true;
+					peer->internal_ip = alloc_ip;
+				}
+			}
+		} else if(type == VPN_TYPE_ASSIGN) {
+			if(!is_server) {
+				VPNAssignPacket *p_assign = &packet->data.dhcp_packet;
+
+				uint32_t peer_ip      = p_assign->ip;
+				uint32_t peer_subnet  = p_assign->subnet;
+				uint32_t peer_gateway = p_assign->gateway;
+				uint32_t peer_mtu     = ntohl(p_assign->mtu);
+
+				setifip(tun, peer_ip, peer_subnet, peer_mtu);
+				ifup(tun);
+
+				console_log("assigned dhcp: ip [%i.%i.%i.%i] gateway [%i.%i.%i.%i]", (peer_ip >> 0) & 0xFF, (peer_ip >> 8) & 0xFF, (peer_ip >> 16) & 0xFF, (peer_ip >> 24) & 0xFF, (peer_gateway >> 0) & 0xFF, (peer_gateway >> 8) & 0xFF, (peer_gateway >> 16) & 0xFF, (peer_gateway >> 24) & 0xFF);
+
+				if(pull_routes) {
+					console_log("setting routes");
+					uint32_t default_gateway = get_default_gateway();
+					if(exec_sprintf("ip route add %s via %i.%i.%i.%i", ip, (default_gateway >> 0) & 0xFF, (default_gateway >> 8) & 0xFF, (default_gateway >> 16) & 0xFF, (default_gateway >> 24) & 0xFF)) { }
+					if(exec_sprintf("ip route add 0.0.0.0/1 via %i.%i.%i.%i", (peer_gateway >> 0) & 0xFF, (peer_gateway >> 8) & 0xFF, (peer_gateway >> 16) & 0xFF, (peer_gateway >> 24) & 0xFF)) { }
+					if(exec_sprintf("ip route add 128.0.0.0/1 via %i.%i.%i.%i", (peer_gateway >> 0) & 0xFF, (peer_gateway >> 8) & 0xFF, (peer_gateway >> 16) & 0xFF, (peer_gateway >> 24) & 0xFF)) { }
+				}
+				peer->is_authed   = true;
+				peer->internal_ip = peer_ip;
+				peer->tx          = 0;
+				peer->rx          = 0;
+				console_log("initialization sequence complete");
+			}
+		} else if(type == VPN_TYPE_DATA) {
+			VPNDataPacket *p_data = (VPNDataPacket*)&packet->data.data_packet;
+			// chip_decrypt_buf((char*)p_data, r_size, &vpn_peer->key);
+			IPPacket *ip_hdr = (IPPacket*)(p_data);
+			if(
+				peer->is_authed == true &&
+				((ip_hdr->dst_addr == peer->internal_ip && !is_server) || 
+				(ip_hdr->src_addr == peer->internal_ip && is_server)) && 
+				(size > 0 && size <= (MAX_MTU))
+				
+			) {
+				// Check if source is same as peer(Prevents IP spoofing) and bound packet to mtu size
+				peer->rx += size;
+				if(write(tun->fd, (char*)p_data, size)) {}
+			}
+		}
+	}
+}
+
+VPNPeer *chipvpn_peer_alloc() {
+	console_log("client connected");
+	VPNPeer *peer = malloc(sizeof(VPNPeer));
+	peer->buffer_pos = 0;
+	return peer;
+}
+
+void chipvpn_peer_dealloc(VPNPeer *peer) {
+	list_remove(&peer->node);
 	console_log("client disconnected");
-	peer->state = STATE_DISCONNECTED;
 	close(peer->fd);
+	free(peer);
 }
 
 void chipvpn_peer_send(VPNPeer *peer, VPNPacketType type, void *data, int size) {
@@ -332,17 +323,16 @@ void chipvpn_peer_send(VPNPeer *peer, VPNPacketType type, void *data, int size) 
 	free(packet);
 }
 
-uint32_t chipvpn_get_peer_free_ip(VPNPeer *peers, int count) {
+uint32_t chipvpn_get_peer_free_ip() {
 	uint32_t start = inet_addr("10.0.0.100");
 	uint32_t end   = inet_addr("10.0.0.200");
 	bool     trip  = false;
 
 	for(uint32_t ip = ntohl(start); ip < ntohl(end); ip++) {
 		trip = false;
-		for(int i = 0; i < count; i++) {
-			VPNPeer *peer = &peers[i];
+		for(ListNode *i = list_begin(&peers); i != list_end(&peers); i = list_next(i)) {
+			VPNPeer *peer = (VPNPeer*)i;
 			if(
-				(peer->state == STATE_CONNECTED) && 
 				(peer->internal_ip == htonl(ip))
 			) {
 				trip = true;
@@ -356,11 +346,10 @@ uint32_t chipvpn_get_peer_free_ip(VPNPeer *peers, int count) {
 	return 0;
 }
 
-VPNPeer *chipvpn_get_peer_by_ip(VPNPeer *peers, int count, uint32_t ip) {
-	for(int i = 0; i < count; i++) {
-			VPNPeer *peer = &peers[i];
+VPNPeer *chipvpn_get_peer_by_ip(uint32_t ip) {
+	for(ListNode *i = list_begin(&peers); i != list_end(&peers); i = list_next(i)) {
+		VPNPeer *peer = (VPNPeer*)i;
 		if(
-			(peer->state == STATE_CONNECTED) && 
 			(peer->internal_ip == ip)
 		) {
 			return peer;

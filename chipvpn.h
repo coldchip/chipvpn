@@ -194,14 +194,9 @@ void chip_decrypt_buf(char *data, int length, ChipKey *key);
 
 // core.c
 
-typedef enum {
-	STATE_DISCONNECTED,
-	STATE_CONNECTED,
-} VPNPeerState;
-
 typedef struct _VPNPeer {
+	ListNode node;
 	int fd;
-	VPNPeerState state;
 	ChipKey key;
 	bool is_authed;
 	uint32_t login_id;
@@ -263,11 +258,13 @@ typedef struct _VPNLoginQueue {
 } VPNLoginQueue;
 
 void               chipvpn_event_loop(char *config);
-VPNPeer           *chipvpn_peer_allocate(VPNPeer *peers, int count);
-void               chipvpn_peer_disconnect(VPNPeer *peer);
+void 			   chipvpn_read_packet(VPNPeer *peer);
+void               chipvpn_process_packet(VPNPeer *peer);
+VPNPeer           *chipvpn_peer_alloc();
+void               chipvpn_peer_dealloc(VPNPeer *peer);
 void               chipvpn_peer_send(VPNPeer *peer, VPNPacketType type, void *data, int size);
-uint32_t           chipvpn_get_peer_free_ip(VPNPeer *peers, int count);
-VPNPeer           *chipvpn_get_peer_by_ip(VPNPeer *peers, int count, uint32_t ip);
+uint32_t           chipvpn_get_peer_free_ip();
+VPNPeer           *chipvpn_get_peer_by_ip(uint32_t ip);
 /*
 CSPeer            *chipvpn_get_peer_by_uid(CSHost *host, uint32_t uid);
 */
