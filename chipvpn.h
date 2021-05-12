@@ -184,23 +184,16 @@ void pow_mod_faster(struct bn* a, struct bn* b, struct bn* n, struct bn* res);
 
 // encryption.c
 
-typedef struct _ChipKey {
-	char key[16];
-} ChipKey;
-
-void chip_randomize_keys(ChipKey *key);
-void chip_encrypt_buf(char *data, int length, ChipKey *key);
-void chip_decrypt_buf(char *data, int length, ChipKey *key);
+void chip_encrypt_buf(char *data, int length);
+void chip_decrypt_buf(char *data, int length);
 
 // core.c
 
 typedef struct _VPNPeer {
 	ListNode node;
 	int fd;
-	ChipKey key;
 	bool is_authed;
-	uint32_t login_id;
-	uint32_t uid;
+	uint32_t last_ping;
 	uint32_t internal_ip;
 	uint64_t tx;
 	uint64_t rx;
@@ -214,7 +207,8 @@ typedef enum {
 	VPN_TYPE_ASSIGN,
 	VPN_TYPE_AUTH,
 	VPN_TYPE_SET_KEY,
-	VPN_TYPE_SET_SUCCESS
+	VPN_TYPE_SET_SUCCESS,
+	VPN_PING
 } VPNPacketType;
 
 typedef struct _VPNAuthPacket {
@@ -246,30 +240,15 @@ typedef struct _VPNPacket {
 	} data;
 } VPNPacket;
 
-typedef struct _VPNLoginQueue {
-	ListNode node;
-	bool success;
-	uint32_t id;
-	uint32_t uid;
-	char *token;
-	uint64_t tx;
-	uint64_t rx;
-	List *response_queue;
-} VPNLoginQueue;
-
 void               chipvpn_event_loop(char *config);
-void 			   chipvpn_read_packet(VPNPeer *peer);
-void               chipvpn_process_packet(VPNPeer *peer);
-VPNPeer           *chipvpn_peer_alloc();
+void               chipvpn_socket_event(VPNPeer *peer, VPNPacket *packet);
+void               chipvpn_tun_event(VPNDataPacket *packet, int size);
+VPNPeer           *chipvpn_peer_alloc(int fd);
 void               chipvpn_peer_dealloc(VPNPeer *peer);
 void               chipvpn_peer_send(VPNPeer *peer, VPNPacketType type, void *data, int size);
 uint32_t           chipvpn_get_peer_free_ip();
 VPNPeer           *chipvpn_get_peer_by_ip(uint32_t ip);
-/*
-CSPeer            *chipvpn_get_peer_by_uid(CSHost *host, uint32_t uid);
-*/
-const char        *chipvpn_bytes_pretty_print(uint64_t bytes);
-unsigned int       chipvpn_crc32b(unsigned char *message, int size);
+uint32_t 		   chipvpn_get_time();
 
 #ifdef __cplusplus
 }
