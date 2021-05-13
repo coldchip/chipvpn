@@ -205,9 +205,9 @@ typedef enum {
 	VPN_TYPE_DATA,
 	VPN_TYPE_ASSIGN,
 	VPN_TYPE_AUTH,
-	VPN_TYPE_SET_KEY,
-	VPN_TYPE_SET_SUCCESS,
-	VPN_PING
+	VPN_PING,
+	VPN_PING_REQ,
+	VPN_PING_RES
 } VPNPacketType;
 
 typedef struct _VPNAuthPacket {

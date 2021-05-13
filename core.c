@@ -12,6 +12,8 @@ int      max_peers   = 8;
 
 List peers;
 
+struct timeval ping_stop, ping_start;
+
 void chipvpn_event_loop(char *config_file) {
 	signal(SIGPIPE, SIG_IGN);
 
@@ -176,6 +178,8 @@ void chipvpn_event_loop(char *config_file) {
 				i = list_next(i);
 				if(chipvpn_get_time() - peer->last_ping < 10) {
 					chipvpn_peer_send(peer, VPN_PING, NULL, 0);
+					chipvpn_peer_send(peer, VPN_PING_REQ, NULL, 0);
+					gettimeofday(&ping_start, NULL);
 				} else {
 					chipvpn_peer_dealloc(peer);
 					if(!is_server) {
@@ -264,13 +268,14 @@ void chipvpn_socket_event(VPNPeer *peer, VPNPacket *packet) {
 				if(memcmp(p_auth, token, strlen(token)) == 0) {
 					uint32_t alloc_ip = chipvpn_get_peer_free_ip();
 					if(alloc_ip > 0) {
-						VPNAssignPacket data;
-						data.ip      = alloc_ip;
-						data.subnet  = inet_addr("255.255.255.0");
-						data.gateway = inet_addr("10.0.0.1");
-						data.mtu     = htonl(MAX_MTU);
-						// chip_encrypt_buf((char*)&data, sizeof(data), &vpn_peer->key);
-						chipvpn_peer_send(peer, VPN_TYPE_ASSIGN, &data, sizeof(data));
+						VPNAssignPacket packet;
+						packet.ip      = alloc_ip;
+						packet.subnet  = inet_addr("255.255.255.0");
+						packet.gateway = inet_addr("10.0.0.1");
+						packet.mtu     = htonl(MAX_MTU);
+
+						chip_encrypt_buf((char*)&packet, sizeof(packet));
+						chipvpn_peer_send(peer, VPN_TYPE_ASSIGN, &packet, sizeof(packet));
 
 						peer->is_authed = true;
 						peer->internal_ip = alloc_ip;
@@ -285,6 +290,7 @@ void chipvpn_socket_event(VPNPeer *peer, VPNPacket *packet) {
 		case VPN_TYPE_ASSIGN: {
 			if(!is_server) {
 				VPNAssignPacket *p_assign = &packet->data.dhcp_packet;
+				chip_decrypt_buf((char*)p_assign, size);
 
 				uint32_t peer_ip      = p_assign->ip;
 				uint32_t peer_subnet  = p_assign->subnet;
@@ -330,8 +336,17 @@ void chipvpn_socket_event(VPNPeer *peer, VPNPacket *packet) {
 			peer->last_ping = chipvpn_get_time();
 		}
 		break;
+		case VPN_PING_REQ: {
+			chipvpn_peer_send(peer, VPN_PING_RES, NULL, 0);
+		}
+		break;
+		case VPN_PING_RES: {
+			gettimeofday(&ping_stop, NULL);
+			printf("ping took %lu ms\n", ((ping_stop.tv_sec - ping_start.tv_sec) * 1000000 + ping_stop.tv_usec - ping_start.tv_usec) / 1000); 
+		}
+		break;
 		default: {
-
+			chipvpn_peer_dealloc(peer);
 		}
 		break;
 	}	
