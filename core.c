@@ -87,6 +87,8 @@ void chipvpn_event_loop(char *config_file) {
 		error("Tuntap adaptor creation failed, please run as sudo");
 	}
 
+	reconnect:;
+
 	int sock = socket(AF_INET, SOCK_STREAM, 0);
 	if(sock < 0) {
 		error("unable to create socket");
@@ -121,8 +123,6 @@ void chipvpn_event_loop(char *config_file) {
 		addr.sin_family      = AF_INET;
 		addr.sin_addr.s_addr = inet_addr(ip); 
 		addr.sin_port        = htons(port);
-
-		reconnect:;
 
 		console_log("connecting to %s:%i", ip, port);
 
@@ -175,10 +175,14 @@ void chipvpn_event_loop(char *config_file) {
 				VPNPeer *peer = (VPNPeer*)i;
 				i = list_next(i);
 				if(chipvpn_get_time() - peer->last_ping < 10) {
-					int zero = 0;
-					chipvpn_peer_send(peer, VPN_PING, &zero, sizeof(zero));
+					chipvpn_peer_send(peer, VPN_PING, NULL, 0);
 				} else {
 					chipvpn_peer_dealloc(peer);
+					if(!is_server) {
+						console_log("disconnected, reconnecting");
+						sleep(1);
+						goto reconnect;
+					}
 				}
 			}
 			server_last_update = chipvpn_get_time();
@@ -200,30 +204,43 @@ void chipvpn_event_loop(char *config_file) {
 			VPNPeer *peer = (VPNPeer*)i;
 			i = list_next(i);
 			if(FD_ISSET(peer->fd, &rdset)) {
-				VPNPacket       *packet = (VPNPacket*)&peer->buffer;
-				int              size   = ntohl(packet->header.size);
-				uint32_t         left   = sizeof(VPNPacketHeader) - peer->buffer_pos;
-
+				VPNPacket *packet = (VPNPacket*)&peer->buffer;
+				int        size   = ntohl(packet->header.size);
+				uint32_t   left   = sizeof(VPNPacketHeader) - peer->buffer_pos;
+				
 				if(peer->buffer_pos >= sizeof(VPNPacketHeader)) {
 					left += size;
 				}
 
 				if((left + peer->buffer_pos) < sizeof(peer->buffer)) {
-					int readed = recv(peer->fd, &peer->buffer[peer->buffer_pos], left, 0);
+					int readed = recv(peer->fd, &peer->buffer[peer->buffer_pos], left, 0);	
 					if(readed > 0) {
 						peer->buffer_pos += readed;
 					} else {
+						// connection close
 						chipvpn_peer_dealloc(peer);
+						if(!is_server) {
+							console_log("disconnected, reconnecting");
+							sleep(1);
+							goto reconnect;
+						}
 					}
 				} else {
+					// corrupted buffer ?!
 					chipvpn_peer_dealloc(peer);
+					if(!is_server) {
+						console_log("disconnected, reconnecting");
+						sleep(1);
+						goto reconnect;
+					}
 				}
 
-				if(
-					peer->buffer_pos >= (size + sizeof(VPNPacketHeader))
-				) {
+				size = ntohl(packet->header.size); // refresh size
+
+				if(peer->buffer_pos >= (size + sizeof(VPNPacketHeader))) {
 					peer->buffer_pos = 0;
 					chipvpn_socket_event(peer, packet);
+					memset(peer->buffer, 0, sizeof(peer->buffer));
 				}
 			}
 		}
@@ -259,6 +276,7 @@ void chipvpn_socket_event(VPNPeer *peer, VPNPacket *packet) {
 						peer->internal_ip = alloc_ip;
 					}
 				} else {
+
 					chipvpn_peer_dealloc(peer);
 				}
 			}
@@ -333,11 +351,13 @@ void chipvpn_tun_event(VPNDataPacket *packet, int size) {
 }
 
 VPNPeer *chipvpn_peer_alloc(int fd) {
-	console_log("client connected");
 	VPNPeer *peer = malloc(sizeof(VPNPeer));
 	peer->fd = fd;
 	peer->last_ping = chipvpn_get_time();
 	peer->buffer_pos = 0;
+
+	console_log("client connected");
+
 	return peer;
 }
 
