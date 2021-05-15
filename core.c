@@ -9,6 +9,8 @@ char    *token       = NULL;
 bool     is_server   = false;
 bool     pull_routes = false;
 int      max_peers   = 8;
+char     gateway[32] = "10.9.8.1";
+char     subnet[32]  = "255.255.255.0";
 
 List peers;
 
@@ -35,6 +37,8 @@ void chipvpn_event_loop(char *config_file) {
 	cJSON *cjson_token       = cJSON_GetObjectItem(json, "token");
 	cJSON *cjson_pull_routes = cJSON_GetObjectItem(json, "pull_routes");
 	cJSON *cjson_max_peers   = cJSON_GetObjectItem(json, "max_peers");
+	cJSON *cjson_gateway     = cJSON_GetObjectItem(json, "gateway");
+	cJSON *cjson_subnet      = cJSON_GetObjectItem(json, "subnet");
 
 	if(
 		((cjson_connect && cJSON_IsString(cjson_connect)) || 
@@ -84,6 +88,14 @@ void chipvpn_event_loop(char *config_file) {
 		error("Incomplete config");
 	}
 
+	if(
+		(cjson_gateway && cJSON_IsString(cjson_gateway)) && 
+		(cjson_subnet && cJSON_IsString(cjson_subnet))
+	) {
+		strcpy(gateway, cjson_gateway->valuestring);
+		strcpy(subnet, cjson_subnet->valuestring);
+	}
+
 	tun = open_tun("");
 	if(tun < 0 || tun  == NULL) {
 		error("Tuntap adaptor creation failed, please run as sudo");
@@ -118,7 +130,7 @@ void chipvpn_event_loop(char *config_file) {
 			error("unable to listen");
 		}
 
-		setifip(tun, inet_addr("10.0.0.1"), inet_addr("255.255.255.0"), MAX_MTU);
+		setifip(tun, inet_addr(gateway), inet_addr(subnet), MAX_MTU);
 		ifup(tun);
 	} else {
 		struct sockaddr_in     addr;
@@ -178,7 +190,6 @@ void chipvpn_event_loop(char *config_file) {
 				i = list_next(i);
 				if(chipvpn_get_time() - peer->last_ping < 10) {
 					chipvpn_peer_send(peer, VPN_PING, NULL, 0);
-					chipvpn_peer_send(peer, VPN_PING_REQ, NULL, 0);
 					gettimeofday(&ping_start, NULL);
 				} else {
 					chipvpn_peer_dealloc(peer);
@@ -270,8 +281,8 @@ void chipvpn_socket_event(VPNPeer *peer, VPNPacket *packet) {
 					if(alloc_ip > 0) {
 						VPNAssignPacket packet;
 						packet.ip      = alloc_ip;
-						packet.subnet  = inet_addr("255.255.255.0");
-						packet.gateway = inet_addr("10.0.0.1");
+						packet.subnet  = inet_addr(subnet);
+						packet.gateway = inet_addr(gateway);
 						packet.mtu     = htonl(MAX_MTU);
 
 						chip_encrypt_buf((char*)&packet, sizeof(packet));
@@ -279,9 +290,15 @@ void chipvpn_socket_event(VPNPeer *peer, VPNPacket *packet) {
 
 						peer->is_authed = true;
 						peer->internal_ip = alloc_ip;
+
+						VPNDataPacket packet2;
+						strcpy(packet2.data, "Successfully Logged In");
+						chipvpn_peer_send(peer, VPN_TYPE_MSG, &packet2, strlen(packet2.data) + 1);
 					}
 				} else {
-
+					VPNDataPacket packet;
+					strcpy(packet.data, "Unable to authenticate");
+					chipvpn_peer_send(peer, VPN_TYPE_MSG, &packet, strlen(packet.data) + 1);
 					chipvpn_peer_dealloc(peer);
 				}
 			}
@@ -334,15 +351,21 @@ void chipvpn_socket_event(VPNPeer *peer, VPNPacket *packet) {
 		break;
 		case VPN_PING: {
 			peer->last_ping = chipvpn_get_time();
+			chipvpn_peer_send(peer, VPN_PONG, NULL, 0);
 		}
 		break;
-		case VPN_PING_REQ: {
-			chipvpn_peer_send(peer, VPN_PING_RES, NULL, 0);
-		}
-		break;
-		case VPN_PING_RES: {
+		case VPN_PONG: {
 			gettimeofday(&ping_stop, NULL);
 			printf("ping took %lu ms\n", ((ping_stop.tv_sec - ping_start.tv_sec) * 1000000 + ping_stop.tv_usec - ping_start.tv_usec) / 1000); 
+			printf("TX: %lu RX: %lu\n", peer->tx, peer->rx);
+		}
+		break;
+		case VPN_TYPE_MSG: {
+			if(!is_server) {
+				VPNDataPacket *p_msg = (VPNDataPacket*)&packet->data.data_packet;
+				p_msg->data[sizeof(VPNDataPacket) - 1] = '\0';
+				console_log("Server => %s", p_msg->data);
+			}
 		}
 		break;
 		default: {
@@ -368,11 +391,11 @@ void chipvpn_tun_event(VPNDataPacket *packet, int size) {
 VPNPeer *chipvpn_peer_alloc(int fd) {
 	VPNPeer *peer = malloc(sizeof(VPNPeer));
 	peer->fd = fd;
+	peer->tx = 0;
+	peer->rx = 0;
 	peer->last_ping = chipvpn_get_time();
 	peer->buffer_pos = 0;
-
 	console_log("client connected");
-
 	return peer;
 }
 
@@ -395,17 +418,15 @@ void chipvpn_peer_send(VPNPeer *peer, VPNPacketType type, void *data, int size) 
 }
 
 uint32_t chipvpn_get_peer_free_ip() {
-	uint32_t start = inet_addr("10.0.0.100");
-	uint32_t end   = inet_addr("10.0.0.200");
+	uint32_t start = inet_addr(gateway) + (1   << 24);
+	uint32_t end   = inet_addr(gateway) + (200 << 24);
 	bool     trip  = false;
 
 	for(uint32_t ip = ntohl(start); ip < ntohl(end); ip++) {
 		trip = false;
 		for(ListNode *i = list_begin(&peers); i != list_end(&peers); i = list_next(i)) {
 			VPNPeer *peer = (VPNPeer*)i;
-			if(
-				(peer->internal_ip == htonl(ip))
-			) {
+			if((peer->internal_ip == htonl(ip))) {
 				trip = true;
 			}
 		}
@@ -420,9 +441,7 @@ uint32_t chipvpn_get_peer_free_ip() {
 VPNPeer *chipvpn_get_peer_by_ip(uint32_t ip) {
 	for(ListNode *i = list_begin(&peers); i != list_end(&peers); i = list_next(i)) {
 		VPNPeer *peer = (VPNPeer*)i;
-		if(
-			(peer->internal_ip == ip)
-		) {
+		if((peer->internal_ip == ip)) {
 			return peer;
 		}
 	}

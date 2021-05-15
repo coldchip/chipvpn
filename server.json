@@ -2,5 +2,7 @@
 	"bind": "0.0.0.0",
 	"port": 443,
 	"max_peers": 8,
-	"token": "ETUJyDG5r5HmGfTat3hrjehHxv7W2Lmt"
+	"gateway": "10.32.64.1",
+	"subnet": "255.255.255.0",
+	"token": "6d2e9f6cfadd23287fd6a162bbe14c56"
 }

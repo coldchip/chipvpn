@@ -10,7 +10,6 @@ extern "C"
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdbool.h>
-#include <netinet/in.h>
 #include <stdint.h>
 #include <time.h>
 #include <string.h>
@@ -29,7 +28,6 @@ extern "C"
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <netdb.h>
-#include <pthread.h>
 #include "bn.h"
 #include "list.h"
 
@@ -194,6 +192,7 @@ typedef struct _VPNPeer {
 	bool is_authed;
 	uint32_t last_ping;
 	uint32_t internal_ip;
+
 	uint64_t tx;
 	uint64_t rx;
 
@@ -206,8 +205,8 @@ typedef enum {
 	VPN_TYPE_ASSIGN,
 	VPN_TYPE_AUTH,
 	VPN_PING,
-	VPN_PING_REQ,
-	VPN_PING_RES
+	VPN_PONG,
+	VPN_TYPE_MSG
 } VPNPacketType;
 
 typedef struct _VPNAuthPacket {
