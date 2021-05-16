@@ -82,18 +82,17 @@ void chipvpn_event_loop(char *config_file) {
 		if(cjson_max_peers && cJSON_IsNumber(cjson_max_peers) && cjson_max_peers->valueint > 0) {
 			max_peers = cjson_max_peers->valueint;
 		}
+		if(
+			(cjson_gateway && cJSON_IsString(cjson_gateway)) && 
+			(cjson_subnet && cJSON_IsString(cjson_subnet))
+		) {
+			strcpy(gateway, cjson_gateway->valuestring);
+			strcpy(subnet, cjson_subnet->valuestring);
+		}
 		port  = cjson_port->valueint;
 		token = cjson_token->valuestring;
 	} else {
 		error("Incomplete config");
-	}
-
-	if(
-		(cjson_gateway && cJSON_IsString(cjson_gateway)) && 
-		(cjson_subnet && cJSON_IsString(cjson_subnet))
-	) {
-		strcpy(gateway, cjson_gateway->valuestring);
-		strcpy(subnet, cjson_subnet->valuestring);
 	}
 
 	tun = open_tun("");
@@ -153,7 +152,7 @@ void chipvpn_event_loop(char *config_file) {
 
 		VPNAuthPacket auth;
 		strcpy(auth.data, token);
-
+		chip_encrypt_buf((char*)&auth, sizeof(auth));
 		chipvpn_peer_send(peer, VPN_TYPE_AUTH, &auth, sizeof(auth));
 
 	}
@@ -276,6 +275,7 @@ void chipvpn_socket_event(VPNPeer *peer, VPNPacket *packet) {
 		case VPN_TYPE_AUTH: {
 			if(is_server) {
 				VPNAuthPacket *p_auth = &packet->data.auth_packet;
+				chip_decrypt_buf((char*)p_auth, size);
 				if(memcmp(p_auth, token, strlen(token)) == 0) {
 					uint32_t alloc_ip = chipvpn_get_peer_free_ip();
 					if(alloc_ip > 0) {
@@ -293,11 +293,13 @@ void chipvpn_socket_event(VPNPeer *peer, VPNPacket *packet) {
 
 						VPNDataPacket packet2;
 						strcpy(packet2.data, "Successfully Logged In");
+						chip_encrypt_buf((char*)&packet2.data, strlen(packet2.data) + 1);
 						chipvpn_peer_send(peer, VPN_TYPE_MSG, &packet2, strlen(packet2.data) + 1);
 					}
 				} else {
 					VPNDataPacket packet;
 					strcpy(packet.data, "Unable to authenticate");
+					chip_encrypt_buf((char*)&packet.data, strlen(packet.data) + 1);
 					chipvpn_peer_send(peer, VPN_TYPE_MSG, &packet, strlen(packet.data) + 1);
 					chipvpn_peer_dealloc(peer);
 				}
@@ -363,6 +365,7 @@ void chipvpn_socket_event(VPNPeer *peer, VPNPacket *packet) {
 		case VPN_TYPE_MSG: {
 			if(!is_server) {
 				VPNDataPacket *p_msg = (VPNDataPacket*)&packet->data.data_packet;
+				chip_decrypt_buf((char*)p_msg, size);
 				p_msg->data[sizeof(VPNDataPacket) - 1] = '\0';
 				console_log("Server => %s", p_msg->data);
 			}
@@ -407,14 +410,13 @@ void chipvpn_peer_dealloc(VPNPeer *peer) {
 }
 
 void chipvpn_peer_send(VPNPeer *peer, VPNPacketType type, void *data, int size) {
-	VPNPacket *packet = malloc(sizeof(VPNPacket) + size);
+	VPNPacket *packet = alloca(sizeof(VPNPacket) + size); // faster than malloc
 	packet->header.size = htonl(size);
 	packet->header.type = htonl(type);
 	if(data) {
 		memcpy((char*)&packet->data, data, size);
 	}
 	send(peer->fd, (char*)packet, sizeof(packet->header) + size, 0);
-	free(packet);
 }
 
 uint32_t chipvpn_get_peer_free_ip() {
