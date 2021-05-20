@@ -1,6 +1,8 @@
 #ifndef LIST
 #define LIST
 
+#include <stddef.h>
+
 typedef struct _ListNode
 {
    struct _ListNode * next;

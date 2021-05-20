@@ -1,4 +1,4 @@
-#include "chipvpn.h"
+#include "tun.h"
 
 Tun *open_tun(char *dev) {
 

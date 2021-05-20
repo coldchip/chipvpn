@@ -1,5 +1,4 @@
-#include "json/include/cJSON.h"
-#include "chipvpn.h"
+#include "core.h"
 
 Tun *tun = NULL;
 
@@ -207,7 +206,7 @@ void chipvpn_event_loop(char *config_file) {
 				struct sockaddr_in addr;
 				socklen_t len = sizeof(addr);
 				int fd = accept(sock, (struct sockaddr*)&addr, &len);
-
+				
 				VPNPeer *peer = chipvpn_peer_alloc(fd);
 				list_insert(list_end(&peers), peer);
 			}
@@ -241,6 +240,7 @@ void chipvpn_event_loop(char *config_file) {
 					}
 				} else {
 					// corrupted buffer ?!
+					warning("peer %p invalid packet received", peer);
 					chipvpn_peer_dealloc(peer);
 					if(!is_server) {
 						console_log("disconnected, reconnecting");
@@ -358,8 +358,7 @@ void chipvpn_socket_event(VPNPeer *peer, VPNPacket *packet) {
 		break;
 		case VPN_PONG: {
 			gettimeofday(&ping_stop, NULL);
-			printf("ping took %lu ms\n", ((ping_stop.tv_sec - ping_start.tv_sec) * 1000000 + ping_stop.tv_usec - ping_start.tv_usec) / 1000); 
-			printf("TX: %lu RX: %lu\n", peer->tx, peer->rx);
+			printf("peer %p ping took %lu ms TX: %lu RX: %lu\n", peer, ((ping_stop.tv_sec - ping_start.tv_sec) * 1000000 + ping_stop.tv_usec - ping_start.tv_usec) / 1000, peer->tx, peer->rx); 
 		}
 		break;
 		case VPN_TYPE_MSG: {

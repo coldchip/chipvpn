@@ -1,5 +1,7 @@
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
+#include <stdint.h>
 #include "chipvpn.h"
 
 int main(int argc, char const *argv[]) {

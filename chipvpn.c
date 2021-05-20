@@ -180,38 +180,3 @@ char *chipvpn_malloc_fmt(char *format, ...) {
 
     return result;
 }
-
-size_t curl_WriteMemoryCallback(void *contents, size_t size, size_t nmemb, void *userp) {
-    size_t realsize = size * nmemb;
-    struct MemoryStruct *mem = (struct MemoryStruct *)userp;
-
-    char *ptr = realloc(mem->memory, mem->size + realsize + 1);
-    if(ptr == NULL) {
-        /* out of memory! */ 
-        printf("not enough memory (realloc returned NULL)\n");
-        return 0;
-    }
-
-    mem->memory = ptr;
-    memcpy(&(mem->memory[mem->size]), contents, realsize);
-    mem->size += realsize;
-    mem->memory[mem->size] = 0;
-
-    return realsize;
-}
-
-size_t uri_encode(const char *src, const size_t len, char *dst) {
-    size_t i = 0, j = 0;
-    while (i < len) {
-        const char octet = src[i++];
-        const int32_t code = ((int32_t*)uri_encode_tbl)[ (unsigned char)octet ];
-        if (code) {
-            *((int32_t*)&dst[j]) = code;
-            j += 3;
-        } else {
-            dst[j++] = octet;
-        }
-    }
-    dst[j] = '\0';
-    return j;
-}

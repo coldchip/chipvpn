@@ -1,0 +1,1 @@
+bool validate_packet(char *stream);

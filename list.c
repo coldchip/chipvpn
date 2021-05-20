@@ -1,4 +1,4 @@
-#include "chipvpn.h"
+#include "list.h"
 
 void list_clear (List * list) {
    list -> sentinel.next = & list -> sentinel;
