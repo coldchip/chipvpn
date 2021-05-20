@@ -1,6 +1,8 @@
 {
-	"connect": "34.87.165.28",
+	"connect": "vpn.coldchip.ru",
 	"port": 443,
+	"ssl": true,
+	"ssl_fingerprint": "e2bd430b9902750ce7aa0c542138d387b13d09fa",
 	"token": "6d2e9f6cfadd23287fd6a162bbe14c56",
 	"pull_routes": true
 }

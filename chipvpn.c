@@ -1,4 +1,11 @@
 #include "chipvpn.h"
+#include <stdarg.h>
+#include <stdio.h>
+#include <stdbool.h>
+#include <string.h>
+#include <stdlib.h>
+#include <sys/time.h>
+#include <arpa/inet.h> 
 
 char *read_file_into_buffer(char *file) {
 	FILE *infp = fopen(file, "rb");
@@ -153,7 +160,7 @@ char *format_size(uint64_t size) {
     uint64_t  multiplier = exbibytes;
     int i;
 
-    for (i = 0; i < DIM(sizes); i++, multiplier /= 1024)
+    for (i = 0; i < (int)DIM(sizes); i++, multiplier /= 1024)
     {   
         if (size < multiplier)
             continue;
@@ -179,4 +186,10 @@ char *chipvpn_malloc_fmt(char *format, ...) {
     va_end(args);
 
     return result;
+}
+
+uint32_t chipvpn_get_time() {
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    return (tv.tv_sec * 1000 + tv.tv_usec / 1000) / 1000;
 }

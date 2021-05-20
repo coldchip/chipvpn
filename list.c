@@ -1,4 +1,5 @@
 #include "list.h"
+#include <stddef.h>
 
 void list_clear (List * list) {
    list -> sentinel.next = & list -> sentinel;

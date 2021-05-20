@@ -1,4 +1,7 @@
-#include "chipvpn.h"
+#include "firewall.h"
+#include "packet.h"
+#include <stdbool.h>
+#include <netinet/in.h>
 
 bool validate_packet(char *stream) {
 	IPPacket *ip_hdr = (IPPacket*)(stream);

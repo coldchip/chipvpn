@@ -1,15 +1,39 @@
-#include "core.h"
+#include "event.h"
+#include "tun.h"
+#include "chipvpn.h"
+#include "encryption.h"
+#include "peer.h"
+#include "packet.h"
+#include "list.h"
+#include "json/include/cJSON.h"
+#include <unistd.h>
+#include <netdb.h>
+#include <netinet/tcp.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <stdbool.h>
+#include <sys/time.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+#include <arpa/inet.h> 
+#include <netinet/in.h>
+#include <signal.h>
+#include <openssl/ssl.h>
+#include <openssl/err.h>
 
 Tun *tun = NULL;
 
 char     ip[32];
-int      port        = 0;
-char    *token       = NULL;
-bool     is_server   = false;
-bool     pull_routes = false;
-int      max_peers   = 8;
-char     gateway[32] = "10.9.8.1";
-char     subnet[32]  = "255.255.255.0";
+int      port                 = 0;
+bool     is_ssl               = false;
+char     ssl_fingerprint[128] = "";
+char    *token                = NULL;
+bool     is_server            = false;
+bool     pull_routes          = false;
+int      max_peers            = 8;
+char     gateway[32]          = "10.9.8.1";
+char     subnet[32]           = "255.255.255.0";
 
 List peers;
 
@@ -17,6 +41,8 @@ struct timeval ping_stop, ping_start;
 
 void chipvpn_event_loop(char *config_file) {
 	signal(SIGPIPE, SIG_IGN);
+
+	console_log("ColdChip ChipVPN");
 
 	list_clear(&peers);
 
@@ -30,14 +56,16 @@ void chipvpn_event_loop(char *config_file) {
 	if(!json) {
 		error("Unable to parse config");
 	}
-	cJSON *cjson_connect     = cJSON_GetObjectItem(json, "connect");
-	cJSON *cjson_bind        = cJSON_GetObjectItem(json, "bind");
-	cJSON *cjson_port        = cJSON_GetObjectItem(json, "port");
-	cJSON *cjson_token       = cJSON_GetObjectItem(json, "token");
-	cJSON *cjson_pull_routes = cJSON_GetObjectItem(json, "pull_routes");
-	cJSON *cjson_max_peers   = cJSON_GetObjectItem(json, "max_peers");
-	cJSON *cjson_gateway     = cJSON_GetObjectItem(json, "gateway");
-	cJSON *cjson_subnet      = cJSON_GetObjectItem(json, "subnet");
+	cJSON *cjson_connect         = cJSON_GetObjectItem(json, "connect");
+	cJSON *cjson_bind            = cJSON_GetObjectItem(json, "bind");
+	cJSON *cjson_port            = cJSON_GetObjectItem(json, "port");
+	cJSON *cjson_ssl             = cJSON_GetObjectItem(json, "ssl");
+	cJSON *cjson_ssl_fingerprint = cJSON_GetObjectItem(json, "ssl_fingerprint");
+	cJSON *cjson_token           = cJSON_GetObjectItem(json, "token");
+	cJSON *cjson_pull_routes     = cJSON_GetObjectItem(json, "pull_routes");
+	cJSON *cjson_max_peers       = cJSON_GetObjectItem(json, "max_peers");
+	cJSON *cjson_gateway         = cJSON_GetObjectItem(json, "gateway");
+	cJSON *cjson_subnet          = cJSON_GetObjectItem(json, "subnet");
 
 	if(
 		((cjson_connect && cJSON_IsString(cjson_connect)) || 
@@ -75,7 +103,13 @@ void chipvpn_event_loop(char *config_file) {
 			}
 			
 		}
-		if(cjson_pull_routes && cJSON_IsTrue(cjson_pull_routes)) {
+		if(cjson_ssl && cJSON_IsBool(cjson_ssl) && cJSON_IsTrue(cjson_ssl)) {
+			is_ssl = true;
+		}
+		if(cjson_ssl_fingerprint && cJSON_IsString(cjson_ssl_fingerprint)) {
+			strcpy(ssl_fingerprint, cjson_ssl_fingerprint->valuestring);
+		}
+		if(cjson_pull_routes && cJSON_IsBool(cjson_pull_routes) && cJSON_IsTrue(cjson_pull_routes)) {
 			pull_routes = true;
 		}
 		if(cjson_max_peers && cJSON_IsNumber(cjson_max_peers) && cjson_max_peers->valueint > 0) {
@@ -88,6 +122,7 @@ void chipvpn_event_loop(char *config_file) {
 			strcpy(gateway, cjson_gateway->valuestring);
 			strcpy(subnet, cjson_subnet->valuestring);
 		}
+
 		port  = cjson_port->valueint;
 		token = cjson_token->valuestring;
 	} else {
@@ -95,7 +130,7 @@ void chipvpn_event_loop(char *config_file) {
 	}
 
 	tun = open_tun("");
-	if(tun < 0 || tun  == NULL) {
+	if(tun  == NULL) {
 		error("Tuntap adaptor creation failed, please run as sudo");
 	}
 
@@ -128,6 +163,8 @@ void chipvpn_event_loop(char *config_file) {
 			error("unable to listen");
 		}
 
+		console_log("server started on %s:%i", ip, port);
+
 		setifip(tun, inet_addr(gateway), inet_addr(subnet), MAX_MTU);
 		ifup(tun);
 	} else {
@@ -144,9 +181,64 @@ void chipvpn_event_loop(char *config_file) {
 			goto reconnect;
 		}
 
+		SSL *ssl = NULL;
+
+		if(is_ssl == true) {
+			console_log("establishing SSL connection");
+			SSL_library_init();
+			SSLeay_add_ssl_algorithms();
+			SSL_load_error_strings();
+			const SSL_METHOD *meth = SSLv23_client_method();
+			SSL_CTX *ctx = SSL_CTX_new(meth);
+			ssl = SSL_new(ctx);
+
+	    	SSL_set_fd(ssl, sock);
+
+	    	if(SSL_connect(ssl) <= 0) {
+	    		console_log("SSL handshake failed, reconnecting");
+				sleep(1);
+				goto reconnect;
+	    	}
+
+	    	X509 *cert = SSL_get_peer_certificate(ssl);
+
+	    	char buf[SHA1LEN];
+
+			const EVP_MD *digest = EVP_sha1();
+			unsigned len = 0;
+			int rc = X509_digest(cert, digest, (unsigned char*)buf, &len);
+			if (rc == 0 || len != SHA1LEN) {
+				error("SSL verification failed");
+			}
+
+			char sign[(SHA1LEN * 2) + 1];
+			for(unsigned i = 0; i < len; i++) {
+				char *l = sign + (2 * i);
+				sprintf(l, "%02x", buf[i] & 0xff);
+			}
+
+			if(strcmp(sign, ssl_fingerprint) != 0) {
+				error("SSL signature verification failed");
+			}
+
+			char *issuer = X509_NAME_oneline(X509_get_issuer_name(cert), NULL, 0);
+			char *cn = X509_NAME_oneline(X509_get_subject_name(cert), NULL, 0);
+
+			console_log("SSL fingerprint verification passed");
+			console_log("SSL fingerprint %s", sign);
+			console_log("%s", issuer);
+			console_log("%s", cn);
+
+			OPENSSL_free(issuer);
+			OPENSSL_free(cn);
+
+			X509_free(cert);
+    	}
+
 		console_log("connected");
 
 		VPNPeer *peer = chipvpn_peer_alloc(sock);
+		peer->ssl = ssl;
 		list_insert(list_end(&peers), peer);
 
 		VPNAuthPacket auth;
@@ -218,15 +310,20 @@ void chipvpn_event_loop(char *config_file) {
 			i = list_next(i);
 			if(FD_ISSET(peer->fd, &rdset)) {
 				VPNPacket *packet = (VPNPacket*)&peer->buffer;
-				int        size   = ntohl(packet->header.size);
-				uint32_t   left   = sizeof(VPNPacketHeader) - peer->buffer_pos;
-				
+				uint32_t size   = ntohl(packet->header.size);
+				uint32_t left   = sizeof(VPNPacketHeader);
+
 				if(peer->buffer_pos >= sizeof(VPNPacketHeader)) {
-					left += size;
+					left += size - peer->buffer_pos;
 				}
 
 				if((left + peer->buffer_pos) < sizeof(peer->buffer)) {
-					int readed = recv(peer->fd, &peer->buffer[peer->buffer_pos], left, 0);	
+					int readed = -1;
+					if(peer->ssl) {
+						readed = SSL_read(peer->ssl, &peer->buffer[peer->buffer_pos], left);
+					} else {
+						readed = recv(peer->fd, &peer->buffer[peer->buffer_pos], left, 0);
+					}
 					if(readed > 0) {
 						peer->buffer_pos += readed;
 					} else {
@@ -277,7 +374,7 @@ void chipvpn_socket_event(VPNPeer *peer, VPNPacket *packet) {
 				VPNAuthPacket *p_auth = &packet->data.auth_packet;
 				chip_decrypt_buf((char*)p_auth, size);
 				if(memcmp(p_auth, token, strlen(token)) == 0) {
-					uint32_t alloc_ip = chipvpn_get_peer_free_ip();
+					uint32_t alloc_ip = chipvpn_get_peer_free_ip(&peers, gateway);
 					if(alloc_ip > 0) {
 						VPNAssignPacket packet;
 						packet.ip      = alloc_ip;
@@ -380,7 +477,7 @@ void chipvpn_socket_event(VPNPeer *peer, VPNPacket *packet) {
 void chipvpn_tun_event(VPNDataPacket *packet, int size) {
 	IPPacket *ip_hdr = (IPPacket*)packet;
 
-	VPNPeer *peer = chipvpn_get_peer_by_ip(is_server ? ip_hdr->dst_addr : ip_hdr->src_addr);
+	VPNPeer *peer = chipvpn_get_peer_by_ip(&peers, is_server ? ip_hdr->dst_addr : ip_hdr->src_addr);
 	if(peer) {
 		if(peer->is_authed == true) {
 			peer->tx += size;
@@ -388,69 +485,4 @@ void chipvpn_tun_event(VPNDataPacket *packet, int size) {
 			chipvpn_peer_send(peer, VPN_TYPE_DATA, packet, size);
 		}
 	}
-}
-
-VPNPeer *chipvpn_peer_alloc(int fd) {
-	VPNPeer *peer = malloc(sizeof(VPNPeer));
-	peer->fd = fd;
-	peer->tx = 0;
-	peer->rx = 0;
-	peer->last_ping = chipvpn_get_time();
-	peer->buffer_pos = 0;
-	console_log("client connected");
-	return peer;
-}
-
-void chipvpn_peer_dealloc(VPNPeer *peer) {
-	list_remove(&peer->node);
-	console_log("client disconnected");
-	close(peer->fd);
-	free(peer);
-}
-
-void chipvpn_peer_send(VPNPeer *peer, VPNPacketType type, void *data, int size) {
-	VPNPacket *packet = alloca(sizeof(VPNPacket) + size); // faster than malloc
-	packet->header.size = htonl(size);
-	packet->header.type = htonl(type);
-	if(data) {
-		memcpy((char*)&packet->data, data, size);
-	}
-	send(peer->fd, (char*)packet, sizeof(packet->header) + size, 0);
-}
-
-uint32_t chipvpn_get_peer_free_ip() {
-	uint32_t start = inet_addr(gateway) + (1   << 24);
-	uint32_t end   = inet_addr(gateway) + (200 << 24);
-	bool     trip  = false;
-
-	for(uint32_t ip = ntohl(start); ip < ntohl(end); ip++) {
-		trip = false;
-		for(ListNode *i = list_begin(&peers); i != list_end(&peers); i = list_next(i)) {
-			VPNPeer *peer = (VPNPeer*)i;
-			if((peer->internal_ip == htonl(ip))) {
-				trip = true;
-			}
-		}
-		if(trip == false) {
-			return htonl(ip);
-		}
-	}
-
-	return 0;
-}
-
-VPNPeer *chipvpn_get_peer_by_ip(uint32_t ip) {
-	for(ListNode *i = list_begin(&peers); i != list_end(&peers); i = list_next(i)) {
-		VPNPeer *peer = (VPNPeer*)i;
-		if((peer->internal_ip == ip)) {
-			return peer;
-		}
-	}
-	return NULL;
-}
-
-uint32_t chipvpn_get_time() {
-	struct timeval tv;
-	gettimeofday(&tv, NULL);
-	return (tv.tv_sec * 1000 + tv.tv_usec / 1000) / 1000;
 }

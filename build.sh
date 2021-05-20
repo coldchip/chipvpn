@@ -10,17 +10,17 @@ compile() {
 
 	for d in ./*.c; do
 		echo "$GREEN[Compiling] $NC $d"
-	    gcc -Ofast -Wall -c -o bin/$(echo $(basename "$d") | sed "s/\.c/$rep/") $d
+	    gcc -Ofast -Wextra -Wall -c -o bin/$(echo $(basename "$d") | sed "s/\.c/$rep/") $d
 	done
 
 	for d in ./json/*.c; do
 		echo "$GREEN[Compiling] $NC $d"
-	    gcc -Ofast -Wall -c -o bin/$(echo $(basename "$d") | sed "s/\.c/$rep/") $d
+	    gcc -Ofast -Wextra -Wall -c -o bin/$(echo $(basename "$d") | sed "s/\.c/$rep/") $d
 	done
 
 	echo "$GREEN[Linking] $NC $( ls ./bin/* )"
 
-	gcc -o bin/$OUTPUT bin/*.o -Ofast -Wall
+	gcc -o bin/$OUTPUT bin/*.o -Ofast -Wextra -Wall -lcrypto -lssl
 }
 
 run() {

@@ -1,4 +1,15 @@
 #include "tun.h"
+#include <stdint.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <string.h>
+#include <linux/if.h>
+#include <linux/if_tun.h>
+#include <sys/ioctl.h>
+#include <netinet/in.h>
+#include "chipvpn.h"
 
 Tun *open_tun(char *dev) {
 
