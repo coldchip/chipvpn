@@ -5,11 +5,9 @@
 #include "packet.h"
 #include <stdint.h>
 #include <stdbool.h>
-#include <openssl/ssl.h>
 
 typedef struct _VPNPeer {
 	ListNode node;
-	SSL *ssl;
 	int fd;
 	bool is_authed;
 	uint32_t last_ping;

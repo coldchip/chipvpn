@@ -1,6 +1,7 @@
 #include "peer.h"
 #include "packet.h"
 #include "chipvpn.h"
+#include "crypto.h"
 #include <string.h>
 #include <unistd.h>
 #include <stdlib.h>
@@ -9,7 +10,6 @@
 
 VPNPeer *chipvpn_peer_alloc(int fd) {
 	VPNPeer *peer = malloc(sizeof(VPNPeer));
-	peer->ssl = NULL;
 	peer->fd = fd;
 	peer->tx = 0;
 	peer->rx = 0;
@@ -22,8 +22,6 @@ VPNPeer *chipvpn_peer_alloc(int fd) {
 void chipvpn_peer_dealloc(VPNPeer *peer) {
 	list_remove(&peer->node);
 	console_log("client disconnected");
-	SSL_shutdown(peer->ssl);
-    SSL_free(peer->ssl);
 	close(peer->fd);
 	free(peer);
 }
@@ -39,60 +37,14 @@ void chipvpn_peer_send_packet(VPNPeer *peer, VPNPacketType type, void *data, int
 }
 
 int chipvpn_peer_raw_recv(VPNPeer *peer, void *buf, int size) {
-	if (!SSL_is_init_finished(peer->ssl)) {
-		int n = SSL_accept(peer->ssl);
-		int err = SSL_get_error(peer->ssl, n);
-		if(
-			err == SSL_ERROR_NONE || 
-			err == SSL_ERROR_WANT_READ || 
-			err == SSL_ERROR_WANT_WRITE
-		) {
-			return 0;
-		} else {
-			return -1;
-		}
-	}
-	int n = SSL_read(peer->ssl, buf, size);
-	int err = SSL_get_error(peer->ssl, n);
-	if(err == SSL_ERROR_NONE) {
-		return n;
-	} else if(
-		err == SSL_ERROR_WANT_READ || 
-		err == SSL_ERROR_WANT_WRITE
-	) {
-		return 0;
-	} else {
-		return -1;
-	}
-	
+	int n = recv(peer->fd, buf, size, 0);
+	chipvpn_decrypt_buf(buf, size);
+	return n;
 }
 
 int chipvpn_peer_raw_send(VPNPeer *peer, void *buf, int size) {
-	if (!SSL_is_init_finished(peer->ssl)) {
-		int n = SSL_accept(peer->ssl);
-		int err = SSL_get_error(peer->ssl, n);
-		if(
-			err == SSL_ERROR_NONE || 
-			err == SSL_ERROR_WANT_READ || 
-			err == SSL_ERROR_WANT_WRITE
-		) {
-			return 0;
-		} else {
-			return -1;
-		}
-	}
-	int n =  SSL_write(peer->ssl, buf, size);
-	int err = SSL_get_error(peer->ssl, n);
-	if(err == SSL_ERROR_NONE) {
-		return n;
-	} else if(
-		err == SSL_ERROR_WANT_READ || 
-		err == SSL_ERROR_WANT_WRITE
-	) {
-		return 0;
-	} else {
-		return -1;
-	}
+	chipvpn_encrypt_buf(buf, size);
+	return send(peer->fd, buf, size, 0);
 }
 
 uint32_t chipvpn_get_peer_free_ip(List *peers, char *gateway) {
