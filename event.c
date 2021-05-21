@@ -1,7 +1,6 @@
 #include "event.h"
 #include "tun.h"
 #include "chipvpn.h"
-#include "encryption.h"
 #include "peer.h"
 #include "packet.h"
 #include "list.h"
@@ -225,7 +224,7 @@ void chipvpn_event_loop(char *config_file) {
 			char *cn = X509_NAME_oneline(X509_get_subject_name(cert), NULL, 0);
 
 			console_log("SSL fingerprint verification passed");
-			console_log("SSL fingerprint %s", sign);
+			console_log("SSL SHA1 fingerprint %s", sign);
 			console_log("%s", issuer);
 			console_log("%s", cn);
 
@@ -243,7 +242,6 @@ void chipvpn_event_loop(char *config_file) {
 
 		VPNAuthPacket auth;
 		strcpy(auth.data, token);
-		chip_encrypt_buf((char*)&auth, sizeof(auth));
 		chipvpn_peer_send(peer, VPN_TYPE_AUTH, &auth, sizeof(auth));
 
 	}
@@ -372,7 +370,6 @@ void chipvpn_socket_event(VPNPeer *peer, VPNPacket *packet) {
 		case VPN_TYPE_AUTH: {
 			if(is_server) {
 				VPNAuthPacket *p_auth = &packet->data.auth_packet;
-				chip_decrypt_buf((char*)p_auth, size);
 				if(memcmp(p_auth, token, strlen(token)) == 0) {
 					uint32_t alloc_ip = chipvpn_get_peer_free_ip(&peers, gateway);
 					if(alloc_ip > 0) {
@@ -382,7 +379,6 @@ void chipvpn_socket_event(VPNPeer *peer, VPNPacket *packet) {
 						packet.gateway = inet_addr(gateway);
 						packet.mtu     = htonl(MAX_MTU);
 
-						chip_encrypt_buf((char*)&packet, sizeof(packet));
 						chipvpn_peer_send(peer, VPN_TYPE_ASSIGN, &packet, sizeof(packet));
 
 						peer->is_authed = true;
@@ -390,13 +386,11 @@ void chipvpn_socket_event(VPNPeer *peer, VPNPacket *packet) {
 
 						VPNDataPacket packet2;
 						strcpy(packet2.data, "Successfully Logged In");
-						chip_encrypt_buf((char*)&packet2.data, strlen(packet2.data) + 1);
 						chipvpn_peer_send(peer, VPN_TYPE_MSG, &packet2, strlen(packet2.data) + 1);
 					}
 				} else {
 					VPNDataPacket packet;
 					strcpy(packet.data, "Unable to authenticate");
-					chip_encrypt_buf((char*)&packet.data, strlen(packet.data) + 1);
 					chipvpn_peer_send(peer, VPN_TYPE_MSG, &packet, strlen(packet.data) + 1);
 					chipvpn_peer_dealloc(peer);
 				}
@@ -406,7 +400,6 @@ void chipvpn_socket_event(VPNPeer *peer, VPNPacket *packet) {
 		case VPN_TYPE_ASSIGN: {
 			if(!is_server) {
 				VPNAssignPacket *p_assign = &packet->data.dhcp_packet;
-				chip_decrypt_buf((char*)p_assign, size);
 
 				uint32_t peer_ip      = p_assign->ip;
 				uint32_t peer_subnet  = p_assign->subnet;
@@ -435,7 +428,6 @@ void chipvpn_socket_event(VPNPeer *peer, VPNPacket *packet) {
 		break;
 		case VPN_TYPE_DATA: {
 			VPNDataPacket *p_data = (VPNDataPacket*)&packet->data.data_packet;
-			chip_decrypt_buf((char*)p_data, size);
 			IPPacket *ip_hdr = (IPPacket*)(p_data);
 			if(
 				peer->is_authed == true &&
@@ -455,13 +447,12 @@ void chipvpn_socket_event(VPNPeer *peer, VPNPacket *packet) {
 		break;
 		case VPN_PONG: {
 			gettimeofday(&ping_stop, NULL);
-			printf("peer %p ping took %lu ms TX: %lu RX: %lu\n", peer, ((ping_stop.tv_sec - ping_start.tv_sec) * 1000000 + ping_stop.tv_usec - ping_start.tv_usec) / 1000, peer->tx, peer->rx); 
+			console_log("peer %p ping took %lu ms TX: %lu RX: %lu", peer, ((ping_stop.tv_sec - ping_start.tv_sec) * 1000000 + ping_stop.tv_usec - ping_start.tv_usec) / 1000, peer->tx, peer->rx); 
 		}
 		break;
 		case VPN_TYPE_MSG: {
 			if(!is_server) {
 				VPNDataPacket *p_msg = (VPNDataPacket*)&packet->data.data_packet;
-				chip_decrypt_buf((char*)p_msg, size);
 				p_msg->data[sizeof(VPNDataPacket) - 1] = '\0';
 				console_log("Server => %s", p_msg->data);
 			}
@@ -481,7 +472,6 @@ void chipvpn_tun_event(VPNDataPacket *packet, int size) {
 	if(peer) {
 		if(peer->is_authed == true) {
 			peer->tx += size;
-			chip_encrypt_buf((char*)packet, size);
 			chipvpn_peer_send(peer, VPN_TYPE_DATA, packet, size);
 		}
 	}
