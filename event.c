@@ -18,6 +18,7 @@
 #include <arpa/inet.h> 
 #include <netinet/in.h>
 #include <signal.h>
+#include <fcntl.h>
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 
@@ -25,8 +26,9 @@ Tun *tun = NULL;
 
 char     ip[32];
 int      port                 = 0;
-bool     is_ssl               = false;
 char     ssl_fingerprint[128] = "";
+char     ssl_cert[1024]       = "";
+char     ssl_key[1024]        = "";
 char    *token                = NULL;
 bool     is_server            = false;
 bool     pull_routes          = false;
@@ -37,6 +39,8 @@ char     subnet[32]           = "255.255.255.0";
 List peers;
 
 struct timeval ping_stop, ping_start;
+
+SSL_CTX *ctx = NULL;
 
 void chipvpn_event_loop(char *config_file) {
 	signal(SIGPIPE, SIG_IGN);
@@ -58,8 +62,9 @@ void chipvpn_event_loop(char *config_file) {
 	cJSON *cjson_connect         = cJSON_GetObjectItem(json, "connect");
 	cJSON *cjson_bind            = cJSON_GetObjectItem(json, "bind");
 	cJSON *cjson_port            = cJSON_GetObjectItem(json, "port");
-	cJSON *cjson_ssl             = cJSON_GetObjectItem(json, "ssl");
 	cJSON *cjson_ssl_fingerprint = cJSON_GetObjectItem(json, "ssl_fingerprint");
+	cJSON *cjson_ssl_cert        = cJSON_GetObjectItem(json, "ssl_cert");
+	cJSON *cjson_ssl_key         = cJSON_GetObjectItem(json, "ssl_key");
 	cJSON *cjson_token           = cJSON_GetObjectItem(json, "token");
 	cJSON *cjson_pull_routes     = cJSON_GetObjectItem(json, "pull_routes");
 	cJSON *cjson_max_peers       = cJSON_GetObjectItem(json, "max_peers");
@@ -102,11 +107,14 @@ void chipvpn_event_loop(char *config_file) {
 			}
 			
 		}
-		if(cjson_ssl && cJSON_IsBool(cjson_ssl) && cJSON_IsTrue(cjson_ssl)) {
-			is_ssl = true;
-		}
 		if(cjson_ssl_fingerprint && cJSON_IsString(cjson_ssl_fingerprint)) {
 			strcpy(ssl_fingerprint, cjson_ssl_fingerprint->valuestring);
+		}
+		if(cjson_ssl_cert && cJSON_IsString(cjson_ssl_cert)) {
+			strcpy(ssl_cert, cjson_ssl_cert->valuestring);
+		}
+		if(cjson_ssl_key && cJSON_IsString(cjson_ssl_key)) {
+			strcpy(ssl_key, cjson_ssl_key->valuestring);
 		}
 		if(cjson_pull_routes && cJSON_IsBool(cjson_pull_routes) && cJSON_IsTrue(cjson_pull_routes)) {
 			pull_routes = true;
@@ -148,6 +156,11 @@ void chipvpn_event_loop(char *config_file) {
 		error("unable to call setsockopt");
 	}
 
+	SSL_load_error_strings();	
+	OpenSSL_add_ssl_algorithms();
+	SSL_library_init();
+	SSLeay_add_ssl_algorithms();
+
 	if(is_server) {
 		struct sockaddr_in     addr;
 		addr.sin_family      = AF_INET;
@@ -166,6 +179,21 @@ void chipvpn_event_loop(char *config_file) {
 
 		setifip(tun, inet_addr(gateway), inet_addr(subnet), MAX_MTU);
 		ifup(tun);
+
+		const SSL_METHOD *meth = SSLv23_server_method();
+		ctx = SSL_CTX_new(meth);
+		SSL_CTX_set_ecdh_auto(ctx, 1);
+
+		/* Set the key and cert */
+		if (SSL_CTX_use_certificate_file(ctx, ssl_cert, SSL_FILETYPE_PEM) <= 0) {
+			ERR_print_errors_fp(stderr);
+			exit(EXIT_FAILURE);
+		}
+
+		if (SSL_CTX_use_PrivateKey_file(ctx, ssl_key, SSL_FILETYPE_PEM) <= 0 ) {
+			ERR_print_errors_fp(stderr);
+			exit(EXIT_FAILURE);
+		}
 	} else {
 		struct sockaddr_in     addr;
 		addr.sin_family      = AF_INET;
@@ -180,59 +208,56 @@ void chipvpn_event_loop(char *config_file) {
 			goto reconnect;
 		}
 
-		SSL *ssl = NULL;
 
-		if(is_ssl == true) {
-			console_log("establishing SSL connection");
-			SSL_library_init();
-			SSLeay_add_ssl_algorithms();
-			SSL_load_error_strings();
-			const SSL_METHOD *meth = SSLv23_client_method();
-			SSL_CTX *ctx = SSL_CTX_new(meth);
-			ssl = SSL_new(ctx);
+		console_log("establishing SSL connection");
+		
+		const SSL_METHOD *meth = SSLv23_client_method();
+		ctx = SSL_CTX_new(meth);
+		SSL *ssl = SSL_new(ctx);
 
-	    	SSL_set_fd(ssl, sock);
+    	SSL_set_fd(ssl, sock);
 
-	    	if(SSL_connect(ssl) <= 0) {
-	    		console_log("SSL handshake failed, reconnecting");
-				sleep(1);
-				goto reconnect;
-	    	}
-
-	    	X509 *cert = SSL_get_peer_certificate(ssl);
-
-	    	char buf[SHA1LEN];
-
-			const EVP_MD *digest = EVP_sha1();
-			unsigned len = 0;
-			int rc = X509_digest(cert, digest, (unsigned char*)buf, &len);
-			if (rc == 0 || len != SHA1LEN) {
-				error("SSL verification failed");
-			}
-
-			char sign[(SHA1LEN * 2) + 1];
-			for(unsigned i = 0; i < len; i++) {
-				char *l = sign + (2 * i);
-				sprintf(l, "%02x", buf[i] & 0xff);
-			}
-
-			if(strcmp(sign, ssl_fingerprint) != 0) {
-				error("SSL signature verification failed");
-			}
-
-			char *issuer = X509_NAME_oneline(X509_get_issuer_name(cert), NULL, 0);
-			char *cn = X509_NAME_oneline(X509_get_subject_name(cert), NULL, 0);
-
-			console_log("SSL fingerprint verification passed");
-			console_log("SSL SHA1 fingerprint %s", sign);
-			console_log("%s", issuer);
-			console_log("%s", cn);
-
-			OPENSSL_free(issuer);
-			OPENSSL_free(cn);
-
-			X509_free(cert);
+    	if(SSL_connect(ssl) <= 0) {
+    		console_log("SSL handshake failed, reconnecting");
+			sleep(1);
+			goto reconnect;
     	}
+
+
+
+    	X509 *cert = SSL_get_peer_certificate(ssl);
+
+    	char buf[SHA1LEN];
+
+		const EVP_MD *digest = EVP_sha1();
+		unsigned len = 0;
+		int rc = X509_digest(cert, digest, (unsigned char*)buf, &len);
+		if (rc == 0 || len != SHA1LEN) {
+			error("SSL verification failed");
+		}
+
+		char sign[(SHA1LEN * 2) + 1];
+		for(unsigned i = 0; i < len; i++) {
+			char *l = sign + (2 * i);
+			sprintf(l, "%02x", buf[i] & 0xff);
+		}
+
+		if(strcmp(sign, ssl_fingerprint) != 0) {
+			error("SSL signature verification failed");
+		}
+
+		char *issuer = X509_NAME_oneline(X509_get_issuer_name(cert), NULL, 0);
+		char *cn = X509_NAME_oneline(X509_get_subject_name(cert), NULL, 0);
+
+		console_log("SSL fingerprint verification passed");
+		console_log("SSL SHA1 fingerprint %s", sign);
+		console_log("%s", issuer);
+		console_log("%s", cn);
+
+		OPENSSL_free(issuer);
+		OPENSSL_free(cn);
+
+		X509_free(cert);
 
 		console_log("connected");
 
@@ -242,7 +267,7 @@ void chipvpn_event_loop(char *config_file) {
 
 		VPNAuthPacket auth;
 		strcpy(auth.data, token);
-		chipvpn_peer_send(peer, VPN_TYPE_AUTH, &auth, sizeof(auth));
+		chipvpn_peer_send_packet(peer, VPN_TYPE_AUTH, &auth, sizeof(auth));
 
 	}
 
@@ -277,7 +302,7 @@ void chipvpn_event_loop(char *config_file) {
 				VPNPeer *peer = (VPNPeer*)i;
 				i = list_next(i);
 				if(chipvpn_get_time() - peer->last_ping < 10) {
-					chipvpn_peer_send(peer, VPN_PING, NULL, 0);
+					chipvpn_peer_send_packet(peer, VPN_PING, NULL, 0);
 					gettimeofday(&ping_start, NULL);
 				} else {
 					chipvpn_peer_dealloc(peer);
@@ -296,9 +321,16 @@ void chipvpn_event_loop(char *config_file) {
 				struct sockaddr_in addr;
 				socklen_t len = sizeof(addr);
 				int fd = accept(sock, (struct sockaddr*)&addr, &len);
-				
-				VPNPeer *peer = chipvpn_peer_alloc(fd);
-				list_insert(list_end(&peers), peer);
+				if(set_socket_non_blocking(fd)) {
+					SSL *ssl = SSL_new(ctx);
+					SSL_set_fd(ssl, fd);
+
+					VPNPeer *peer = chipvpn_peer_alloc(fd);
+					peer->ssl = ssl;
+					list_insert(list_end(&peers), peer);
+				} else {
+					close(fd);
+				}
 			}
 		}
 
@@ -316,13 +348,8 @@ void chipvpn_event_loop(char *config_file) {
 				}
 
 				if((left + peer->buffer_pos) < sizeof(peer->buffer)) {
-					int readed = -1;
-					if(peer->ssl) {
-						readed = SSL_read(peer->ssl, &peer->buffer[peer->buffer_pos], left);
-					} else {
-						readed = recv(peer->fd, &peer->buffer[peer->buffer_pos], left, 0);
-					}
-					if(readed > 0) {
+					int readed = chipvpn_peer_raw_recv(peer, &peer->buffer[peer->buffer_pos], left);
+					if(readed >= 0) {
 						peer->buffer_pos += readed;
 					} else {
 						// connection close
@@ -379,19 +406,19 @@ void chipvpn_socket_event(VPNPeer *peer, VPNPacket *packet) {
 						packet.gateway = inet_addr(gateway);
 						packet.mtu     = htonl(MAX_MTU);
 
-						chipvpn_peer_send(peer, VPN_TYPE_ASSIGN, &packet, sizeof(packet));
+						chipvpn_peer_send_packet(peer, VPN_TYPE_ASSIGN, &packet, sizeof(packet));
 
 						peer->is_authed = true;
 						peer->internal_ip = alloc_ip;
 
 						VPNDataPacket packet2;
 						strcpy(packet2.data, "Successfully Logged In");
-						chipvpn_peer_send(peer, VPN_TYPE_MSG, &packet2, strlen(packet2.data) + 1);
+						chipvpn_peer_send_packet(peer, VPN_TYPE_MSG, &packet2, strlen(packet2.data) + 1);
 					}
 				} else {
 					VPNDataPacket packet;
 					strcpy(packet.data, "Unable to authenticate");
-					chipvpn_peer_send(peer, VPN_TYPE_MSG, &packet, strlen(packet.data) + 1);
+					chipvpn_peer_send_packet(peer, VPN_TYPE_MSG, &packet, strlen(packet.data) + 1);
 					chipvpn_peer_dealloc(peer);
 				}
 			}
@@ -442,7 +469,7 @@ void chipvpn_socket_event(VPNPeer *peer, VPNPacket *packet) {
 		break;
 		case VPN_PING: {
 			peer->last_ping = chipvpn_get_time();
-			chipvpn_peer_send(peer, VPN_PONG, NULL, 0);
+			chipvpn_peer_send_packet(peer, VPN_PONG, NULL, 0);
 		}
 		break;
 		case VPN_PONG: {
@@ -472,7 +499,16 @@ void chipvpn_tun_event(VPNDataPacket *packet, int size) {
 	if(peer) {
 		if(peer->is_authed == true) {
 			peer->tx += size;
-			chipvpn_peer_send(peer, VPN_TYPE_DATA, packet, size);
+			chipvpn_peer_send_packet(peer, VPN_TYPE_DATA, packet, size);
 		}
 	}
+}
+
+bool set_socket_non_blocking(int fd) {
+	if (fd < 0) return false;  
+	
+	int flags = fcntl(fd, F_GETFL, 0);
+	if (flags < 0) return false;
+	flags |= O_NONBLOCK;
+	return (fcntl(fd, F_SETFL, flags) == 0) ? true : false;
 }

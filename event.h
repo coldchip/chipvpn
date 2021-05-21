@@ -14,5 +14,6 @@ _a > _b ? _a : _b; })
 void chipvpn_event_loop(char *config);
 void chipvpn_socket_event(VPNPeer *peer, VPNPacket *packet);
 void chipvpn_tun_event(VPNDataPacket *packet, int size);
+bool set_socket_non_blocking(int fd);
 
 #endif

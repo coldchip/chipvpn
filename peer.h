@@ -24,7 +24,9 @@ typedef struct _VPNPeer {
 
 VPNPeer           *chipvpn_peer_alloc(int fd);
 void               chipvpn_peer_dealloc(VPNPeer *peer);
-void               chipvpn_peer_send(VPNPeer *peer, VPNPacketType type, void *data, int size);
+void               chipvpn_peer_send_packet(VPNPeer *peer, VPNPacketType type, void *data, int size);
+int                chipvpn_peer_raw_recv(VPNPeer *peer, void *buf, int size);
+int                chipvpn_peer_raw_send(VPNPeer *peer, void *buf, int size);
 uint32_t           chipvpn_get_peer_free_ip(List *peers, char *gateway);
 VPNPeer           *chipvpn_get_peer_by_ip(List *peers, uint32_t ip);
 
