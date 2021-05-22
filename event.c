@@ -3,6 +3,7 @@
 #include "chipvpn.h"
 #include "peer.h"
 #include "packet.h"
+#include "crypto.h"
 #include "list.h"
 #include "json/include/cJSON.h"
 #include <unistd.h>
@@ -241,30 +242,11 @@ void chipvpn_event_loop(char *config_file) {
 			VPNPeer *peer = (VPNPeer*)i;
 			i = list_next(i);
 			if(FD_ISSET(peer->fd, &rdset)) {
-				VPNPacket *packet = (VPNPacket*)&peer->buffer;
-				uint32_t size   = ntohl(packet->header.size);
-				uint32_t left   = sizeof(VPNPacketHeader);
-
-				if(peer->buffer_pos >= sizeof(VPNPacketHeader)) {
-					left += size - peer->buffer_pos;
-				}
-
-				if((left + peer->buffer_pos) < sizeof(peer->buffer)) {
-					int readed = chipvpn_peer_raw_recv(peer, &peer->buffer[peer->buffer_pos], left);
-					if(readed > 0) {
-						peer->buffer_pos += readed;
-					} else {
-						// connection close
-						chipvpn_peer_dealloc(peer);
-						if(!is_server) {
-							console_log("disconnected, reconnecting");
-							sleep(1);
-							goto reconnect;
-						}
-					}
-				} else {
-					// corrupted buffer ?!
-					warning("peer %p invalid packet received", peer);
+				VPNPacket packet;
+				int n = chipvpn_peer_recv_packet(peer, &packet);
+				if(n > 0) {
+					chipvpn_socket_event(peer, &packet);
+				} else if(n < 0) {
 					chipvpn_peer_dealloc(peer);
 					if(!is_server) {
 						console_log("disconnected, reconnecting");
@@ -272,21 +254,15 @@ void chipvpn_event_loop(char *config_file) {
 						goto reconnect;
 					}
 				}
-
-				size = ntohl(packet->header.size); // refresh size
-
-				if(peer->buffer_pos >= (size + sizeof(VPNPacketHeader))) {
-					peer->buffer_pos = 0;
-					chipvpn_socket_event(peer, packet);
-					memset(peer->buffer, 0, sizeof(peer->buffer));
-				}
 			}
 		}
 
 		if(FD_ISSET(tun->fd, &rdset)) {
 			VPNDataPacket packet;
-			int size = read(tun->fd, (char*)&packet, sizeof(packet));
-			chipvpn_tun_event((VPNDataPacket*)&packet, size);
+			int n = read(tun->fd, (char*)&packet, sizeof(packet));
+			if(n > 0) {
+				chipvpn_tun_event((VPNDataPacket*)&packet, n);
+			}
 		}
 	}
 }

@@ -7,12 +7,12 @@ char key[] = {
 
 void chipvpn_encrypt_buf(char *data, int length) {
 	for(int i = 0; i < length; i++) {
-		data[i] ^= 5;
+		data[i] ^= key[i % sizeof(key)];
 	}
 }
 
 void chipvpn_decrypt_buf(char *data, int length) {
 	for(int i = 0; i < length; i++) {
-		data[i] ^= 5;
+		data[i] ^= key[i % sizeof(key)];
 	}
 }
