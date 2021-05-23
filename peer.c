@@ -2,6 +2,7 @@
 #include "packet.h"
 #include "chipvpn.h"
 #include "crypto.h"
+#include "aes.h"
 #include <string.h>
 #include <unistd.h>
 #include <stdlib.h>
@@ -9,12 +10,18 @@
 #include <openssl/ssl.h>
 
 VPNPeer *chipvpn_peer_alloc(int fd) {
+	uint8_t key[] = {
+		0x60, 0x3d, 0xeb, 0x10, 0x15, 0xca, 0x71, 0xbe, 
+		0x2b, 0x73, 0xae, 0xf0, 0x85, 0x7d, 0x77, 0x81
+	};
+
 	VPNPeer *peer = malloc(sizeof(VPNPeer));
 	peer->fd = fd;
 	peer->tx = 0;
 	peer->rx = 0;
 	peer->last_ping = chipvpn_get_time();
 	peer->buffer_pos = 0;
+	AES_init_ctx(&peer->ctx, key);
 	console_log("client connected");
 	return peer;
 }
@@ -52,8 +59,10 @@ int chipvpn_peer_recv_packet(VPNPeer *peer, VPNPacket *dst) {
 
 	if(peer->buffer_pos == (size + sizeof(VPNPacketHeader))) {
 		// Buffer ready
+
 		peer->buffer_pos = 0;
-		chipvpn_decrypt_buf((char*)&packet->data, size);
+		chipvpn_decrypt_buf(peer, (char*)&packet->data, size);
+
 		memcpy(dst, packet, sizeof(VPNPacket));
 		memset(peer->buffer, 0, sizeof(peer->buffer));
 		return 1;
@@ -62,15 +71,16 @@ int chipvpn_peer_recv_packet(VPNPeer *peer, VPNPacket *dst) {
 	return 0; // no event
 }
 
-void chipvpn_peer_send_packet(VPNPeer *peer, VPNPacketType type, void *data, int size) {
+int chipvpn_peer_send_packet(VPNPeer *peer, VPNPacketType type, void *data, int size) {
 	VPNPacket *packet = alloca(sizeof(VPNPacket) + size); // faster than malloc
 	packet->header.size = htonl(size);
 	packet->header.type = htonl(type);
+	packet->header.u_ck = htons(chipvpn_checksum16(data, size));
 	if(data) {
 		memcpy((char*)&packet->data, data, size);
-		chipvpn_encrypt_buf((char*)&packet->data, size);
+		chipvpn_encrypt_buf(peer, (char*)&packet->data, size);
 	}
-	chipvpn_peer_raw_send(peer, (char*)packet, sizeof(packet->header) + size);
+	return chipvpn_peer_raw_send(peer, (char*)packet, sizeof(packet->header) + size);
 }
 
 int chipvpn_peer_raw_recv(VPNPeer *peer, void *buf, int size) {
@@ -79,7 +89,7 @@ int chipvpn_peer_raw_recv(VPNPeer *peer, void *buf, int size) {
 }
 
 int chipvpn_peer_raw_send(VPNPeer *peer, void *buf, int size) {
-	return send(peer->fd, buf, size, 0);
+	return send(peer->fd, buf, size, MSG_NOSIGNAL);
 }
 
 uint32_t chipvpn_get_peer_free_ip(List *peers, char *gateway) {

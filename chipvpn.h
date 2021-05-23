@@ -26,6 +26,7 @@ void        error(char *format, ...);
 void        console_log(char *format, ...);
 char       *format_size(uint64_t size);
 char       *chipvpn_malloc_fmt(char *format, ...);
+uint16_t    chipvpn_checksum16(void *data, unsigned int bytes);
 uint32_t    chipvpn_get_time();
 
 #ifdef __cplusplus

@@ -188,6 +188,31 @@ char *chipvpn_malloc_fmt(char *format, ...) {
     return result;
 }
 
+uint16_t chipvpn_checksum16(void *data, unsigned int bytes) {
+    uint16_t *data_pointer = (uint16_t *) data;
+    uint32_t total_sum = 0;
+
+    while(bytes > 1) {
+        total_sum += *data_pointer++;
+        //If it overflows to the MSBs add it straight away
+        if(total_sum >> 16){
+            total_sum = (total_sum >> 16) + (total_sum & 0x0000FFFF);
+        }
+        bytes -= 2; //Consumed 2 bytes
+    }
+    if(1 == bytes) {
+        //Add the last byte
+        total_sum += *(((uint8_t *) data_pointer) + 1);
+        //If it overflows to the MSBs add it straight away
+        if(total_sum >> 16){
+            total_sum = (total_sum >> 16) + (total_sum & 0x0000FFFF);
+        }
+        bytes -= 1;
+    }
+
+    return (~((uint16_t) total_sum));
+}
+
 uint32_t chipvpn_get_time() {
     struct timeval tv;
     gettimeofday(&tv, NULL);

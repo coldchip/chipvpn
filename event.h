@@ -11,6 +11,7 @@
 __typeof__ (b) _b = (b); \
 _a > _b ? _a : _b; })
 
+void chipvpn_load_config(char *config_file);
 void chipvpn_event_loop(char *config);
 void chipvpn_socket_event(VPNPeer *peer, VPNPacket *packet);
 void chipvpn_tun_event(VPNDataPacket *packet, int size);

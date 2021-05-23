@@ -36,13 +36,7 @@ List peers;
 
 struct timeval ping_stop, ping_start;
 
-void chipvpn_event_loop(char *config_file) {
-	signal(SIGPIPE, SIG_IGN);
-
-	console_log("ColdChip ChipVPN");
-
-	list_clear(&peers);
-
+void chipvpn_load_config(char *config_file) {
 	char *config = read_file_into_buffer(config_file);
 
 	if(!config) {
@@ -115,12 +109,22 @@ void chipvpn_event_loop(char *config_file) {
 		port  = cjson_port->valueint;
 		token = cjson_token->valuestring;
 	} else {
-		error("Incomplete config");
+		error("incomplete config");
 	}
+}
+
+void chipvpn_event_loop(char *config_file) {
+	signal(SIGPIPE, SIG_IGN);
+
+	chipvpn_load_config(config_file);
+
+	console_log("ColdChip ChipVPN");
+
+	list_clear(&peers);
 
 	tun = open_tun("");
 	if(tun  == NULL) {
-		error("Tuntap adaptor creation failed, please run as sudo");
+		error("tuntap adaptor creation failed, please run as sudo");
 	}
 
 	reconnect:;
@@ -290,12 +294,12 @@ void chipvpn_socket_event(VPNPeer *peer, VPNPacket *packet) {
 						peer->internal_ip = alloc_ip;
 
 						VPNDataPacket packet2;
-						strcpy(packet2.data, "Successfully Logged In");
+						strcpy(packet2.data, "successfully logged in");
 						chipvpn_peer_send_packet(peer, VPN_TYPE_MSG, &packet2, strlen(packet2.data) + 1);
 					}
 				} else {
 					VPNDataPacket packet;
-					strcpy(packet.data, "Unable to authenticate");
+					strcpy(packet.data, "unable to authenticate");
 					chipvpn_peer_send_packet(peer, VPN_TYPE_MSG, &packet, strlen(packet.data) + 1);
 					chipvpn_peer_dealloc(peer);
 				}
@@ -359,7 +363,7 @@ void chipvpn_socket_event(VPNPeer *peer, VPNPacket *packet) {
 			if(!is_server) {
 				VPNDataPacket *p_msg = (VPNDataPacket*)&packet->data.data_packet;
 				p_msg->data[sizeof(VPNDataPacket) - 1] = '\0';
-				console_log("Server => %s", p_msg->data);
+				console_log("server => %s", p_msg->data);
 			}
 		}
 		break;

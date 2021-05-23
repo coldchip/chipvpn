@@ -1,7 +1,9 @@
 #ifndef CRYPTO
 #define CRYPTO
 
-void chipvpn_encrypt_buf(char *data, int length);
-void chipvpn_decrypt_buf(char *data, int length);
+#include "peer.h"
+
+void chipvpn_encrypt_buf(VPNPeer *peer, char *data, int length);
+void chipvpn_decrypt_buf(VPNPeer *peer, char *data, int length);
 
 #endif
