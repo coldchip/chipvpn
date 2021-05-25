@@ -80,24 +80,24 @@ Tun *open_tun(char *dev) {
 			return NULL;
 		}
 
-		WINTUN_ADAPTER_HANDLE Adapter = WintunOpenAdapter(L"ChipVPN", L"chipvpn");
-		if(!Adapter) {
-			if(!Adapter) {
-		    	GUID ExampleGuid = { 0xbabedead, 0xcafe, 0xbabe, { 0x06, 0x53, 0x37, 0x99, 0x1d, 0xdf, 0xcd, 0xcf } };
-				Adapter = WintunCreateAdapter(L"ChipVPN", L"chipvpn", &ExampleGuid, NULL);
-				if (!Adapter) {
+		WINTUN_ADAPTER_HANDLE adapter = WintunOpenAdapter(L"ChipVPN", L"ColdChip ChipVPN");
+		if(!adapter) {
+			if(!adapter) {
+		    	GUID guid = { 0xbebadead, 0xcafe, 0xbeba, { 0x06, 0x53, 0x36, 0x99, 0x1d, 0xdf, 0xcd, 0xcf } };
+				adapter = WintunCreateAdapter(L"ChipVPN", L"ColdChip ChipVPN", &guid, NULL);
+				if (!adapter) {
 					return NULL;
 		        }
 		    }
 		}
 
-		WINTUN_SESSION_HANDLE Session = WintunStartSession(Adapter, 0x400000);
-		if(!Session) {
+		WINTUN_SESSION_HANDLE session = WintunStartSession(adapter, 0x400000);
+		if(!session) {
 			return NULL;
 		}
 
 		HANDLE Workers[] = {
-			CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)ReceivePackets, (LPVOID)Session, 0, NULL)
+			CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)ReceivePackets, (LPVOID)session, 0, NULL)
 		};
 		if (!Workers[0]) {
 			return NULL;
@@ -106,11 +106,12 @@ Tun *open_tun(char *dev) {
 		Tun *tun = malloc(sizeof(Tun));
 		tun->fd = 0;
 		tun->dev = malloc(strlen(dev) + 1);
-		tun->adapter = Adapter;
-		tun->session = Session;
+		tun->adapter = adapter;
+		tun->session = session;
 		return tun;
 
-		#else
+	#else
+
 		struct ifreq ifr;
 
 		char *clonedev = "/dev/net/tun";
@@ -206,28 +207,26 @@ void ifup(Tun* tun) {
 #ifdef _WIN32
 
 void ReceivePackets(_Inout_ DWORD_PTR SessionPtr) {
-    WINTUN_SESSION_HANDLE Session = (WINTUN_SESSION_HANDLE)SessionPtr;
-    HANDLE WaitHandles[] = { WintunGetReadWaitEvent(Session) };
-
+    WINTUN_SESSION_HANDLE session = (WINTUN_SESSION_HANDLE)SessionPtr;
     VPNDataPacket vpn_packet;
 
     while (true) {
-        DWORD PacketSize;
-        BYTE *Packet = WintunReceivePacket(Session, &PacketSize);
-        if (Packet) {
-        	memcpy(&vpn_packet, Packet, sizeof(vpn_packet));
-        	chipvpn_tun_event(&vpn_packet, PacketSize);
-            WintunReleaseReceivePacket(Session, Packet);
+        int buf_size;
+        BYTE *buf = WintunReceivePacket(session, &buf_size);
+        if (buf) {
+        	memcpy(&vpn_packet, buf, buf_size);
+        	chipvpn_tun_event(&vpn_packet, buf_size);
+            WintunReleaseReceivePacket(session, buf);
         }
     }
 }
 
 void SendPacket(Tun *tun, void *data, int size) {
-    WINTUN_SESSION_HANDLE Session = (WINTUN_SESSION_HANDLE)tun->session;
-    BYTE *Packet = WintunAllocateSendPacket(Session, size);
-    if (Packet) {
-        memcpy(Packet, data, size);
-        WintunSendPacket(Session, Packet);
+    WINTUN_SESSION_HANDLE session = (WINTUN_SESSION_HANDLE)tun->session;
+    BYTE *packet = WintunAllocateSendPacket(session, size);
+    if (packet) {
+        memcpy(packet, data, size);
+        WintunSendPacket(session, packet);
     }
 }
 

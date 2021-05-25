@@ -348,10 +348,10 @@ void chipvpn_socket_event(VPNPeer *peer, VPNPacket *packet) {
 
 				if(pull_routes) {
 					console_log("setting routes");
-					uint32_t default_gateway = get_default_gateway();
 					#ifdef _WIN32
-						if(exec_sprintf("route add 0.0.0.0 mask 0.0.0.0 %s", ip)) { }
+						//if(exec_sprintf("route add 0.0.0.0 mask 0.0.0.0 %s", ip)) { }
 					#else
+						uint32_t default_gateway = get_default_gateway();
 						if(exec_sprintf("ip route add %s via %i.%i.%i.%i", ip, (default_gateway >> 0) & 0xFF, (default_gateway >> 8) & 0xFF, (default_gateway >> 16) & 0xFF, (default_gateway >> 24) & 0xFF)) { }
 						if(exec_sprintf("ip route add 0.0.0.0/1 via %i.%i.%i.%i", (peer_gateway >> 0) & 0xFF, (peer_gateway >> 8) & 0xFF, (peer_gateway >> 16) & 0xFF, (peer_gateway >> 24) & 0xFF)) { }
 						if(exec_sprintf("ip route add 128.0.0.0/1 via %i.%i.%i.%i", (peer_gateway >> 0) & 0xFF, (peer_gateway >> 8) & 0xFF, (peer_gateway >> 16) & 0xFF, (peer_gateway >> 24) & 0xFF)) { }
