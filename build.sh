@@ -20,7 +20,7 @@ compile() {
 
 	echo "$GREEN[Linking] $NC $( ls ./bin/* )"
 
-	gcc -o bin/$OUTPUT bin/*.o -Ofast -Wextra -Wall
+	gcc -o bin/$OUTPUT bin/*.o -Ofast -Wextra -Wall -lws2_32
 }
 
 run() {

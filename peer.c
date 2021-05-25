@@ -6,8 +6,11 @@
 #include <string.h>
 #include <unistd.h>
 #include <stdlib.h>
-#include <arpa/inet.h>
-#include <openssl/ssl.h>
+#ifdef _WIN32
+	#include <winsock2.h>
+#else
+	#include <arpa/inet.h>
+#endif
 
 VPNPeer *chipvpn_peer_alloc(int fd) {
 	uint8_t key[] = {
@@ -89,7 +92,7 @@ int chipvpn_peer_raw_recv(VPNPeer *peer, void *buf, int size) {
 }
 
 int chipvpn_peer_raw_send(VPNPeer *peer, void *buf, int size) {
-	return send(peer->fd, buf, size, MSG_NOSIGNAL);
+	return send(peer->fd, buf, size, 0);
 }
 
 uint32_t chipvpn_get_peer_free_ip(List *peers, char *gateway) {

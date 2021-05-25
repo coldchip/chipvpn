@@ -7,19 +7,24 @@
 #include "list.h"
 #include "json/include/cJSON.h"
 #include <unistd.h>
-#include <netdb.h>
-#include <netinet/tcp.h>
-#include <sys/socket.h>
 #include <sys/types.h>
 #include <stdbool.h>
 #include <sys/time.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <arpa/inet.h> 
-#include <netinet/in.h>
 #include <signal.h>
 #include <fcntl.h>
+#ifdef _WIN32
+	#include <winsock2.h>
+	typedef int socklen_t;
+#else
+	#include <netinet/tcp.h>
+	#include <netdb.h> 
+	#include <sys/socket.h>
+	#include <arpa/inet.h> 
+	#include <netinet/in.h>
+#endif
 
 Tun *tun = NULL;
 
@@ -114,8 +119,6 @@ void chipvpn_load_config(char *config_file) {
 }
 
 void chipvpn_event_loop(char *config_file) {
-	signal(SIGPIPE, SIG_IGN);
-
 	chipvpn_load_config(config_file);
 
 	console_log("ColdChip ChipVPN");
@@ -129,18 +132,36 @@ void chipvpn_event_loop(char *config_file) {
 
 	reconnect:;
 
+	#ifdef _WIN32
+		WSADATA wsa_data;
+		int res = WSAStartup(MAKEWORD(2,2), &wsa_data);
+		if(res != 0) {
+			error("WSAStartup failed with error: %d\n", res);
+		}
+	#endif
+
 	int sock = socket(AF_INET, SOCK_STREAM, 0);
 	if(sock < 0) {
 		error("unable to create socket");
 	}
 
-	if(setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int)) < 0){
-		error("unable to call setsockopt");
-	}
-
-	if(setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, &(int){1}, sizeof(int)) < 0){
-		error("unable to call setsockopt");
-	}
+	#ifdef _WIN32
+		signal(SIGFPE, SIG_IGN);
+		if(setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &(char){1}, sizeof(int)) < 0){
+			error("unable to call setsockopt");
+		}
+		if(setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, &(char){1}, sizeof(int)) < 0){
+			error("unable to call setsockopt");
+		}
+	#else
+		signal(SIGPIPE, SIG_IGN);
+		if(setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int)) < 0){
+			error("unable to call setsockopt");
+		}
+		if(setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, &(int){1}, sizeof(int)) < 0){
+			error("unable to call setsockopt");
+		}
+	#endif
 
 	if(is_server) {
 		struct sockaddr_in     addr;
@@ -384,14 +405,4 @@ void chipvpn_tun_event(VPNDataPacket *packet, int size) {
 			chipvpn_peer_send_packet(peer, VPN_TYPE_DATA, packet, size);
 		}
 	}
-}
-
-bool set_socket_non_blocking(int fd) {
-	// please no
-	if (fd < 0) return false;  
-	
-	int flags = fcntl(fd, F_GETFL, 0);
-	if (flags < 0) return false;
-	flags |= O_NONBLOCK;
-	return (fcntl(fd, F_SETFL, flags) == 0) ? true : false;
 }

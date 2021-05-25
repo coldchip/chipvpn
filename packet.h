@@ -1,17 +1,10 @@
 #ifndef PACKET_H
 #define PACKET_H
 
-#include <asm/byteorder.h>
 #include <stdint.h>
 
 typedef struct _IPPacket {
-    #if defined(__LITTLE_ENDIAN_BITFIELD)
-		uint8_t	ihl:4,
-				version:4;
-	#elif defined (__BIG_ENDIAN_BITFIELD)
-		uint8_t	version:4,
-				ihl:4;
-	#endif                 /* version << 4 | header length >> 2 */
+	uint8_t	version:4, ihl:4;
     uint8_t  ip_tos;                 /* type of service */
     uint16_t ip_len;                 /* total length */
     uint16_t ip_id;                  /* identification */

@@ -15,6 +15,5 @@ void chipvpn_load_config(char *config_file);
 void chipvpn_event_loop(char *config);
 void chipvpn_socket_event(VPNPeer *peer, VPNPacket *packet);
 void chipvpn_tun_event(VPNDataPacket *packet, int size);
-bool set_socket_non_blocking(int fd);
 
 #endif
