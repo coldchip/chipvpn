@@ -13,6 +13,12 @@
 extern "C" {
 #endif
 
+#ifndef _Out_cap_c_
+#define _Out_cap_c_(size)
+#endif
+
+typedef int PacketSize;
+
 /**
  * A handle representing Wintun adapter
  */
@@ -272,7 +278,7 @@ typedef HANDLE(WINAPI *WINTUN_GET_READ_WAIT_EVENT_FUNC)(_In_ WINTUN_SESSION_HAND
  *         ERROR_NO_MORE_ITEMS  Wintun buffer is exhausted;
  *         ERROR_INVALID_DATA   Wintun buffer is corrupt
  */
-typedef _Return_type_success_(return != NULL) _Ret_bytecount_(*PacketSize) BYTE *(
+typedef BYTE *(
     WINAPI *WINTUN_RECEIVE_PACKET_FUNC)(_In_ WINTUN_SESSION_HANDLE Session, _Out_ DWORD *PacketSize);
 
 /**
@@ -299,7 +305,7 @@ typedef void(WINAPI *WINTUN_RELEASE_RECEIVE_PACKET_FUNC)(_In_ WINTUN_SESSION_HAN
  *         ERROR_HANDLE_EOF       Wintun adapter is terminating;
  *         ERROR_BUFFER_OVERFLOW  Wintun buffer is full;
  */
-typedef _Return_type_success_(return != NULL) _Ret_bytecount_(PacketSize) BYTE *(
+typedef BYTE *(
     WINAPI *WINTUN_ALLOCATE_SEND_PACKET_FUNC)(_In_ WINTUN_SESSION_HANDLE Session, _In_ DWORD PacketSize);
 
 /**
@@ -312,6 +318,7 @@ typedef _Return_type_success_(return != NULL) _Ret_bytecount_(PacketSize) BYTE *
  * @param Packet        Packet obtained with WintunAllocateSendPacket
  */
 typedef void(WINAPI *WINTUN_SEND_PACKET_FUNC)(_In_ WINTUN_SESSION_HANDLE Session, _In_ const BYTE *Packet);
+
 
 #ifdef __cplusplus
 }
