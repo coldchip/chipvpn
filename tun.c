@@ -5,87 +5,115 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
-#include <linux/if.h>
-#include <linux/if_tun.h>
-#include <sys/ioctl.h>
-#include <netinet/in.h>
 #include "chipvpn.h"
 
+#ifdef _WIN32
+	#include <windows.h>
+	//#include "wintun.h"
+
+#else
+    #include <linux/if.h>
+	#include <linux/if_tun.h>
+	#include <sys/ioctl.h>
+	#include <netinet/in.h>
+#endif
+
 Tun *open_tun(char *dev) {
+	#ifdef _WIN32
 
-	struct ifreq ifr;
+		HMODULE wtun = LoadLibrary("wintun.dll");
+	    if(!wtun) {
+	    	printf("load failed\n");
+	    	return NULL;
+	    }
+		
+		Tun *tun = malloc(sizeof(Tun));
+		tun->fd = 0;
+		tun->dev = malloc(strlen(dev) + 1);
+		return tun;
+	#else
+		struct ifreq ifr;
 
-	char *clonedev = "/dev/net/tun";
+		char *clonedev = "/dev/net/tun";
 
-	int fd = open(clonedev, O_RDWR);
-	if(fd < 0) {
-		return NULL;
-	}
+		int fd = open(clonedev, O_RDWR);
+		if(fd < 0) {
+			return NULL;
+		}
 
-	memset(&ifr, 0, sizeof(ifr));
+		memset(&ifr, 0, sizeof(ifr));
 
-	ifr.ifr_flags = IFF_TUN | IFF_NO_PI;
+		ifr.ifr_flags = IFF_TUN | IFF_NO_PI;
 
-	if(strlen(dev) > IFNAMSIZ) {
-		error("Interface name too long");
-	}
+		if(strlen(dev) > IFNAMSIZ) {
+			error("Interface name too long");
+		}
 
-	if(*dev) {
-		strcpy(ifr.ifr_name, dev);
-	}
+		if(*dev) {
+			strcpy(ifr.ifr_name, dev);
+		}
 
-	if(ioctl(fd, TUNSETIFF, (void *) &ifr) < 0) {
-		close(fd);
-		return NULL;
-	}
+		if(ioctl(fd, TUNSETIFF, (void *) &ifr) < 0) {
+			close(fd);
+			return NULL;
+		}
 
-	Tun *tun = malloc(sizeof(Tun));
-	tun->fd = fd;
-	tun->dev = malloc(strlen(ifr.ifr_name) + 1);
-	strcpy(tun->dev, ifr.ifr_name);
+		Tun *tun = malloc(sizeof(Tun));
+		tun->fd = fd;
+		tun->dev = malloc(strlen(ifr.ifr_name) + 1);
+		strcpy(tun->dev, ifr.ifr_name);
 
-	return tun;
+		return tun;
+	#endif
 }
 
 void setifip(Tun* tun, uint32_t ip, uint32_t mask, int mtu) {
+	#ifdef _WIN32
+		
+		
+	#else
+		if(tun) {
+			struct ifreq ifr;
+			ifr.ifr_addr.sa_family = AF_INET;
 
-	if(tun) {
-		struct ifreq ifr;
-		ifr.ifr_addr.sa_family = AF_INET;
+			strcpy(ifr.ifr_name, tun->dev);
 
-		strcpy(ifr.ifr_name, tun->dev);
+			struct sockaddr_in *addr = (struct sockaddr_in *)&ifr.ifr_addr;
 
-		struct sockaddr_in *addr = (struct sockaddr_in *)&ifr.ifr_addr;
+			int fd = socket(AF_INET, SOCK_DGRAM, 0);
 
-		int fd = socket(AF_INET, SOCK_DGRAM, 0);
+			addr->sin_addr.s_addr = ip;
+			ioctl(fd, SIOCSIFADDR, &ifr);
 
-		addr->sin_addr.s_addr = ip;
-		ioctl(fd, SIOCSIFADDR, &ifr);
+			addr->sin_addr.s_addr = mask;
+			ioctl(fd, SIOCSIFNETMASK, &ifr);
 
-		addr->sin_addr.s_addr = mask;
-		ioctl(fd, SIOCSIFNETMASK, &ifr);
+			ifr.ifr_mtu = mtu;
+			ioctl(fd, SIOCSIFMTU, &ifr);
 
-		ifr.ifr_mtu = mtu;
-		ioctl(fd, SIOCSIFMTU, &ifr);
-
-	    close(fd);
-	}
+		    close(fd);
+		}
+	#endif
 }
 
 void ifup(Tun* tun) {
-	if(tun) {
-		struct ifreq ifr;
-		ifr.ifr_addr.sa_family = AF_INET;
+	#ifdef _WIN32
+		
+	#else
+		if(tun) {
+			struct ifreq ifr;
+			ifr.ifr_addr.sa_family = AF_INET;
 
-		strcpy(ifr.ifr_name, tun->dev);
+			strcpy(ifr.ifr_name, tun->dev);
 
-		int fd = socket(AF_INET, SOCK_DGRAM, 0);
+			int fd = socket(AF_INET, SOCK_DGRAM, 0);
 
-		ifr.ifr_flags |= IFF_UP;
-		ioctl(fd, SIOCSIFFLAGS, &ifr);
+			ifr.ifr_flags |= IFF_UP;
+			ioctl(fd, SIOCSIFFLAGS, &ifr);
 
-	    close(fd);
-	}
+		    close(fd);
+		}
+	#endif
 }
 
 void free_tun(Tun *tun) {

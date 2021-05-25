@@ -119,6 +119,13 @@ void chipvpn_load_config(char *config_file) {
 }
 
 void chipvpn_event_loop(char *config_file) {
+	#ifdef _WIN32
+		WSADATA wsa_data;
+		int res = WSAStartup(MAKEWORD(2,2), &wsa_data);
+		if(res != 0) {
+			error("WSAStartup failed with error: %d\n", res);
+		}
+	#endif
 	chipvpn_load_config(config_file);
 
 	console_log("ColdChip ChipVPN");
@@ -131,14 +138,6 @@ void chipvpn_event_loop(char *config_file) {
 	}
 
 	reconnect:;
-
-	#ifdef _WIN32
-		WSADATA wsa_data;
-		int res = WSAStartup(MAKEWORD(2,2), &wsa_data);
-		if(res != 0) {
-			error("WSAStartup failed with error: %d\n", res);
-		}
-	#endif
 
 	int sock = socket(AF_INET, SOCK_STREAM, 0);
 	if(sock < 0) {
@@ -215,11 +214,16 @@ void chipvpn_event_loop(char *config_file) {
 		tv.tv_sec = 1;
     	tv.tv_usec = 0;
 
+
 		FD_ZERO(&rdset);
-		FD_SET(tun->fd, &rdset);
 		FD_SET(sock, &rdset);
 
-		int max = max(tun->fd, sock);
+		#ifdef _WIN32
+			int max = sock;
+		#else
+			FD_SET(tun->fd, &rdset);
+			int max = max(tun->fd, sock);
+		#endif
 
 		for(ListNode *i = list_begin(&peers); i != list_end(&peers); i = list_next(i)) {
 			VPNPeer *peer = (VPNPeer*)i;
@@ -228,7 +232,6 @@ void chipvpn_event_loop(char *config_file) {
 				max = peer->fd;
 			}
 		}
-
 		select(max + 1, &rdset, NULL, NULL, &tv);
 
 		if(chipvpn_get_time() - server_last_update >= 2) {
@@ -282,6 +285,7 @@ void chipvpn_event_loop(char *config_file) {
 			}
 		}
 
+		#ifndef _WIN32
 		if(FD_ISSET(tun->fd, &rdset)) {
 			VPNDataPacket packet;
 			int n = read(tun->fd, (char*)&packet, sizeof(packet));
@@ -289,6 +293,7 @@ void chipvpn_event_loop(char *config_file) {
 				chipvpn_tun_event((VPNDataPacket*)&packet, n);
 			}
 		}
+		#endif
 	}
 }
 

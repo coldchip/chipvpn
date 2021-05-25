@@ -62,7 +62,6 @@ int chipvpn_peer_recv_packet(VPNPeer *peer, VPNPacket *dst) {
 
 	if(peer->buffer_pos == (size + sizeof(VPNPacketHeader))) {
 		// Buffer ready
-
 		peer->buffer_pos = 0;
 		chipvpn_decrypt_buf(peer, (char*)&packet->data, size);
 

@@ -219,6 +219,7 @@ uint16_t chipvpn_checksum16(void *data, unsigned int bytes) {
 
 uint32_t chipvpn_get_time() {
     struct timeval tv;
+
     gettimeofday(&tv, NULL);
     return (tv.tv_sec * 1000 + tv.tv_usec / 1000) / 1000;
 }
