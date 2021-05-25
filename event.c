@@ -387,6 +387,7 @@ void chipvpn_tun_event(VPNDataPacket *packet, int size) {
 }
 
 bool set_socket_non_blocking(int fd) {
+	// please no
 	if (fd < 0) return false;  
 	
 	int flags = fcntl(fd, F_GETFL, 0);
