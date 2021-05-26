@@ -119,21 +119,18 @@ void chipvpn_load_config(char *config_file) {
 	} else {
 		error("incomplete config");
 	}
+
+	free(config);
+	cJSON_free(json);
 }
 
 void chipvpn_event_loop(char *config_file) {
 	#ifdef _WIN32
-		if (!SetConsoleCtrlHandler(chipvpn_event_cleanup_windows, true)) {
-			error("unable to register control handler");
-		}
-
 		WSADATA wsa_data;
 		int res = WSAStartup(MAKEWORD(2,2), &wsa_data);
 		if(res != 0) {
 			error("WSAStartup failed with error: %d\n", res);
 		}
-	#else
-		signal(SIGINT, chipvpn_event_cleanup_unix);
 	#endif
 
 	chipvpn_load_config(config_file);
@@ -156,21 +153,16 @@ void chipvpn_event_loop(char *config_file) {
 
 	#ifdef _WIN32
 		signal(SIGFPE, SIG_IGN);
-		if(setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &(char){1}, sizeof(int)) < 0){
-			error("unable to call setsockopt");
-		}
-		if(setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, &(char){1}, sizeof(int)) < 0){
-			error("unable to call setsockopt");
-		}
 	#else
 		signal(SIGPIPE, SIG_IGN);
-		if(setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int)) < 0){
-			error("unable to call setsockopt");
-		}
-		if(setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, &(int){1}, sizeof(int)) < 0){
-			error("unable to call setsockopt");
-		}
 	#endif
+
+	if(setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &(char){1}, sizeof(int)) < 0){
+		error("unable to call setsockopt");
+	}
+	if(setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, &(char){1}, sizeof(int)) < 0){
+		error("unable to call setsockopt");
+	}
 
 	if(is_server) {
 		struct sockaddr_in     addr;
@@ -223,6 +215,14 @@ void chipvpn_event_loop(char *config_file) {
 	struct timeval tv;
 
 	fd_set rdset;
+
+	#ifdef _WIN32
+		if(!SetConsoleCtrlHandler(chipvpn_event_cleanup_windows, true)) {
+			error("unable to register control handler");
+		}
+	#else
+		signal(SIGINT, chipvpn_event_cleanup_unix);
+	#endif
 
 	while(quit == false) {
 		tv.tv_sec = 1;
@@ -300,13 +300,13 @@ void chipvpn_event_loop(char *config_file) {
 		}
 
 		#ifndef _WIN32
-		if(FD_ISSET(tun->fd, &rdset)) {
-			VPNDataPacket packet;
-			int n = read(tun->fd, (char*)&packet, sizeof(packet));
-			if(n > 0) {
-				chipvpn_tun_event((VPNDataPacket*)&packet, n);
+			if(FD_ISSET(tun->fd, &rdset)) {
+				VPNDataPacket packet;
+				int n = read(tun->fd, (char*)&packet, sizeof(packet));
+				if(n > 0) {
+					chipvpn_tun_event((VPNDataPacket*)&packet, n);
+				}
 			}
-		}
 		#endif
 	}
 
@@ -448,6 +448,7 @@ void chipvpn_tun_event(VPNDataPacket *packet, int size) {
 }
 
 #ifdef _WIN32
+
 BOOL WINAPI chipvpn_event_cleanup_windows(_In_ DWORD type) {
 	switch (type) {
 	case CTRL_C_EVENT:
@@ -461,9 +462,13 @@ BOOL WINAPI chipvpn_event_cleanup_windows(_In_ DWORD type) {
 	}
 	return false;
 }
+
 #else
+
 void chipvpn_event_cleanup_unix(int type) {
 	if(type == 0) {}
+	console_log("terminating ChipVPN");
     quit = true;
 }
+
 #endif

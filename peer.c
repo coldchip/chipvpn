@@ -25,13 +25,13 @@ VPNPeer *chipvpn_peer_alloc(int fd) {
 	peer->last_ping = chipvpn_get_time();
 	peer->buffer_pos = 0;
 	AES_init_ctx(&peer->ctx, key);
-	console_log("client connected");
+	console_log("peer connected");
 	return peer;
 }
 
 void chipvpn_peer_dealloc(VPNPeer *peer) {
 	list_remove(&peer->node);
-	console_log("client disconnected");
+	console_log("peer disconnected");
 	close(peer->fd);
 	free(peer);
 }
