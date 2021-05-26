@@ -156,28 +156,6 @@ void error(char *format, ...) {
 	exit(1);
 }
 
-char *format_size(uint64_t size) {
-    const char     *sizes[]   = { "EB", "PB", "TB", "GB", "MB", "KB", "B" };
-    const uint64_t  exbibytes = 1024ULL * 1024ULL * 1024ULL * 1024ULL * 1024ULL * 1024ULL;
-
-    char     *result = (char *) malloc(sizeof(char) * 20);
-    uint64_t  multiplier = exbibytes;
-    int i;
-
-    for (i = 0; i < (int)DIM(sizes); i++, multiplier /= 1024)
-    {   
-        if (size < multiplier)
-            continue;
-        if (size % multiplier == 0)
-            sprintf(result, "%llu %s", (long long)(size / multiplier), sizes[i]);
-        else
-            sprintf(result, "%.1f %s", (float) size / multiplier, sizes[i]);
-        return result;
-    }
-    strcpy(result, "0");
-    return result;
-}
-
 char *chipvpn_malloc_fmt(char *format, ...) {
     va_list args;
     va_start(args, format);

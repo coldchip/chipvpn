@@ -38,7 +38,7 @@
 	static WINTUN_ALLOCATE_SEND_PACKET_FUNC WintunAllocateSendPacket;
 	static WINTUN_SEND_PACKET_FUNC WintunSendPacket;
 #else
-    #include <linux/if.h>
+	#include <linux/if.h>
 	#include <linux/if_tun.h>
 	#include <sys/ioctl.h>
 	#include <netinet/in.h>
@@ -75,7 +75,6 @@ static HMODULE InitializeWintun(void)
 
 Tun *open_tun(char *dev) {
 	#ifdef _WIN32
-
 		HMODULE wtun = InitializeWintun();
 		if(!wtun) {
 			return NULL;
@@ -83,28 +82,18 @@ Tun *open_tun(char *dev) {
 
 		WINTUN_ADAPTER_HANDLE adapter = WintunOpenAdapter(L"ChipVPN", L"ColdChip ChipVPN");
 		if(!adapter) {
-	    	GUID guid = { 0xbebadead, 0xcafe, 0xbeba, { 0x06, 0x53, 0x36, 0x99, 0x1d, 0xdf, 0xcd, 0xcf } };
+	    	GUID guid = { 0xdeadbabe, 0xcafe, 0xbeef, { 0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef } };
 			adapter = WintunCreateAdapter(L"ChipVPN", L"ColdChip ChipVPN", &guid, NULL);
 			if (!adapter) {
 				return NULL;
 			}
 		}
 
-		WINTUN_SESSION_HANDLE session = WintunStartSession(adapter, 0x400000);
-		if(!session) {
-			return NULL;
-		}
-
-		HANDLE read_thread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)ReceivePackets, (LPVOID)session, 0, NULL);
-		if (!read_thread) {
-			return NULL;
-		}
-
 		Tun *tun = malloc(sizeof(Tun));
 		tun->fd = 0;
 		tun->dev = NULL;
 		tun->adapter = adapter;
-		tun->session = session;
+		tun->session = NULL;
 		return tun;
 
 	#else
@@ -144,7 +133,7 @@ Tun *open_tun(char *dev) {
 	#endif
 }
 
-void setifip(Tun* tun, uint32_t ip, uint32_t mask, int mtu) {
+bool tun_setip(Tun* tun, uint32_t ip, uint32_t mask, int mtu) {
 	#ifdef _WIN32
 		MIB_UNICASTIPADDRESS_ROW AddressRow;
 		InitializeUnicastIpAddressEntry(&AddressRow);
@@ -154,8 +143,9 @@ void setifip(Tun* tun, uint32_t ip, uint32_t mask, int mtu) {
 		AddressRow.OnLinkPrefixLength = 24; 
 		DWORD LastError = CreateUnicastIpAddressEntry(&AddressRow);
 		if (LastError != ERROR_SUCCESS && LastError != ERROR_OBJECT_ALREADY_EXISTS) {
-		
+			return false;
 		}
+		return true;
 	#else
 		if(tun) {
 			struct ifreq ifr;
@@ -177,13 +167,27 @@ void setifip(Tun* tun, uint32_t ip, uint32_t mask, int mtu) {
 			ioctl(fd, SIOCSIFMTU, &ifr);
 
 		    close(fd);
+		    return true;
 		}
+		return false;
 	#endif
 }
 
-void ifup(Tun* tun) {
+bool tun_bringup(Tun* tun) {
 	#ifdef _WIN32
-		int a = 0;
+		WINTUN_SESSION_HANDLE session = WintunStartSession(tun->adapter, 0x400000);
+		if(!session) {
+			return false;
+		}
+
+		HANDLE read_thread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)ReceivePackets, (LPVOID)session, 0, NULL);
+		if (!read_thread) {
+			return false;
+		}
+
+		tun->session = session;
+
+		return true;
 	#else
 		if(tun) {
 			struct ifreq ifr;
@@ -197,7 +201,10 @@ void ifup(Tun* tun) {
 			ioctl(fd, SIOCSIFFLAGS, &ifr);
 
 		    close(fd);
+
+		    return true;
 		}
+		return false;
 	#endif
 }
 
@@ -232,9 +239,13 @@ void SendPacket(Tun *tun, void *data, int size) {
 void free_tun(Tun *tun) {
 	if(tun) {
 		#ifdef _WIN32
-			WintunEndSession(tun->session);
-			WintunDeleteAdapter(tun->adapter, false, NULL);
-			WintunFreeAdapter(tun->adapter);
+			if(tun->session) {
+				WintunEndSession(tun->session);
+			}
+			if(tun->adapter) {
+				WintunDeleteAdapter(tun->adapter, false, NULL);
+				WintunFreeAdapter(tun->adapter);
+			}
 		#else
 			if(tun->dev) {
 				free(tun->dev);

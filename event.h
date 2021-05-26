@@ -22,7 +22,7 @@ void chipvpn_socket_event(VPNPeer *peer, VPNPacket *packet);
 void chipvpn_tun_event(VPNDataPacket *packet, int size);
 
 #ifdef _WIN32
-static BOOL WINAPI chipvpn_event_cleanup_windows(_In_ DWORD CtrlType);
+BOOL WINAPI chipvpn_event_cleanup_windows(_In_ DWORD CtrlType);
 #else
 void chipvpn_event_cleanup_unix(int type);
 #endif

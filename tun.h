@@ -2,6 +2,7 @@
 #define TUN_H
 
 #include <stdint.h>
+#include <stdbool.h>
 #ifdef _WIN32
 	#include "wintun.h"
 #endif
@@ -16,8 +17,8 @@ typedef struct _Tun {
 } Tun;
 
 Tun *open_tun(char *dev);
-void setifip(Tun *tun, uint32_t ip, uint32_t mask, int mtu);
-void ifup(Tun *tun);
+bool tun_setip(Tun *tun, uint32_t ip, uint32_t mask, int mtu);
+bool tun_bringup(Tun *tun);
 #ifdef _WIN32
 void ReceivePackets(_Inout_ DWORD_PTR SessionPtr);
 void SendPacket(Tun *tun, void *data, int size);

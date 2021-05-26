@@ -188,8 +188,12 @@ void chipvpn_event_loop(char *config_file) {
 
 		console_log("server started on %s:%i", ip, port);
 
-		setifip(tun, inet_addr(gateway), inet_addr(subnet), MAX_MTU);
-		ifup(tun);
+		if(!tun_setip(tun, inet_addr(gateway), inet_addr(subnet), MAX_MTU)) {
+			error("unable to assign ip to tunnel adapter");
+		}
+		if(!tun_bringup(tun)) {
+			error("unable to bring up tunnel adapter");
+		}
 	} else {
 		struct sockaddr_in     addr;
 		addr.sin_family      = AF_INET;
@@ -360,8 +364,12 @@ void chipvpn_socket_event(VPNPeer *peer, VPNPacket *packet) {
 				uint32_t peer_gateway = p_assign->gateway;
 				uint32_t peer_mtu     = ntohl(p_assign->mtu);
 
-				setifip(tun, peer_ip, peer_subnet, peer_mtu);
-				ifup(tun);
+				if(!tun_setip(tun, peer_ip, peer_subnet, peer_mtu)) {
+					error("unable to assign ip to tunnel adapter");
+				}
+				if(!tun_bringup(tun)) {
+					error("unable to bring up tunnel adapter");
+				}
 
 				console_log("assigned dhcp: ip [%i.%i.%i.%i] gateway [%i.%i.%i.%i]", (peer_ip >> 0) & 0xFF, (peer_ip >> 8) & 0xFF, (peer_ip >> 16) & 0xFF, (peer_ip >> 24) & 0xFF, (peer_gateway >> 0) & 0xFF, (peer_gateway >> 8) & 0xFF, (peer_gateway >> 16) & 0xFF, (peer_gateway >> 24) & 0xFF);
 
@@ -440,18 +448,18 @@ void chipvpn_tun_event(VPNDataPacket *packet, int size) {
 }
 
 #ifdef _WIN32
-static BOOL WINAPI chipvpn_event_cleanup_windows(_In_ DWORD type) {
-    switch (type) {
-    case CTRL_C_EVENT:
-    case CTRL_BREAK_EVENT:
-    case CTRL_CLOSE_EVENT:
-    case CTRL_LOGOFF_EVENT:
-    case CTRL_SHUTDOWN_EVENT:
-    	console_log("terminating ChipVPN");
-        quit = true;
-        return true;
-    }
-    return false;
+BOOL WINAPI chipvpn_event_cleanup_windows(_In_ DWORD type) {
+	switch (type) {
+	case CTRL_C_EVENT:
+	case CTRL_BREAK_EVENT:
+	case CTRL_CLOSE_EVENT:
+	case CTRL_LOGOFF_EVENT:
+	case CTRL_SHUTDOWN_EVENT:
+		console_log("terminating ChipVPN");
+		quit = true;
+		return true;
+	}
+	return false;
 }
 #else
 void chipvpn_event_cleanup_unix(int type) {
