@@ -17,6 +17,7 @@
 #include <fcntl.h>
 #ifdef _WIN32
 	#include <winsock2.h>
+	#include <windows.h>
 	typedef int socklen_t;
 #else
 	#include <netinet/tcp.h>
@@ -25,6 +26,8 @@
 	#include <arpa/inet.h> 
 	#include <netinet/in.h>
 #endif
+
+bool quit = false;
 
 Tun *tun = NULL;
 
@@ -120,6 +123,10 @@ void chipvpn_load_config(char *config_file) {
 
 void chipvpn_event_loop(char *config_file) {
 	#ifdef _WIN32
+		if (!SetConsoleCtrlHandler(chipvpn_event_cleanup, TRUE)) {
+			error("unable to register control handler");
+		}
+
 		WSADATA wsa_data;
 		int res = WSAStartup(MAKEWORD(2,2), &wsa_data);
 		if(res != 0) {
@@ -210,7 +217,7 @@ void chipvpn_event_loop(char *config_file) {
 
 	fd_set rdset;
 
-	while(1) {
+	while(quit == false) {
 		tv.tv_sec = 1;
     	tv.tv_usec = 0;
 
@@ -295,6 +302,15 @@ void chipvpn_event_loop(char *config_file) {
 		}
 		#endif
 	}
+
+	ListNode *i = list_begin(&peers);
+	while(i != list_end(&peers)) {
+		VPNPeer *peer = (VPNPeer*)i;
+		i = list_next(i);
+		chipvpn_peer_dealloc(peer);
+	}
+
+	free_tun(tun);
 }
 
 void chipvpn_socket_event(VPNPeer *peer, VPNPacket *packet) {
@@ -419,3 +435,19 @@ void chipvpn_tun_event(VPNDataPacket *packet, int size) {
 		}
 	}
 }
+
+#ifdef _WIN32
+static BOOL WINAPI chipvpn_event_cleanup(_In_ DWORD type) {
+    switch (type) {
+    case CTRL_C_EVENT:
+    case CTRL_BREAK_EVENT:
+    case CTRL_CLOSE_EVENT:
+    case CTRL_LOGOFF_EVENT:
+    case CTRL_SHUTDOWN_EVENT:
+    	console_log("terminating ChipVPN");
+        quit = true;
+        return true;
+    }
+    return false;
+}
+#endif

@@ -47,11 +47,12 @@
 #ifdef _WIN32
 static HMODULE InitializeWintun(void)
 {
-    HMODULE Wintun =
-        LoadLibrary("wintun.dll");
-    if (!Wintun)
+    HMODULE Wintun = LoadLibrary("wintun.dll");
+    if (!Wintun) {
+    	printf("unable to load tunnel library\n");
         return NULL;
-	#define X(Name, Type) ((Name = (Type)GetProcAddress(Wintun, #Name)) == NULL)
+    }
+	#define X(Name, Type) ((Name = (void*)GetProcAddress(Wintun, #Name)) == NULL)
     if (X(WintunCreateAdapter, WINTUN_CREATE_ADAPTER_FUNC) || X(WintunDeleteAdapter, WINTUN_DELETE_ADAPTER_FUNC) ||
         X(WintunDeletePoolDriver, WINTUN_DELETE_POOL_DRIVER_FUNC) || X(WintunEnumAdapters, WINTUN_ENUM_ADAPTERS_FUNC) ||
         X(WintunFreeAdapter, WINTUN_FREE_ADAPTER_FUNC) || X(WintunOpenAdapter, WINTUN_OPEN_ADAPTER_FUNC) ||
@@ -82,13 +83,11 @@ Tun *open_tun(char *dev) {
 
 		WINTUN_ADAPTER_HANDLE adapter = WintunOpenAdapter(L"ChipVPN", L"ColdChip ChipVPN");
 		if(!adapter) {
-			if(!adapter) {
-		    	GUID guid = { 0xbebadead, 0xcafe, 0xbeba, { 0x06, 0x53, 0x36, 0x99, 0x1d, 0xdf, 0xcd, 0xcf } };
-				adapter = WintunCreateAdapter(L"ChipVPN", L"ColdChip ChipVPN", &guid, NULL);
-				if (!adapter) {
-					return NULL;
-		        }
-		    }
+	    	GUID guid = { 0xbebadead, 0xcafe, 0xbeba, { 0x06, 0x53, 0x36, 0x99, 0x1d, 0xdf, 0xcd, 0xcf } };
+			adapter = WintunCreateAdapter(L"ChipVPN", L"ColdChip ChipVPN", &guid, NULL);
+			if (!adapter) {
+				return NULL;
+			}
 		}
 
 		WINTUN_SESSION_HANDLE session = WintunStartSession(adapter, 0x400000);
@@ -96,16 +95,14 @@ Tun *open_tun(char *dev) {
 			return NULL;
 		}
 
-		HANDLE Workers[] = {
-			CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)ReceivePackets, (LPVOID)session, 0, NULL)
-		};
-		if (!Workers[0]) {
+		HANDLE read_thread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)ReceivePackets, (LPVOID)session, 0, NULL);
+		if (!read_thread) {
 			return NULL;
 		}
 
 		Tun *tun = malloc(sizeof(Tun));
 		tun->fd = 0;
-		tun->dev = malloc(strlen(dev) + 1);
+		tun->dev = NULL;
 		tun->adapter = adapter;
 		tun->session = session;
 		return tun;
@@ -234,9 +231,15 @@ void SendPacket(Tun *tun, void *data, int size) {
 
 void free_tun(Tun *tun) {
 	if(tun) {
-		if(tun->dev) {
-			free(tun->dev);
-		}
+		#ifdef _WIN32
+			WintunEndSession(tun->session);
+			WintunDeleteAdapter(tun->adapter, false, NULL);
+			WintunFreeAdapter(tun->adapter);
+		#else
+			if(tun->dev) {
+				free(tun->dev);
+			}
+		#endif
 		free(tun);
 	}
 }

@@ -3,6 +3,9 @@
 
 #include "peer.h"
 #include "packet.h"
+#ifdef _WIN32
+	#include <windows.h>
+#endif
 
 #define SHA1LEN 20
 
@@ -17,5 +20,9 @@ void chipvpn_load_config(char *config_file);
 void chipvpn_event_loop(char *config);
 void chipvpn_socket_event(VPNPeer *peer, VPNPacket *packet);
 void chipvpn_tun_event(VPNDataPacket *packet, int size);
+
+#ifdef _WIN32
+static BOOL WINAPI chipvpn_event_cleanup(_In_ DWORD CtrlType);
+#endif
 
 #endif
