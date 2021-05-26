@@ -123,7 +123,7 @@ void chipvpn_load_config(char *config_file) {
 
 void chipvpn_event_loop(char *config_file) {
 	#ifdef _WIN32
-		if (!SetConsoleCtrlHandler(chipvpn_event_cleanup_windows, TRUE)) {
+		if (!SetConsoleCtrlHandler(chipvpn_event_cleanup_windows, true)) {
 			error("unable to register control handler");
 		}
 
