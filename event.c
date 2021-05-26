@@ -123,7 +123,7 @@ void chipvpn_load_config(char *config_file) {
 
 void chipvpn_event_loop(char *config_file) {
 	#ifdef _WIN32
-		if (!SetConsoleCtrlHandler(chipvpn_event_cleanup, TRUE)) {
+		if (!SetConsoleCtrlHandler(chipvpn_event_cleanup_windows, TRUE)) {
 			error("unable to register control handler");
 		}
 
@@ -132,7 +132,10 @@ void chipvpn_event_loop(char *config_file) {
 		if(res != 0) {
 			error("WSAStartup failed with error: %d\n", res);
 		}
+	#else
+		signal(SIGINT, chipvpn_event_cleanup_unix);
 	#endif
+
 	chipvpn_load_config(config_file);
 
 	console_log("ColdChip ChipVPN");
@@ -437,7 +440,7 @@ void chipvpn_tun_event(VPNDataPacket *packet, int size) {
 }
 
 #ifdef _WIN32
-static BOOL WINAPI chipvpn_event_cleanup(_In_ DWORD type) {
+static BOOL WINAPI chipvpn_event_cleanup_windows(_In_ DWORD type) {
     switch (type) {
     case CTRL_C_EVENT:
     case CTRL_BREAK_EVENT:
@@ -449,5 +452,10 @@ static BOOL WINAPI chipvpn_event_cleanup(_In_ DWORD type) {
         return true;
     }
     return false;
+}
+#else
+void chipvpn_event_cleanup_unix(int type) {
+	if(type == 0) {}
+    quit = true;
 }
 #endif
