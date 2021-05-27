@@ -6,11 +6,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <stdlib.h>
-#ifdef _WIN32
-	#include <winsock2.h>
-#else
-	#include <arpa/inet.h>
-#endif
+#include <winsock2.h>
 
 VPNPeer *chipvpn_peer_alloc(int fd) {
 	uint8_t key[] = {
@@ -32,11 +28,7 @@ VPNPeer *chipvpn_peer_alloc(int fd) {
 void chipvpn_peer_dealloc(VPNPeer *peer) {
 	list_remove(&peer->node);
 	console_log("peer disconnected");
-	#ifdef _WIN32
-		closesocket(peer->fd);
-	#else
-		close(peer->fd);
-	#endif
+	closesocket(peer->fd);
 	free(peer);
 }
 

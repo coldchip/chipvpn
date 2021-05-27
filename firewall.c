@@ -1,11 +1,7 @@
 #include "firewall.h"
 #include "packet.h"
 #include <stdbool.h>
-#ifdef _WIN32
-	#include <winsock2.h>
-#else
-	#include <netinet/in.h>
-#endif
+#include <winsock2.h>
 
 bool validate_packet(char *stream) {
 	IPPacket *ip_hdr = (IPPacket*)(stream);
