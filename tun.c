@@ -248,8 +248,20 @@ void free_tun(Tun *tun) {
 			}
 		#else
 			if(tun->dev) {
+				struct ifreq ifr;
+				ifr.ifr_addr.sa_family = AF_INET;
+
+				strcpy(ifr.ifr_name, tun->dev);
+
+				int fd = socket(AF_INET, SOCK_DGRAM, 0);
+
+				ifr.ifr_flags = ifr.ifr_flags & ~IFF_UP;
+				ioctl(fd, SIOCSIFFLAGS, &ifr);
+
+			    close(fd);
 				free(tun->dev);
 			}
+			close(tun->fd);
 		#endif
 		free(tun);
 	}
