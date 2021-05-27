@@ -197,6 +197,7 @@ void chipvpn_event_loop(char *config_file) {
 		if(connect(sock, (struct sockaddr*)&addr, sizeof(addr)) != 0) {
 			console_log("unable to connect, reconnecting");
 			sleep(1);
+			retry = true;
 			goto cleanup;
 		}
 
@@ -216,13 +217,7 @@ void chipvpn_event_loop(char *config_file) {
 
 	fd_set rdset;
 
-	#ifdef _WIN32
-		if(!SetConsoleCtrlHandler(chipvpn_event_cleanup_windows, true)) {
-			error("unable to register control handler");
-		}
-	#else
-		signal(SIGINT, chipvpn_event_cleanup_unix);
-	#endif
+	signal(SIGINT, chipvpn_event_cleanup);
 
 	while(quit == false) {
 		tv.tv_sec = 1;
@@ -261,6 +256,7 @@ void chipvpn_event_loop(char *config_file) {
 					if(!is_server) {
 						console_log("disconnected, reconnecting");
 						sleep(1);
+						retry = true;
 						goto cleanup;
 					}
 				}
@@ -293,6 +289,7 @@ void chipvpn_event_loop(char *config_file) {
 					if(!is_server) {
 						console_log("disconnected, reconnecting");
 						sleep(1);
+						retry = true;
 						goto cleanup;
 					}
 				}
@@ -464,28 +461,9 @@ void chipvpn_tun_event(VPNDataPacket *packet, int size) {
 	}
 }
 
-#ifdef _WIN32
-
-BOOL WINAPI chipvpn_event_cleanup_windows(_In_ DWORD type) {
-	switch (type) {
-	case CTRL_C_EVENT:
-	case CTRL_BREAK_EVENT:
-	case CTRL_CLOSE_EVENT:
-	case CTRL_LOGOFF_EVENT:
-	case CTRL_SHUTDOWN_EVENT:
-		console_log("terminating ChipVPN");
-		quit = true;
-		return true;
-	}
-	return false;
-}
-
-#else
-
-void chipvpn_event_cleanup_unix(int type) {
+void chipvpn_event_cleanup(int type) {
 	if(type == 0) {}
 	console_log("terminating ChipVPN");
     quit = true;
 }
 
-#endif
