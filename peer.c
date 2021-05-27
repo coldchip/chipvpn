@@ -32,7 +32,11 @@ VPNPeer *chipvpn_peer_alloc(int fd) {
 void chipvpn_peer_dealloc(VPNPeer *peer) {
 	list_remove(&peer->node);
 	console_log("peer disconnected");
-	close(peer->fd);
+	#ifdef _WIN32
+		closesocket(peer->fd);
+	#else
+		close(peer->fd);
+	#endif
 	free(peer);
 }
 

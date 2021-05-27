@@ -28,12 +28,13 @@
 #endif
 
 bool quit = false;
+bool retry = false;
 
 Tun *tun = NULL;
 
 char     ip[32];
 int      port                 = 0;
-char    *token                = NULL;
+char     token[1024]          = "abcdef";
 bool     is_server            = false;
 bool     pull_routes          = false;
 int      max_peers            = 8;
@@ -81,7 +82,7 @@ void chipvpn_load_config(char *config_file) {
 						break;
 					}
 				}
-				console_log("Unable to resolve hostname, retrying");
+				warning("unable to resolve hostname, retrying");
 				sleep(1);
 			}
 		} else {
@@ -95,7 +96,7 @@ void chipvpn_load_config(char *config_file) {
 						break;
 					}
 				}
-				console_log("Unable to resolve hostname, retrying");
+				warning("unable to resolve hostname, retrying");
 				sleep(1);
 			}
 			
@@ -115,16 +116,17 @@ void chipvpn_load_config(char *config_file) {
 		}
 
 		port  = cjson_port->valueint;
-		token = cjson_token->valuestring;
+		strcpy(token, cjson_token->valuestring);
 	} else {
 		error("incomplete config");
 	}
 
 	free(config);
-	cJSON_free(json);
+	cJSON_Delete(json);
 }
 
 void chipvpn_event_loop(char *config_file) {
+	chipvpn:;
 	#ifdef _WIN32
 		WSADATA wsa_data;
 		int res = WSAStartup(MAKEWORD(2,2), &wsa_data);
@@ -143,8 +145,6 @@ void chipvpn_event_loop(char *config_file) {
 	if(tun  == NULL) {
 		error("tuntap adaptor creation failed, please run as sudo");
 	}
-
-	reconnect:;
 
 	int sock = socket(AF_INET, SOCK_STREAM, 0);
 	if(sock < 0) {
@@ -197,7 +197,7 @@ void chipvpn_event_loop(char *config_file) {
 		if(connect(sock, (struct sockaddr*)&addr, sizeof(addr)) != 0) {
 			console_log("unable to connect, reconnecting");
 			sleep(1);
-			goto reconnect;
+			goto cleanup;
 		}
 
 		console_log("connected");
@@ -261,7 +261,7 @@ void chipvpn_event_loop(char *config_file) {
 					if(!is_server) {
 						console_log("disconnected, reconnecting");
 						sleep(1);
-						goto reconnect;
+						goto cleanup;
 					}
 				}
 			}
@@ -293,7 +293,7 @@ void chipvpn_event_loop(char *config_file) {
 					if(!is_server) {
 						console_log("disconnected, reconnecting");
 						sleep(1);
-						goto reconnect;
+						goto cleanup;
 					}
 				}
 			}
@@ -310,6 +310,8 @@ void chipvpn_event_loop(char *config_file) {
 		#endif
 	}
 
+	cleanup:;
+
 	ListNode *i = list_begin(&peers);
 	while(i != list_end(&peers)) {
 		VPNPeer *peer = (VPNPeer*)i;
@@ -317,7 +319,22 @@ void chipvpn_event_loop(char *config_file) {
 		chipvpn_peer_dealloc(peer);
 	}
 
+	#ifdef _WIN32
+		closesocket(sock);
+		WSACleanup();
+	#else
+		close(sock);
+	#endif
 	free_tun(tun);
+
+	signal(SIGINT, SIG_DFL);
+
+	if(retry == true) {
+		quit = false;
+		retry = false;
+		sleep(1);
+		goto chipvpn;
+	}
 }
 
 void chipvpn_socket_event(VPNPeer *peer, VPNPacket *packet) {
