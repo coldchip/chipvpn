@@ -3,9 +3,6 @@
 
 #include "peer.h"
 #include "packet.h"
-#ifdef _WIN32
-	#include <windows.h>
-#endif
 
 #define SHA1LEN 20
 

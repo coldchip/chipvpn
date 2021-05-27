@@ -5,11 +5,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <sys/time.h>
-#ifdef _WIN32
-    #include <winsock2.h>
-#else
-    #include <arpa/inet.h> 
-#endif
+#include <arpa/inet.h> 
 
 char *read_file_into_buffer(char *file) {
 	FILE *infp = fopen(file, "rb");

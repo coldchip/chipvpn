@@ -15,17 +15,11 @@
 #include <string.h>
 #include <signal.h>
 #include <fcntl.h>
-#ifdef _WIN32
-	#include <winsock2.h>
-	#include <windows.h>
-	typedef int socklen_t;
-#else
-	#include <netinet/tcp.h>
-	#include <netdb.h> 
-	#include <sys/socket.h>
-	#include <arpa/inet.h> 
-	#include <netinet/in.h>
-#endif
+#include <netinet/tcp.h>
+#include <netdb.h> 
+#include <sys/socket.h>
+#include <arpa/inet.h> 
+#include <netinet/in.h>
 
 bool quit = false;
 bool retry = false;
@@ -130,14 +124,6 @@ void chipvpn_event_loop(char *config_file) {
 
 	chipvpn:;
 	
-	#ifdef _WIN32
-		WSADATA wsa_data;
-		int res = WSAStartup(MAKEWORD(2,2), &wsa_data);
-		if(res != 0) {
-			error("WSAStartup failed with error: %d\n", res);
-		}
-	#endif
-
 	console_log("ColdChip ChipVPN");
 
 	list_clear(&peers);
@@ -152,11 +138,7 @@ void chipvpn_event_loop(char *config_file) {
 		error("unable to create socket");
 	}
 
-	#ifdef _WIN32
-		signal(SIGFPE, SIG_IGN);
-	#else
-		signal(SIGPIPE, SIG_IGN);
-	#endif
+	signal(SIGPIPE, SIG_IGN);
 
 	if(setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &(char){1}, sizeof(int)) < 0){
 		error("unable to call setsockopt");
@@ -228,12 +210,8 @@ void chipvpn_event_loop(char *config_file) {
 		FD_ZERO(&rdset);
 		FD_SET(sock, &rdset);
 
-		#ifdef _WIN32
-			int max = sock;
-		#else
-			FD_SET(tun->fd, &rdset);
-			int max = max(tun->fd, sock);
-		#endif
+		FD_SET(tun->fd, &rdset);
+		int max = max(tun->fd, sock);
 
 		for(ListNode *i = list_begin(&peers); i != list_end(&peers); i = list_next(i)) {
 			VPNPeer *peer = (VPNPeer*)i;
@@ -297,15 +275,13 @@ void chipvpn_event_loop(char *config_file) {
 			}
 		}
 
-		#ifndef _WIN32
-			if(FD_ISSET(tun->fd, &rdset)) {
-				VPNDataPacket packet;
-				int n = read(tun->fd, (char*)&packet, sizeof(packet));
-				if(n > 0) {
-					chipvpn_tun_event((VPNDataPacket*)&packet, n);
-				}
+		if(FD_ISSET(tun->fd, &rdset)) {
+			VPNDataPacket packet;
+			int n = read(tun->fd, (char*)&packet, sizeof(packet));
+			if(n > 0) {
+				chipvpn_tun_event((VPNDataPacket*)&packet, n);
 			}
-		#endif
+		}
 	}
 
 	cleanup:;
@@ -317,12 +293,7 @@ void chipvpn_event_loop(char *config_file) {
 		chipvpn_peer_dealloc(peer);
 	}
 
-	#ifdef _WIN32
-		closesocket(sock);
-		WSACleanup();
-	#else
-		close(sock);
-	#endif
+	close(sock);
 	free_tun(tun);
 
 	signal(SIGINT, SIG_DFL);
@@ -390,14 +361,10 @@ void chipvpn_socket_event(VPNPeer *peer, VPNPacket *packet) {
 
 				if(pull_routes) {
 					console_log("setting routes");
-					#ifdef _WIN32
-						//if(exec_sprintf("route add 0.0.0.0 mask 0.0.0.0 %s", ip)) { }
-					#else
-						uint32_t default_gateway = get_default_gateway();
-						if(exec_sprintf("ip route add %s via %i.%i.%i.%i", ip, (default_gateway >> 0) & 0xFF, (default_gateway >> 8) & 0xFF, (default_gateway >> 16) & 0xFF, (default_gateway >> 24) & 0xFF)) { }
-						if(exec_sprintf("ip route add 0.0.0.0/1 via %i.%i.%i.%i", (peer_gateway >> 0) & 0xFF, (peer_gateway >> 8) & 0xFF, (peer_gateway >> 16) & 0xFF, (peer_gateway >> 24) & 0xFF)) { }
-						if(exec_sprintf("ip route add 128.0.0.0/1 via %i.%i.%i.%i", (peer_gateway >> 0) & 0xFF, (peer_gateway >> 8) & 0xFF, (peer_gateway >> 16) & 0xFF, (peer_gateway >> 24) & 0xFF)) { }
-					#endif
+					uint32_t default_gateway = get_default_gateway();
+					if(exec_sprintf("ip route add %s via %i.%i.%i.%i", ip, (default_gateway >> 0) & 0xFF, (default_gateway >> 8) & 0xFF, (default_gateway >> 16) & 0xFF, (default_gateway >> 24) & 0xFF)) { }
+					if(exec_sprintf("ip route add 0.0.0.0/1 via %i.%i.%i.%i", (peer_gateway >> 0) & 0xFF, (peer_gateway >> 8) & 0xFF, (peer_gateway >> 16) & 0xFF, (peer_gateway >> 24) & 0xFF)) { }
+					if(exec_sprintf("ip route add 128.0.0.0/1 via %i.%i.%i.%i", (peer_gateway >> 0) & 0xFF, (peer_gateway >> 8) & 0xFF, (peer_gateway >> 16) & 0xFF, (peer_gateway >> 24) & 0xFF)) { }
 				}
 				peer->is_authed   = true;
 				peer->internal_ip = peer_ip;
@@ -417,11 +384,7 @@ void chipvpn_socket_event(VPNPeer *peer, VPNPacket *packet) {
 				(size > 0 && size <= (MAX_MTU))
 			) {
 				peer->rx += size;
-				#ifdef _WIN32
-					SendPacket(tun, p_data, size);
-				#else
-					if(write(tun->fd, (char*)p_data, size)) {}
-				#endif
+				if(write(tun->fd, (char*)p_data, size)) {}
 			}
 		}
 		break;
