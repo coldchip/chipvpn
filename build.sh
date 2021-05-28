@@ -22,16 +22,6 @@ compile() {
 
 	if [[ "$OSTYPE" == "linux-gnu"* ]]; then
 		gcc -o bin/$OUTPUT bin/*.o -Ofast -Wextra -Wall
-	elif [[ "$OSTYPE" == "darwin"* ]]; then
-		echo "unsuported OS"
-	elif [[ "$OSTYPE" == "cygwin" ]]; then
-		gcc -o bin/$OUTPUT bin/*.o -Ofast -Wextra -Wall
-	elif [[ "$OSTYPE" == "msys" ]]; then
-		gcc -o bin/$OUTPUT bin/*.o -Ofast -Wextra -Wall -lws2_32 -liphlpapi
-	elif [[ "$OSTYPE" == "win32" ]]; then
-		echo "unsuported OS"
-	elif [[ "$OSTYPE" == "freebsd"* ]]; then
-		echo "unsuported OS"
 	else
 		echo "unknown OS"
 	fi

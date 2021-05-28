@@ -175,7 +175,7 @@ void chipvpn_event_loop(char *config_file) {
 		addr.sin_addr.s_addr = inet_addr(ip); 
 		addr.sin_port        = htons(port);
 
-		console_log("connecting to %s:%i", ip, port);
+		console_log("connecting to [%s:%i]", ip, port);
 
 		if(connect(sock, (struct sockaddr*)&addr, sizeof(addr)) != 0) {
 			console_log("unable to connect, reconnecting");
@@ -192,7 +192,6 @@ void chipvpn_event_loop(char *config_file) {
 		VPNAuthPacket auth;
 		strcpy(auth.data, token);
 		chipvpn_peer_send_packet(peer, VPN_TYPE_AUTH, &auth, sizeof(auth));
-
 	}
 
 	int server_last_update = 0;
@@ -203,14 +202,13 @@ void chipvpn_event_loop(char *config_file) {
 	signal(SIGINT, chipvpn_event_cleanup);
 
 	while(quit == false) {
-		tv.tv_sec = 1;
-    	tv.tv_usec = 0;
-
+		tv.tv_sec = 0;
+    	tv.tv_usec = 200000;
 
 		FD_ZERO(&rdset);
 		FD_SET(sock, &rdset);
-
 		FD_SET(tun->fd, &rdset);
+
 		int max = max(tun->fd, sock);
 
 		for(ListNode *i = list_begin(&peers); i != list_end(&peers); i = list_next(i)) {
@@ -220,66 +218,67 @@ void chipvpn_event_loop(char *config_file) {
 				max = peer->fd;
 			}
 		}
-		select(max + 1, &rdset, NULL, NULL, &tv);
 
-		if(chipvpn_get_time() - server_last_update >= 2) {
+		if(select(max + 1, &rdset, NULL, NULL, &tv) >= 0) {
+			if(chipvpn_get_time() - server_last_update >= 2) {
+				ListNode *i = list_begin(&peers);
+				while(i != list_end(&peers)) {
+					VPNPeer *peer = (VPNPeer*)i;
+					i = list_next(i);
+					if(chipvpn_get_time() - peer->last_ping < 10) {
+						chipvpn_peer_send_packet(peer, VPN_PING, NULL, 0);
+						gettimeofday(&ping_start, NULL);
+					} else {
+						chipvpn_peer_dealloc(peer);
+						if(!is_server) {
+							console_log("disconnected, reconnecting");
+							sleep(1);
+							retry = true;
+							goto cleanup;
+						}
+					}
+				}
+				server_last_update = chipvpn_get_time();
+			}
+
+			if(is_server == true) {
+				if(FD_ISSET(sock, &rdset)) {
+					struct sockaddr_in addr;
+					socklen_t len = sizeof(addr);
+					int fd = accept(sock, (struct sockaddr*)&addr, &len);
+
+					VPNPeer *peer = chipvpn_peer_alloc(fd);
+					list_insert(list_end(&peers), peer);
+				}
+			}
+
 			ListNode *i = list_begin(&peers);
 			while(i != list_end(&peers)) {
 				VPNPeer *peer = (VPNPeer*)i;
 				i = list_next(i);
-				if(chipvpn_get_time() - peer->last_ping < 10) {
-					chipvpn_peer_send_packet(peer, VPN_PING, NULL, 0);
-					gettimeofday(&ping_start, NULL);
-				} else {
-					chipvpn_peer_dealloc(peer);
-					if(!is_server) {
-						console_log("disconnected, reconnecting");
-						sleep(1);
-						retry = true;
-						goto cleanup;
+				if(FD_ISSET(peer->fd, &rdset)) {
+					VPNPacket packet;
+					int n = chipvpn_peer_recv_packet(peer, &packet);
+					if(n > 0) {
+						chipvpn_socket_event(peer, &packet);
+					} else if(n < 0) {
+						chipvpn_peer_dealloc(peer);
+						if(!is_server) {
+							console_log("disconnected, reconnecting");
+							sleep(1);
+							retry = true;
+							goto cleanup;
+						}
 					}
 				}
 			}
-			server_last_update = chipvpn_get_time();
-		}
 
-		if(is_server == true) {
-			if(FD_ISSET(sock, &rdset)) {
-				struct sockaddr_in addr;
-				socklen_t len = sizeof(addr);
-				int fd = accept(sock, (struct sockaddr*)&addr, &len);
-
-				VPNPeer *peer = chipvpn_peer_alloc(fd);
-				list_insert(list_end(&peers), peer);
-			}
-		}
-
-		ListNode *i = list_begin(&peers);
-		while(i != list_end(&peers)) {
-			VPNPeer *peer = (VPNPeer*)i;
-			i = list_next(i);
-			if(FD_ISSET(peer->fd, &rdset)) {
-				VPNPacket packet;
-				int n = chipvpn_peer_recv_packet(peer, &packet);
+			if(FD_ISSET(tun->fd, &rdset)) {
+				VPNDataPacket packet;
+				int n = read(tun->fd, (char*)&packet, sizeof(packet));
 				if(n > 0) {
-					chipvpn_socket_event(peer, &packet);
-				} else if(n < 0) {
-					chipvpn_peer_dealloc(peer);
-					if(!is_server) {
-						console_log("disconnected, reconnecting");
-						sleep(1);
-						retry = true;
-						goto cleanup;
-					}
+					chipvpn_tun_event((VPNDataPacket*)&packet, n);
 				}
-			}
-		}
-
-		if(FD_ISSET(tun->fd, &rdset)) {
-			VPNDataPacket packet;
-			int n = read(tun->fd, (char*)&packet, sizeof(packet));
-			if(n > 0) {
-				chipvpn_tun_event((VPNDataPacket*)&packet, n);
 			}
 		}
 	}
@@ -427,7 +426,7 @@ void chipvpn_tun_event(VPNDataPacket *packet, int size) {
 
 void chipvpn_event_cleanup(int type) {
 	if(type == 0) {}
-	console_log("terminating ChipVPN");
+	console_log("SIGINT received, terminating ChipVPN");
     quit = true;
 }
 

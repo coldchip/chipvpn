@@ -10,8 +10,8 @@
 
 VPNPeer *chipvpn_peer_alloc(int fd) {
 	uint8_t key[] = {
-		0x60, 0x3d, 0xeb, 0x10, 0x15, 0xca, 0x71, 0xbe, 
-		0x2b, 0x73, 0xae, 0xf0, 0x85, 0x7d, 0x77, 0x81
+		0xaf, 0x05, 0x65, 0x7b, 0x3c, 0xa5, 0x18, 0xcb, 
+		0x74, 0x28, 0xb8, 0x00, 0xf8, 0x49, 0x27, 0x0d 
 	};
 
 	VPNPeer *peer = malloc(sizeof(VPNPeer));
@@ -73,7 +73,6 @@ int chipvpn_peer_send_packet(VPNPeer *peer, VPNPacketType type, void *data, int 
 	VPNPacket *packet = alloca(sizeof(VPNPacket) + size); // faster than malloc
 	packet->header.size = htonl(size);
 	packet->header.type = htonl(type);
-	packet->header.u_ck = htons(chipvpn_checksum16(data, size));
 	if(data) {
 		memcpy((char*)&packet->data, data, size);
 		chipvpn_encrypt_buf(peer, (char*)&packet->data, size);
