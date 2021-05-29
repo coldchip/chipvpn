@@ -81,7 +81,6 @@ typedef struct _VPNDataPacket {
 typedef struct _VPNPacketHeader {
 	VPNPacketType type;
 	uint32_t size;
-	uint16_t u_ck;
 } VPNPacketHeader;
 
 typedef struct _VPNPacket {

@@ -208,8 +208,8 @@ void chipvpn_event_loop(char *config_file) {
 	signal(SIGINT, chipvpn_event_cleanup);
 
 	while(quit == false) {
-		tv.tv_sec = 1;
-    	tv.tv_usec = 0;
+		tv.tv_sec = 0;
+    	tv.tv_usec = 200000;
 
 
 		FD_ZERO(&rdset);
@@ -224,56 +224,56 @@ void chipvpn_event_loop(char *config_file) {
 				max = peer->fd;
 			}
 		}
-		select(max + 1, &rdset, NULL, NULL, &tv);
+		if(select(max + 1, &rdset, NULL, NULL, &tv) >= 0) {
+			if(chipvpn_get_time() - server_last_update >= 2) {
+				ListNode *i = list_begin(&peers);
+				while(i != list_end(&peers)) {
+					VPNPeer *peer = (VPNPeer*)i;
+					i = list_next(i);
+					if(chipvpn_get_time() - peer->last_ping < 10) {
+						chipvpn_peer_send_packet(peer, VPN_PING, NULL, 0);
+						gettimeofday(&ping_start, NULL);
+					} else {
+						chipvpn_peer_dealloc(peer);
+						if(!is_server) {
+							console_log("disconnected, reconnecting");
+							sleep(1);
+							retry = true;
+							goto cleanup;
+						}
+					}
+				}
+				server_last_update = chipvpn_get_time();
+			}
 
-		if(chipvpn_get_time() - server_last_update >= 2) {
+			if(is_server == true) {
+				if(FD_ISSET(sock, &rdset)) {
+					struct sockaddr_in addr;
+					socklen_t len = sizeof(addr);
+					int fd = accept(sock, (struct sockaddr*)&addr, &len);
+
+					VPNPeer *peer = chipvpn_peer_alloc(fd);
+					list_insert(list_end(&peers), peer);
+				}
+			}
+
 			ListNode *i = list_begin(&peers);
 			while(i != list_end(&peers)) {
 				VPNPeer *peer = (VPNPeer*)i;
 				i = list_next(i);
-				if(chipvpn_get_time() - peer->last_ping < 10) {
-					chipvpn_peer_send_packet(peer, VPN_PING, NULL, 0);
-					gettimeofday(&ping_start, NULL);
-				} else {
-					chipvpn_peer_dealloc(peer);
-					if(!is_server) {
-						console_log("disconnected, reconnecting");
-						sleep(1);
-						retry = true;
-						goto cleanup;
-					}
-				}
-			}
-			server_last_update = chipvpn_get_time();
-		}
-
-		if(is_server == true) {
-			if(FD_ISSET(sock, &rdset)) {
-				struct sockaddr_in addr;
-				socklen_t len = sizeof(addr);
-				int fd = accept(sock, (struct sockaddr*)&addr, &len);
-
-				VPNPeer *peer = chipvpn_peer_alloc(fd);
-				list_insert(list_end(&peers), peer);
-			}
-		}
-
-		ListNode *i = list_begin(&peers);
-		while(i != list_end(&peers)) {
-			VPNPeer *peer = (VPNPeer*)i;
-			i = list_next(i);
-			if(FD_ISSET(peer->fd, &rdset)) {
-				VPNPacket packet;
-				int n = chipvpn_peer_recv_packet(peer, &packet);
-				if(n > 0) {
-					chipvpn_socket_event(peer, &packet);
-				} else if(n < 0) {
-					chipvpn_peer_dealloc(peer);
-					if(!is_server) {
-						console_log("disconnected, reconnecting");
-						sleep(1);
-						retry = true;
-						goto cleanup;
+				if(FD_ISSET(peer->fd, &rdset)) {
+					VPNPacket packet;
+					int n = chipvpn_peer_recv_packet(peer, &packet);
+					if(n > 0) {
+						chipvpn_socket_event(peer, &packet);
+					} else if(n < 0) {
+						chipvpn_peer_dealloc(peer);
+						if(!is_server) {
+							console_log("disconnected, reconnecting");
+							sleep(1);
+							retry = true;
+							goto cleanup;
+						}
 					}
 				}
 			}
