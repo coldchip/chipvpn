@@ -119,8 +119,6 @@ void chipvpn_load_config(char *config_file) {
 }
 
 void chipvpn_event_loop(char *config_file) {
-	chipvpn_load_config(config_file);
-
 	chipvpn:;
 	
 	WSADATA wsa_data;
@@ -128,6 +126,8 @@ void chipvpn_event_loop(char *config_file) {
 	if(res != 0) {
 		error("WSAStartup failed with error: %d\n", res);
 	}
+
+	chipvpn_load_config(config_file);
 
 	console_log("ColdChip ChipVPN");
 

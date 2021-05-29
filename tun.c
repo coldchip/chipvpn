@@ -80,8 +80,6 @@ Tun *open_tun(char *dev) {
 	}
 
 	Tun *tun = malloc(sizeof(Tun));
-	tun->fd = 0;
-	tun->dev = NULL;
 	tun->adapter = adapter;
 	tun->session = NULL;
 	return tun;

@@ -6,8 +6,6 @@
 #include "wintun.h"
 
 typedef struct _Tun {
-	char *dev;
-	int fd;
 	WINTUN_ADAPTER_HANDLE adapter;
 	WINTUN_SESSION_HANDLE session;
 } Tun;
