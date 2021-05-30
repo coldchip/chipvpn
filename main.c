@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include "event.h"
+#include "config.h"
 #include "chipvpn.h"
 
 int main(int argc, char const *argv[]) {
@@ -12,9 +13,19 @@ int main(int argc, char const *argv[]) {
 		srand((unsigned) time(NULL));
 		if(argv[1] != NULL) {
 			if(strcmp(argv[1], "genkey") == 0) {
-				printf("Unavailable\n");
+				char key[16];
+				chipvpn_generate_random(key, sizeof(key));
+				for(int i = 0; i < (int)sizeof(key); i++) {
+					printf("%02x", key[i] & 0xFF);
+				}
+				printf("\n");
 			} else {
-				chipvpn_event_loop((char*)argv[1]);
+				ChipVPNConfig *config = chipvpn_load_config((char*)argv[1]);
+				if(!config) {
+					error("unable to read config");
+				}
+				chipvpn_event_loop(config);
+				chipvpn_free_config(config);
 			}
 			
 		} else {

@@ -26,6 +26,8 @@ void        error(char *format, ...);
 void        console_log(char *format, ...);
 char       *chipvpn_malloc_fmt(char *format, ...);
 uint16_t    chipvpn_checksum16(void *data, unsigned int bytes);
+char       *chipvpn_resolve_hostname(char *ip);
+void        chipvpn_generate_random(char *buf, int len);
 uint32_t    chipvpn_get_time();
 
 #ifdef __cplusplus

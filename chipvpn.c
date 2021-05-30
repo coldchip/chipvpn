@@ -4,6 +4,10 @@
 #include <stdbool.h>
 #include <string.h>
 #include <stdlib.h>
+#include <netdb.h> 
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
 #include <sys/time.h>
 #include <arpa/inet.h> 
 
@@ -191,9 +195,31 @@ uint16_t chipvpn_checksum16(void *data, unsigned int bytes) {
     return (~((uint16_t) total_sum));
 }
 
+char *chipvpn_resolve_hostname(char *ip) {
+    struct hostent *he = gethostbyname(ip);
+    if(he == NULL) {
+        return NULL;
+    }
+    struct in_addr *domain = ((struct in_addr **)he->h_addr_list)[0];
+    if(domain == NULL) {
+        return NULL;
+    }
+    return inet_ntoa(*domain);
+}
+
+void chipvpn_generate_random(char *buf, int len) {
+    int fp = open("/dev/urandom", O_RDONLY);
+    if (fp >= 0) {
+        int r = read(fp, buf, len);
+        if (r < 0) {
+            // something went wrong
+        }
+        close(fp);
+    }
+}
+
 uint32_t chipvpn_get_time() {
     struct timeval tv;
-
     gettimeofday(&tv, NULL);
     return (tv.tv_sec * 1000 + tv.tv_usec / 1000) / 1000;
 }
