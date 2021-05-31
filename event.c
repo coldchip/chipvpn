@@ -33,8 +33,6 @@ void chipvpn_event_loop(ChipVPNConfig *config) {
 
 	bool retry = false;
 
-	console_log("ColdChip ChipVPN");
-
 	list_clear(&peers);
 
 	tun = open_tun("");
@@ -79,7 +77,7 @@ void chipvpn_event_loop(ChipVPNConfig *config) {
 			error("unable to listen");
 		}
 
-		console_log("server started on %s:%i", config->ip, config->port);
+		console_log("server started on [%s:%i]", config->ip, config->port);
 
 		if(!tun_setip(tun, inet_addr(config->gateway), inet_addr(config->subnet), MAX_MTU)) {
 			error("unable to assign ip to tunnel adapter");

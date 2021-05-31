@@ -15,6 +15,7 @@ typedef struct _ChipVPNConfig {
 } ChipVPNConfig;
 
 ChipVPNConfig   *chipvpn_load_config(char *config_file);
+void             chipvpn_load_default_config(ChipVPNConfig *config);
 void             chipvpn_free_config(ChipVPNConfig *config);
 
 #endif

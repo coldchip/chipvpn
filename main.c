@@ -24,6 +24,7 @@ int main(int argc, char const *argv[]) {
 				if(!config) {
 					error("unable to read config");
 				}
+				console_log("ColdChip ChipVPN v%i", VERSION);
 				chipvpn_event_loop(config);
 				chipvpn_free_config(config);
 			}

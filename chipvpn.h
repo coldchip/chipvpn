@@ -12,12 +12,10 @@ extern "C"
 #include <stdint.h>
 
 #define MAX_MTU 1500
+#define VERSION 100001
 
 #define DIM(x) (sizeof(x)/sizeof(*(x)))
 
-char       *read_string(FILE *file, char const *desired_name);
-bool        read_bool(FILE *file, char const *desired_name);
-int         read_int(FILE *file, char const *desired_name);
 char       *read_file_into_buffer(char *file);
 uint32_t    get_default_gateway();
 int         exec_sprintf(char *format, ...);

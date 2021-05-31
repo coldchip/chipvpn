@@ -29,59 +29,6 @@ char *read_file_into_buffer(char *file) {
 	return p;
 }
 
-char *read_string(FILE *file, char const *desired_name) { 
-    char name[1024];
-    char val[1024];
-
-	memset(name, 0, sizeof(name));
-	memset(val , 0, sizeof(val ));
-    int rewind = ftell(file);
-    while (fscanf(file, "%1023[^=]=%1023[^\n]%*c", name, val) == 2) {
-        if (0 == strcmp(name, desired_name)) {
-            fseek(file, rewind, SEEK_SET);
-            return strdup(val);
-        }
-    }
-    fseek(file, rewind, SEEK_SET);
-    return NULL;
-}
-
-bool read_bool(FILE *file, char const *desired_name) { 
-    char name[1024];
-    char val[1024];
-
-	memset(name, 0, sizeof(name));
-	memset(val , 0, sizeof(val ));
-    int rewind = ftell(file);
-    while (fscanf(file, "%1023[^=]=%1023[^\n]%*c", name, val) == 2) {
-        if (0 == strcmp(name, desired_name)) {
-            if (0 == strcmp(val, "true")) {
-                fseek(file, rewind, SEEK_SET);
-            	return true;
-        	}
-        }
-    }
-    fseek(file, rewind, SEEK_SET);
-    return false;
-}
-
-int read_int(FILE *file, char const *desired_name) { 
-    char name[1024];
-    char val[1024];
-
-	memset(name, 0, sizeof(name));
-	memset(val , 0, sizeof(val ));
-    int rewind = ftell(file);
-    while (fscanf(file, "%1023[^=]=%1023[^\n]%*c", name, val) == 2) {
-        if (0 == strcmp(name, desired_name)) {
-            fseek(file, rewind, SEEK_SET);
-            return atoi(val);
-        }
-    }
-    fseek(file, rewind, SEEK_SET);
-    return 0;
-}
-
 uint32_t get_default_gateway() {
     char ip_addr[16];
     char cmd[] = "ip route show default | awk '/default/ {print $3}' |  tr -cd '[a-zA-Z0-9]._-'";
