@@ -19,6 +19,7 @@
 #include <sys/socket.h>
 #include <arpa/inet.h> 
 #include <netinet/in.h>
+#include <pthread.h>
 
 bool quit = false;
 
@@ -28,10 +29,11 @@ List peers;
 
 struct timeval ping_stop, ping_start;
 
-void chipvpn_event_loop(ChipVPNConfig *config) {
+void chipvpn_event_loop(ChipVPNConfig *config, void *(*callback) (ChipVPNStatus)) {
 	chipvpn_start:;
 
 	bool retry = false;
+	quit = false;
 
 	list_clear(&peers);
 
@@ -174,7 +176,7 @@ void chipvpn_event_loop(ChipVPNConfig *config) {
 					VPNPacket packet;
 					int n = chipvpn_peer_recv_packet(peer, &packet);
 					if(n > 0) {
-						chipvpn_socket_event(config, peer, &packet);
+						chipvpn_socket_event(config, peer, &packet, callback);
 					} else if(n < 0) {
 						chipvpn_peer_dealloc(peer);
 						if(!config->is_server) {
@@ -190,7 +192,7 @@ void chipvpn_event_loop(ChipVPNConfig *config) {
 				VPNDataPacket packet;
 				int n = read(tun->fd, (char*)&packet, sizeof(packet));
 				if(n > 0) {
-					chipvpn_tun_event(config, (VPNDataPacket*)&packet, n);
+					chipvpn_tun_event(config, (VPNDataPacket*)&packet, n, callback);
 				}
 			}
 		}
@@ -213,10 +215,14 @@ void chipvpn_event_loop(ChipVPNConfig *config) {
 	if(retry == true) {
 		sleep(1);
 		goto chipvpn_start;
+	} else {
+		if(callback) {
+			callback(STATUS_DISCONNECTED);
+		}
 	}
 }
 
-void chipvpn_socket_event(ChipVPNConfig *config, VPNPeer *peer, VPNPacket *packet) {
+void chipvpn_socket_event(ChipVPNConfig *config, VPNPeer *peer, VPNPacket *packet, void *(*callback) (ChipVPNStatus)) {
 	VPNPacketType type = ntohl(packet->header.type);
 	uint32_t      size = ntohl(packet->header.size);
 
@@ -281,6 +287,10 @@ void chipvpn_socket_event(ChipVPNConfig *config, VPNPeer *peer, VPNPacket *packe
 				peer->tx          = 0;
 				peer->rx          = 0;
 				console_log("initialization sequence complete");
+
+				if(callback) {
+					callback(STATUS_CONNECTED);
+				}
 			}
 		}
 		break;
@@ -323,7 +333,7 @@ void chipvpn_socket_event(ChipVPNConfig *config, VPNPeer *peer, VPNPacket *packe
 	}	
 }
 
-void chipvpn_tun_event(ChipVPNConfig *config, VPNDataPacket *packet, int size) {
+void chipvpn_tun_event(ChipVPNConfig *config, VPNDataPacket *packet, int size, void *(*callback) (ChipVPNStatus)) {
 	IPPacket *ip_hdr = (IPPacket*)packet;
 
 	VPNPeer *peer = chipvpn_get_peer_by_ip(&peers, config->is_server ? ip_hdr->dst_addr : ip_hdr->src_addr);
@@ -333,6 +343,93 @@ void chipvpn_tun_event(ChipVPNConfig *config, VPNDataPacket *packet, int size) {
 			chipvpn_peer_send_packet(peer, VPN_TYPE_DATA, packet, size);
 		}
 	}
+}
+
+int fd = -1;
+ChipVPNStatus vpn_status = STATUS_DISCONNECTED;
+
+void *cb(ChipVPNStatus status) {
+	if(fd != -1) {
+		vpn_status = status;
+		switch(status) {
+			case STATUS_CONNECTED: {
+				char response[] = "start_ok";
+				write(fd, response, strlen(response));
+			}
+			break;
+			case STATUS_DISCONNECTED: {
+				char response[] = "stop_ok";
+				write(fd, response, strlen(response));
+			}
+			break;
+		}
+	}
+}
+
+void *start_chipvpn_threaded(void *data) {
+	ChipVPNConfig *config = chipvpn_load_config("/home/ryan/chipvpn/client.json");
+	if(!config) {
+		error("unable to read config");
+	}
+	console_log("ColdChip ChipVPN v%i", VERSION);
+	chipvpn_event_loop(config, cb);
+	chipvpn_free_config(config);
+}
+
+void start_ipc_server() {
+	int sock = socket(AF_INET, SOCK_STREAM, 0);
+	if(sock < 0) {
+		error("unable to create socket");
+	}
+
+	signal(SIGPIPE, SIG_IGN);
+
+	if(setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &(char){1}, sizeof(int)) < 0){
+		error("unable to call setsockopt");
+	}
+	if(setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, &(char){1}, sizeof(int)) < 0){
+		error("unable to call setsockopt");
+	}
+
+	struct sockaddr_in     addr;
+	addr.sin_family      = AF_INET;
+	addr.sin_addr.s_addr = INADDR_ANY; 
+	addr.sin_port        = htons(9010);
+
+	if(bind(sock, (struct sockaddr *)&addr, sizeof(addr)) != 0) { 
+		error("unable to bind");
+	}
+
+	if(listen(sock, 5) != 0) { 
+		error("unable to listen");
+	}
+
+	fd = accept(sock, NULL, 0);
+
+	char buf[8192];
+	while(1) {
+		int n = read(fd, buf, sizeof(buf));
+		if(n <= 0) {
+			break;
+		}
+		buf[n] = '\0';
+		printf("%s\n", buf);
+		if(strcmp(buf, "start") == 0) {
+			if(vpn_status == STATUS_DISCONNECTED) {
+				vpn_status = STATUS_CONNECTING;
+				sleep(2);
+				pthread_t thread;
+				pthread_create(&thread, NULL, start_chipvpn_threaded, NULL);
+			} else {
+				char response[] = "err";
+				write(fd, response, strlen(response));
+			}
+		} else if(strcmp(buf, "stop") == 0) {
+			quit = true;
+		}
+	}
+	close(fd);
+	close(sock);
 }
 
 void chipvpn_event_cleanup(int type) {

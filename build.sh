@@ -16,7 +16,7 @@ compile() {
 	echo "$GREEN[Linking] $NC $( ls ./bin/* )";
 
 	if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-		gcc -o bin/$OUTPUT bin/*.o -Ofast -Wextra -Wall
+		gcc -o bin/$OUTPUT bin/*.o -Ofast -Wextra -Wall -lpthread
 	else
 		echo "unknown OS"
 	fi
