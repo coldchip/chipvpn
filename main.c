@@ -7,6 +7,10 @@
 #include "config.h"
 #include "chipvpn.h"
 
+void on_status_change(ChipVPNStatus status) {
+	console_log("changed status: %i", status);
+}
+
 int main(int argc, char const *argv[]) {
 	if(argc > 0) {
 		setbuf(stdout, NULL);
@@ -19,15 +23,13 @@ int main(int argc, char const *argv[]) {
 					printf("%02x", key[i] & 0xFF);
 				}
 				printf("\n");
-			} else if(strcmp(argv[1], "ipc") == 0) {
-				start_ipc_server();
 			} else {
 				ChipVPNConfig *config = chipvpn_load_config((char*)argv[1]);
 				if(!config) {
 					error("unable to read config");
 				}
-				console_log("ColdChip ChipVPN v%i", VERSION);
-				chipvpn_event_loop(config, NULL);
+				console_log("ColdChip ChipVPN v%i", CHIPVPN_VERSION);
+				chipvpn_event_loop(config, on_status_change);
 				chipvpn_free_config(config);
 			}
 			

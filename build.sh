@@ -10,16 +10,12 @@ compile() {
 
 	for d in ./*.c; do
 		echo "$GREEN[Compiling] $NC $d"
-	    gcc -Ofast -Wextra -Wall -c -o bin/$(echo $(basename "$d") | sed "s/\.c/$rep/") $d
+	    gcc -Ofast -Wall -c -o bin/$(echo $(basename "$d") | sed "s/\.c/$rep/") $d
 	done
 
 	echo "$GREEN[Linking] $NC $( ls ./bin/* )";
 
-	if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-		gcc -o bin/$OUTPUT bin/*.o -Ofast -Wextra -Wall -lpthread
-	else
-		echo "unknown OS"
-	fi
+	gcc -o bin/$OUTPUT bin/*.o -Ofast -Wall -lpthread
 }
 
 run() {

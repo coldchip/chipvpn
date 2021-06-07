@@ -11,8 +11,8 @@ extern "C"
 #include <stdbool.h>
 #include <stdint.h>
 
-#define MAX_MTU 1500
-#define VERSION 100001
+#define CHIPVPN_MAX_MTU 1500
+#define CHIPVPN_VERSION 100001
 
 #define DIM(x) (sizeof(x)/sizeof(*(x)))
 
