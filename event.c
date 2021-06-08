@@ -14,12 +14,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <signal.h>
-#include <fcntl.h>
 #include <netinet/tcp.h>
 #include <sys/socket.h>
 #include <arpa/inet.h> 
 #include <netinet/in.h>
-#include <pthread.h>
 
 bool quit = false;
 
