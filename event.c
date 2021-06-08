@@ -315,7 +315,12 @@ void chipvpn_socket_event(ChipVPNConfig *config, VPNPeer *peer, VPNPacket *packe
 		break;
 		case VPN_PONG: {
 			gettimeofday(&ping_stop, NULL);
-			console_log("peer %p ping took %lu ms TX: %lu RX: %lu", peer, ((ping_stop.tv_sec - ping_start.tv_sec) * 1000000 + ping_stop.tv_usec - ping_start.tv_usec) / 1000, peer->tx, peer->rx); 
+
+			char tx[20];
+			char rx[20];
+			strcpy(tx, chipvpn_format_bytes(peer->tx));
+			strcpy(rx, chipvpn_format_bytes(peer->rx));
+			console_log("peer %p ping took %lu ms TX: %s RX: %s", peer, ((ping_stop.tv_sec - ping_start.tv_sec) * 1000000 + ping_stop.tv_usec - ping_start.tv_usec) / 1000, tx, rx); 
 		}
 		break;
 		case VPN_TYPE_MSG: {

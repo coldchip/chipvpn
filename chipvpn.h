@@ -16,17 +16,18 @@ extern "C"
 
 #define DIM(x) (sizeof(x)/sizeof(*(x)))
 
-char       *read_file_into_buffer(char *file);
-uint32_t    get_default_gateway();
-int         exec_sprintf(char *format, ...);
-void        warning(char *format, ...);
-void        error(char *format, ...);
-void        console_log(char *format, ...);
-char       *chipvpn_malloc_fmt(char *format, ...);
-uint16_t    chipvpn_checksum16(void *data, unsigned int bytes);
-char       *chipvpn_resolve_hostname(char *ip);
-void        chipvpn_generate_random(char *buf, int len);
-uint32_t    chipvpn_get_time();
+char              *read_file_into_buffer(char *file);
+uint32_t           get_default_gateway();
+int                exec_sprintf(char *format, ...);
+void               warning(char *format, ...);
+void               error(char *format, ...);
+void               console_log(char *format, ...);
+char              *chipvpn_malloc_fmt(char *format, ...);
+uint16_t           chipvpn_checksum16(void *data, unsigned int bytes);
+char              *chipvpn_resolve_hostname(char *ip);
+void               chipvpn_generate_random(char *buf, int len);
+const char        *chipvpn_format_bytes(uint64_t bytes);
+uint32_t           chipvpn_get_time();
 
 #ifdef __cplusplus
 }
