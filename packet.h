@@ -52,7 +52,13 @@ typedef struct _ICMPHeader {
 	} un;
 } ICMPHeader;
 
-
+typedef enum {
+	VPN_DATA_AVAILABLE = 1,
+	VPN_NO_EVENT = 0,
+	VPN_CONNECTION_END = -1,
+	VPN_CONNECTION_PACKET_CORRUPTED = -2,
+	VPN_CONNECTION_PACKET_OVERFLOW = -3
+} VPNPacketError;
 
 typedef enum {
 	VPN_TYPE_DATA,
@@ -60,8 +66,13 @@ typedef enum {
 	VPN_TYPE_AUTH,
 	VPN_PING,
 	VPN_PONG,
-	VPN_TYPE_MSG
+	VPN_TYPE_MSG,
+	VPN_SET_KEY
 } VPNPacketType;
+
+typedef struct _VPNKeyPacket {
+	char key[128];
+} VPNKeyPacket;
 
 typedef struct _VPNAuthPacket {
 	char data[8192];
@@ -79,6 +90,7 @@ typedef struct _VPNDataPacket {
 } VPNDataPacket;
 
 typedef struct _VPNPacketHeader {
+	uint8_t preamble;
 	VPNPacketType type;
 	uint32_t size;
 } VPNPacketHeader;
@@ -86,6 +98,7 @@ typedef struct _VPNPacketHeader {
 typedef struct _VPNPacket {
 	VPNPacketHeader header;
 	union {
+		VPNKeyPacket key_packet;
 		VPNAuthPacket auth_packet;
 		VPNAssignPacket dhcp_packet;
 		VPNDataPacket data_packet;

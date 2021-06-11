@@ -15,7 +15,7 @@ compile() {
 
 	echo "$GREEN[Linking] $NC $( ls ./bin/* )";
 
-	gcc -o bin/$OUTPUT bin/*.o -Ofast -Wall -lpthread
+	gcc -o bin/$OUTPUT bin/*.o -Ofast -Wall
 }
 
 run() {

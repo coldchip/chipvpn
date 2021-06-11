@@ -3,14 +3,12 @@
 
 #include <stddef.h>
 
-typedef struct _ListNode
-{
+typedef struct _ListNode {
    struct _ListNode * next;
    struct _ListNode * previous;
 } ListNode;
 
-typedef struct _List
-{
+typedef struct _List {
    ListNode sentinel;
 } List;
 
