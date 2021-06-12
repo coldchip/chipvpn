@@ -9,13 +9,21 @@
 #include <arpa/inet.h>
 
 VPNPeer *chipvpn_peer_alloc(int fd) {
+	char key[32] = {
+		0xc3, 0xc7, 0x91, 0x59, 0xc3, 0x46, 0x62, 0x8a, 
+		0xfe, 0xf4, 0x6f, 0xf0, 0x87, 0x58, 0x8d, 0x0e, 
+		0x02, 0x78, 0xaf, 0x91, 0x49, 0x52, 0xc3, 0xd4, 
+		0x32, 0x17, 0xb1, 0x3f, 0x67, 0xd9, 0xcb, 0xac 
+	};
+
 	VPNPeer *peer = malloc(sizeof(VPNPeer));
 	peer->fd = fd;
 	peer->tx = 0;
 	peer->rx = 0;
 	peer->last_ping = chipvpn_get_time();
 	peer->buffer_pos = 0;
-	peer->crypto = false;
+	peer->inbound_rc4 = rc4_create((uint8_t*)&key, sizeof(key));
+	peer->outbound_rc4 = rc4_create((uint8_t*)&key, sizeof(key));
 	console_log("peer connected");
 	return peer;
 }
@@ -24,24 +32,14 @@ void chipvpn_peer_dealloc(VPNPeer *peer) {
 	list_remove(&peer->node);
 	console_log("peer disconnected");
 	close(peer->fd);
-	chipvpn_disable_crypto(peer);
+	rc4_destroy(peer->inbound_rc4);
+	rc4_destroy(peer->outbound_rc4);
 	free(peer);
 }
 
-void chipvpn_enable_crypto(VPNPeer *peer, char *key) {
-	if(peer->crypto == false) {
-		peer->inbound_rc4  = rc4_create((uint8_t*)key, 16); // ingress key
-		peer->outbound_rc4 = rc4_create((uint8_t*)key, 16); // egress key
-		peer->crypto       = true;
-	}
-}
-
-void chipvpn_disable_crypto(VPNPeer *peer) {
-	if(peer->crypto == true) {
-		peer->crypto = false;
-		rc4_destroy(peer->inbound_rc4);
-		rc4_destroy(peer->outbound_rc4);
-	}
+void chipvpn_set_crypto(VPNPeer *peer, char *key) {
+	rc4_init(peer->inbound_rc4, (uint8_t*)key, 32);
+	rc4_init(peer->outbound_rc4, (uint8_t*)key, 32);
 }
 
 int chipvpn_peer_recv_packet(VPNPeer *peer, VPNPacket *dst) {
@@ -52,6 +50,7 @@ int chipvpn_peer_recv_packet(VPNPeer *peer, VPNPacket *dst) {
 
 	if(peer->buffer_pos >= sizeof(VPNPacketHeader)) {
 		if(preamble != 128) {
+			// TODO: fix
 			return VPN_CONNECTION_PACKET_CORRUPTED;
 		}
 		left += size - peer->buffer_pos;
@@ -97,14 +96,14 @@ int chipvpn_peer_send_packet(VPNPeer *peer, VPNPacketType type, void *data, int 
 
 int chipvpn_peer_raw_recv(VPNPeer *peer, void *buf, int size) {
 	int r = recv(peer->fd, buf, size, 0);
-	if(peer->crypto && r > 0) {
+	if(r > 0) {
 		chipvpn_decrypt_buf(peer, (char*)buf, r);
 	}
 	return r;
 }
 
 int chipvpn_peer_raw_send(VPNPeer *peer, void *buf, int size) {
-	if(peer->crypto && size > 0) {
+	if(size > 0) {
 		chipvpn_encrypt_buf(peer, (char*)buf, size);
 	}
 	int w = send(peer->fd, buf, size, 0);

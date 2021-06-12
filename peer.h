@@ -11,7 +11,6 @@ typedef struct _VPNPeer {
 	ListNode node;
 	int fd;
 	bool is_authed;
-	bool crypto;
 	uint32_t last_ping;
 	uint32_t internal_ip;
 
@@ -27,8 +26,7 @@ typedef struct _VPNPeer {
 
 VPNPeer           *chipvpn_peer_alloc(int fd);
 void               chipvpn_peer_dealloc(VPNPeer *peer);
-void               chipvpn_enable_crypto(VPNPeer *peer, char *key);
-void               chipvpn_disable_crypto(VPNPeer *peer);
+void               chipvpn_set_crypto(VPNPeer *peer, char *key);
 int                chipvpn_peer_recv_packet(VPNPeer *peer, VPNPacket *dst);
 int                chipvpn_peer_send_packet(VPNPeer *peer, VPNPacketType type, void *data, int size);
 int                chipvpn_peer_raw_recv(VPNPeer *peer, void *buf, int size);

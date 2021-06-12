@@ -108,16 +108,14 @@ void chipvpn_event_loop(ChipVPNConfig *config, void (*status) (ChipVPNStatus)) {
 
 		console_log("key exchange begin");
 
-		char key[16];
+		char key[32];
 		chipvpn_generate_random(key, sizeof(key));
 
 		VPNKeyPacket p_key;
 		memcpy(p_key.key, key, sizeof(key));
 		chipvpn_peer_send_packet(peer, VPN_SET_KEY, &p_key, sizeof(p_key));
 
-		chipvpn_enable_crypto(peer, key);
-
-		// TODO: let server generate rc4 key for incoming stream
+		chipvpn_set_crypto(peer, key);
 	}
 
 	int server_last_update = 0;
@@ -135,7 +133,7 @@ void chipvpn_event_loop(ChipVPNConfig *config, void (*status) (ChipVPNStatus)) {
 		FD_SET(sock, &rdset);
 		FD_SET(tun->fd, &rdset);
 
-		int max = max(tun->fd, sock);
+		int max = MAX(tun->fd, sock);
 
 		for(ListNode *i = list_begin(&peers); i != list_end(&peers); i = list_next(i)) {
 			VPNPeer *peer = (VPNPeer*)i;
@@ -170,6 +168,7 @@ void chipvpn_event_loop(ChipVPNConfig *config, void (*status) (ChipVPNStatus)) {
 
 			if(config->is_server == true) {
 				if(FD_ISSET(sock, &rdset)) {
+					// TODO: limit connections
 					int fd = accept(sock, NULL, 0);
 
 					VPNPeer *peer = chipvpn_peer_alloc(fd);
@@ -239,7 +238,7 @@ void chipvpn_socket_event(ChipVPNConfig *config, VPNPeer *peer, VPNPacket *packe
 		case VPN_SET_KEY: {
 			if(config->is_server) {
 				VPNKeyPacket *p_key = &packet->data.key_packet;
-				chipvpn_enable_crypto(peer, p_key->key);
+				chipvpn_set_crypto(peer, p_key->key);
 
 				chipvpn_peer_send_packet(peer, VPN_SET_KEY, NULL, 0);
 			} else {

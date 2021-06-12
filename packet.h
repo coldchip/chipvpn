@@ -71,7 +71,7 @@ typedef enum {
 } VPNPacketType;
 
 typedef struct _VPNKeyPacket {
-	char key[128];
+	char key[32];
 } VPNKeyPacket;
 
 typedef struct _VPNAuthPacket {
