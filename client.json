@@ -1,5 +1,5 @@
 {
-	"connect": "sg03.vpn.coldchip.ru",
+	"connect": "54.251.26.78",
 	"port": 443,
 	"token": "c65c4804b93c066ea473e997b7c2ac8c",
 	"pull_routes": true
