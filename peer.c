@@ -44,19 +44,22 @@ void chipvpn_set_crypto(VPNPeer *peer, char *key) {
 
 int chipvpn_peer_recv_packet(VPNPeer *peer, VPNPacket *dst) {
 	VPNPacket *packet = (VPNPacket*)&peer->buffer;
-	uint8_t  preamble = packet->header.preamble;
+	uint32_t preamble = ntohl(packet->header.preamble);
 	uint32_t size     = ntohl(packet->header.size);
-	uint32_t left     = sizeof(VPNPacketHeader);
+	uint32_t left     = sizeof(VPNPacketHeader) - peer->buffer_pos;
 
 	if(peer->buffer_pos >= sizeof(VPNPacketHeader)) {
-		if(preamble != 128) {
+		if(preamble != 48484848) {
 			// TODO: fix
 			return VPN_CONNECTION_PACKET_CORRUPTED;
 		}
-		left += size - peer->buffer_pos;
+		left += size;
 	}
 
-	if((left + peer->buffer_pos) < sizeof(peer->buffer)) {
+	if(
+		(peer->buffer_pos < sizeof(peer->buffer)) && 
+		(left + peer->buffer_pos) < sizeof(peer->buffer)
+	) {
 		int readed = chipvpn_peer_raw_recv(peer, &peer->buffer[peer->buffer_pos], left);
 		if(readed > 0) {
 			peer->buffer_pos += readed;
@@ -84,14 +87,14 @@ int chipvpn_peer_recv_packet(VPNPeer *peer, VPNPacket *dst) {
 }
 
 int chipvpn_peer_send_packet(VPNPeer *peer, VPNPacketType type, void *data, int size) {
-	VPNPacket *packet = alloca(sizeof(VPNPacket) + size); // faster than malloc
-	packet->header.preamble = 128;
+	VPNPacket *packet       = alloca(sizeof(VPNPacketHeader) + size); // faster than malloc
+	packet->header.preamble = htonl(48484848);
 	packet->header.size     = htonl(size);
 	packet->header.type     = htonl(type);
 	if(data) {
 		memcpy((char*)&packet->data, data, size);
 	}
-	return chipvpn_peer_raw_send(peer, (char*)packet, sizeof(packet->header) + size);
+	return chipvpn_peer_raw_send(peer, (char*)packet, sizeof(VPNPacketHeader) + size);
 }
 
 int chipvpn_peer_raw_recv(VPNPeer *peer, void *buf, int size) {

@@ -90,7 +90,7 @@ typedef struct _VPNDataPacket {
 } VPNDataPacket;
 
 typedef struct _VPNPacketHeader {
-	uint8_t preamble;
+	uint32_t preamble;
 	VPNPacketType type;
 	uint32_t size;
 } VPNPacketHeader;
