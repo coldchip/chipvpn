@@ -4,7 +4,7 @@
 #include <stdbool.h>
 
 typedef struct _ChipVPNConfig {
-	char     ip[32];
+	char     ip[1024];
 	int      port;
 	char     token[1024];
 	bool     is_server;
