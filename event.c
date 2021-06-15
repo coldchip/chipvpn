@@ -20,6 +20,7 @@
 #include <netinet/in.h>
 
 bool quit = false;
+bool retry = false;
 
 Tun *tun = NULL;
 
@@ -28,205 +29,215 @@ List peers;
 struct timeval ping_stop, ping_start;
 
 void chipvpn_event_loop(ChipVPNConfig *config, void (*status) (ChipVPNStatus)) {
-	chipvpn_start:;
+	while(1) {
+		retry = false;
+		quit = false;
 
-	bool retry = false;
-	quit = false;
+		status(STATUS_CONNECTING);
 
-	status(STATUS_CONNECTING);
+		list_clear(&peers);
 
-	list_clear(&peers);
-
-	tun = open_tun("");
-	if(tun  == NULL) {
-		error("tuntap adaptor creation failed, please run as sudo");
-	}
-
-	int sock = socket(AF_INET, SOCK_STREAM, 0);
-	if(sock < 0) {
-		error("unable to create socket");
-	}
-
-	signal(SIGPIPE, SIG_IGN);
-
-	if(setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &(char){1}, sizeof(int)) < 0){
-		error("unable to call setsockopt");
-	}
-	if(setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, &(char){1}, sizeof(int)) < 0){
-		error("unable to call setsockopt");
-	}
-
-	char *resolved = chipvpn_resolve_hostname(config->ip);
-	if(resolved == NULL) {
-		console_log("unable to resolve hostname, reconnecting");
-		retry = true;
-		goto chipvpn_cleanup;
-	}
-
-	strcpy(config->ip, resolved);
-
-	if(config->is_server) {
-		struct sockaddr_in     addr;
-		addr.sin_family      = AF_INET;
-		addr.sin_addr.s_addr = inet_addr(config->ip); 
-		addr.sin_port        = htons(config->port);
-
-		if(bind(sock, (struct sockaddr *)&addr, sizeof(addr)) != 0) { 
-			error("unable to bind");
+		tun = open_tun("");
+		if(tun  == NULL) {
+			error("tuntap adaptor creation failed, please run as sudo");
 		}
 
-		if(listen(sock, 5) != 0) { 
-			error("unable to listen");
+		int sock = socket(AF_INET, SOCK_STREAM, 0);
+		if(sock < 0) {
+			error("unable to create socket");
 		}
 
-		console_log("server started on [%s:%i]", config->ip, config->port);
+		signal(SIGPIPE, SIG_IGN);
 
-		if(!tun_setip(tun, inet_addr(config->gateway), inet_addr(config->subnet), CHIPVPN_MAX_MTU)) {
-			error("unable to assign ip to tunnel adapter");
+		if(setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &(char){1}, sizeof(int)) < 0){
+			error("unable to call setsockopt");
 		}
-		if(!tun_bringup(tun)) {
-			error("unable to bring up tunnel adapter");
+		if(setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, &(char){1}, sizeof(int)) < 0){
+			error("unable to call setsockopt");
 		}
-	} else {
-		struct sockaddr_in     addr;
-		addr.sin_family      = AF_INET;
-		addr.sin_addr.s_addr = inet_addr(config->ip); 
-		addr.sin_port        = htons(config->port);
 
-		console_log("connecting to [%s:%i]", config->ip, config->port);
-
-		if(connect(sock, (struct sockaddr*)&addr, sizeof(addr)) != 0) {
-			console_log("unable to connect, reconnecting");
+		char *resolved = chipvpn_resolve_hostname(config->ip);
+		if(resolved == NULL) {
+			console_log("unable to resolve hostname, reconnecting");
 			retry = true;
 			goto chipvpn_cleanup;
 		}
 
-		console_log("connected");
+		strcpy(config->ip, resolved);
 
-		VPNPeer *peer = chipvpn_peer_alloc(sock);
-		list_insert(list_end(&peers), peer);
+		if(config->is_server) {
+			struct sockaddr_in     addr;
+			addr.sin_family      = AF_INET;
+			addr.sin_addr.s_addr = inet_addr(config->ip); 
+			addr.sin_port        = htons(config->port);
 
-		console_log("key exchange begin");
-
-		char key[32];
-		chipvpn_generate_random(key, sizeof(key));
-
-		VPNKeyPacket p_key;
-		memcpy(p_key.key, key, sizeof(key));
-		chipvpn_peer_send_packet(peer, VPN_SET_KEY, &p_key, sizeof(p_key));
-
-		chipvpn_set_crypto(peer, key);
-	}
-
-	int server_last_update = 0;
-	struct timeval tv;
-
-	fd_set rdset;
-
-	signal(SIGINT, chipvpn_event_cleanup);
-
-	while(quit == false) {
-		tv.tv_sec = 0;
-    	tv.tv_usec = 200000;
-
-		FD_ZERO(&rdset);
-		FD_SET(sock, &rdset);
-		FD_SET(tun->fd, &rdset);
-
-		int max = MAX(tun->fd, sock);
-
-		for(ListNode *i = list_begin(&peers); i != list_end(&peers); i = list_next(i)) {
-			VPNPeer *peer = (VPNPeer*)i;
-			FD_SET(peer->fd, &rdset);
-			if(peer->fd > max) {
-				max = peer->fd;
+			if(bind(sock, (struct sockaddr *)&addr, sizeof(addr)) != 0) { 
+				error("unable to bind");
 			}
+
+			if(listen(sock, 5) != 0) { 
+				error("unable to listen");
+			}
+
+			console_log("server started on [%s:%i]", config->ip, config->port);
+
+			if(!tun_setip(tun, inet_addr(config->gateway), inet_addr(config->subnet), CHIPVPN_MAX_MTU)) {
+				error("unable to assign ip to tunnel adapter");
+			}
+			if(!tun_bringup(tun)) {
+				error("unable to bring up tunnel adapter");
+			}
+		} else {
+			struct sockaddr_in     addr;
+			addr.sin_family      = AF_INET;
+			addr.sin_addr.s_addr = inet_addr(config->ip); 
+			addr.sin_port        = htons(config->port);
+
+			console_log("connecting to [%s:%i]", config->ip, config->port);
+
+			if(connect(sock, (struct sockaddr*)&addr, sizeof(addr)) != 0) {
+				console_log("unable to connect, reconnecting");
+				retry = true;
+				goto chipvpn_cleanup;
+			}
+
+			console_log("connected");
+
+			VPNPeer *peer = chipvpn_peer_alloc(sock);
+			list_insert(list_end(&peers), peer);
+
+			console_log("key exchange begin");
+
+			char key[32];
+			chipvpn_generate_random(key, sizeof(key));
+
+			VPNKeyPacket p_key;
+			memcpy(p_key.key, key, sizeof(key));
+			chipvpn_peer_send_packet(peer, VPN_SET_KEY, &p_key, sizeof(p_key));
+
+			chipvpn_set_crypto(peer, key);
+
+			sock = -1; // discard sock as it is useless now
 		}
 
-		if(select(max + 1, &rdset, NULL, NULL, &tv) >= 0) {
-			if(chipvpn_get_time() - server_last_update >= 2) {
+		int server_last_update = 0;
+		struct timeval tv;
+
+		fd_set rdset;
+
+		signal(SIGINT, chipvpn_event_cleanup); // let event loop handle SIGINT
+
+		while(quit == false) {
+			tv.tv_sec = 0;
+	    	tv.tv_usec = 200000;
+
+	    	int max = MAX(tun->fd, sock);
+
+			FD_ZERO(&rdset);
+			if(config->is_server == true) {
+				// main listening socket for server accept
+				FD_SET(sock, &rdset);
+			}
+			FD_SET(tun->fd, &rdset);
+
+
+			for(ListNode *i = list_begin(&peers); i != list_end(&peers); i = list_next(i)) {
+				VPNPeer *peer = (VPNPeer*)i;
+				FD_SET(peer->fd, &rdset);
+				if(peer->fd > max) {
+					max = peer->fd;
+				}
+			}
+
+			if(select(max + 1, &rdset, NULL, NULL, &tv) >= 0) {
+				if(chipvpn_get_time() - server_last_update >= 2) {
+					ListNode *i = list_begin(&peers);
+					while(i != list_end(&peers)) {
+						VPNPeer *peer = (VPNPeer*)i;
+						i = list_next(i);
+						if(chipvpn_get_time() - peer->last_ping < 10) {
+							if(peer->is_authed == true) {
+								chipvpn_peer_send_packet(peer, VPN_PING, NULL, 0);
+								gettimeofday(&ping_start, NULL);
+							}
+						} else {
+							chipvpn_peer_dealloc(peer);
+							if(!config->is_server) {
+								console_log("disconnected, reconnecting");
+								retry = true;
+								goto chipvpn_cleanup;
+							}
+						}
+					}
+					server_last_update = chipvpn_get_time();
+				}
+
+				
+				if(config->is_server == true && FD_ISSET(sock, &rdset)) {
+					// server accept
+					// TODO: limit connections
+					int fd = accept(sock, NULL, 0);
+					if(fd >= 0) {
+						VPNPeer *peer = chipvpn_peer_alloc(fd);
+						list_insert(list_end(&peers), peer);
+					}
+				}
+
 				ListNode *i = list_begin(&peers);
 				while(i != list_end(&peers)) {
 					VPNPeer *peer = (VPNPeer*)i;
 					i = list_next(i);
-					if(chipvpn_get_time() - peer->last_ping < 10) {
-						if(peer->is_authed == true) {
-							chipvpn_peer_send_packet(peer, VPN_PING, NULL, 0);
-							gettimeofday(&ping_start, NULL);
-						}
-					} else {
-						chipvpn_peer_dealloc(peer);
-						if(!config->is_server) {
-							console_log("disconnected, reconnecting");
-							retry = true;
-							goto chipvpn_cleanup;
-						}
-					}
-				}
-				server_last_update = chipvpn_get_time();
-			}
-
-			if(config->is_server == true) {
-				if(FD_ISSET(sock, &rdset)) {
-					// TODO: limit connections
-					int fd = accept(sock, NULL, 0);
-
-					VPNPeer *peer = chipvpn_peer_alloc(fd);
-					list_insert(list_end(&peers), peer);
-				}
-			}
-
-			ListNode *i = list_begin(&peers);
-			while(i != list_end(&peers)) {
-				VPNPeer *peer = (VPNPeer*)i;
-				i = list_next(i);
-				if(FD_ISSET(peer->fd, &rdset)) {
-					VPNPacket packet;
-					int n = chipvpn_peer_recv_packet(peer, &packet);
-					if(n == VPN_DATA_AVAILABLE) {
-						chipvpn_socket_event(config, peer, &packet, status);
-					} else if(n < 0) {
-						chipvpn_peer_dealloc(peer);
-						if(!config->is_server) {
-							console_log("disconnected, reconnecting");
-							retry = true;
-							goto chipvpn_cleanup;
+					if(FD_ISSET(peer->fd, &rdset)) {
+						VPNPacket packet;
+						// read packet until it is a complete datagram
+						int n = chipvpn_peer_recv_packet(peer, &packet);
+						if(n == VPN_DATA_AVAILABLE) {
+							// datagram ready
+							chipvpn_socket_event(config, peer, &packet, status);
+						} else if(n < 0) {
+							// peer I/O error
+							chipvpn_peer_dealloc(peer);
+							if(!config->is_server) {
+								console_log("disconnected, reconnecting");
+								retry = true;
+								goto chipvpn_cleanup;
+							}
 						}
 					}
 				}
-			}
 
-			if(FD_ISSET(tun->fd, &rdset)) {
-				VPNDataPacket packet;
-				int n = read(tun->fd, (char*)&packet, sizeof(packet));
-				if(n > 0) {
-					chipvpn_tun_event(config, (VPNDataPacket*)&packet, n, status);
+				if(FD_ISSET(tun->fd, &rdset)) {
+					VPNDataPacket packet;
+					int n = read(tun->fd, (char*)&packet, sizeof(packet));
+					if(n > 0) {
+						chipvpn_tun_event(config, (VPNDataPacket*)&packet, n, status);
+					}
 				}
 			}
 		}
-	}
 
-	chipvpn_cleanup:;
+		chipvpn_cleanup:;
 
-	ListNode *i = list_begin(&peers);
-	while(i != list_end(&peers)) {
-		VPNPeer *peer = (VPNPeer*)i;
-		i = list_next(i);
-		chipvpn_peer_dealloc(peer);
-	}
+		ListNode *i = list_begin(&peers);
+		while(i != list_end(&peers)) {
+			VPNPeer *peer = (VPNPeer*)i;
+			i = list_next(i);
+			chipvpn_peer_dealloc(peer);
+		}
 
-	close(sock);
-	free_tun(tun);
+		close(sock);
+		free_tun(tun);
 
-	signal(SIGINT, SIG_DFL);
+		signal(SIGINT, SIG_DFL);
 
-	if(retry == true) {
-		sleep(1);
-		goto chipvpn_start;
-	} else {
 		if(status) {
 			status(STATUS_DISCONNECTED);
 		}
+
+		if(retry == false) {
+			break;
+		}
+		sleep(1);
 	}
 }
 
