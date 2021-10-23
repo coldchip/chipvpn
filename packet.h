@@ -95,14 +95,16 @@ typedef struct _VPNPacketHeader {
 	uint32_t size;
 } VPNPacketHeader;
 
+typedef union _VPNPacketData {
+	VPNKeyPacket key_packet;
+	VPNAuthPacket auth_packet;
+	VPNAssignPacket dhcp_packet;
+	VPNDataPacket data_packet;
+} VPNPacketData;
+
 typedef struct _VPNPacket {
 	VPNPacketHeader header;
-	union {
-		VPNKeyPacket key_packet;
-		VPNAuthPacket auth_packet;
-		VPNAssignPacket dhcp_packet;
-		VPNDataPacket data_packet;
-	} data;
+	VPNPacketData data;
 } VPNPacket;
 
 #endif

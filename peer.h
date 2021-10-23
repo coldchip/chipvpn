@@ -18,7 +18,7 @@ typedef struct _VPNPeer {
 	uint64_t rx;
 
 	uint32_t buffer_pos;
-	char buffer[sizeof(VPNPacket) + 256]; // idk
+	char buffer[sizeof(VPNPacket) + 256];
 
 	rc4_state_t *inbound_rc4;
 	rc4_state_t *outbound_rc4;

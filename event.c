@@ -66,7 +66,8 @@ void chipvpn_event_loop(ChipVPNConfig *config, void (*status) (ChipVPNStatus)) {
 		strcpy(config->ip, resolved);
 
 		if(config->is_server) {
-			struct sockaddr_in     addr;
+			struct sockaddr_in addr;
+			memset(&addr, 0, sizeof(addr));
 			addr.sin_family      = AF_INET;
 			addr.sin_addr.s_addr = inet_addr(config->ip); 
 			addr.sin_port        = htons(config->port);
@@ -89,6 +90,7 @@ void chipvpn_event_loop(ChipVPNConfig *config, void (*status) (ChipVPNStatus)) {
 			}
 		} else {
 			struct sockaddr_in     addr;
+			memset(&addr, 0, sizeof(addr));
 			addr.sin_family      = AF_INET;
 			addr.sin_addr.s_addr = inet_addr(config->ip); 
 			addr.sin_port        = htons(config->port);
@@ -244,11 +246,12 @@ void chipvpn_event_loop(ChipVPNConfig *config, void (*status) (ChipVPNStatus)) {
 void chipvpn_socket_event(ChipVPNConfig *config, VPNPeer *peer, VPNPacket *packet, void (*status) (ChipVPNStatus)) {
 	VPNPacketType type = ntohl(packet->header.type);
 	uint32_t      size = ntohl(packet->header.size);
+	VPNPacketData data = packet->data;
 
 	switch(type) {
 		case VPN_SET_KEY: {
 			if(config->is_server) {
-				VPNKeyPacket *p_key = &packet->data.key_packet;
+				VPNKeyPacket *p_key = &data.key_packet;
 				chipvpn_set_crypto(peer, p_key->key);
 
 				chipvpn_peer_send_packet(peer, VPN_SET_KEY, NULL, 0);
@@ -263,7 +266,7 @@ void chipvpn_socket_event(ChipVPNConfig *config, VPNPeer *peer, VPNPacket *packe
 		break;
 		case VPN_TYPE_AUTH: {
 			if(config->is_server) {
-				VPNAuthPacket *p_auth = &packet->data.auth_packet;
+				VPNAuthPacket *p_auth = &data.auth_packet;
 				if(memcmp(p_auth, config->token, strlen(config->token)) == 0) {
 					peer->is_authed = true;
 
@@ -288,18 +291,18 @@ void chipvpn_socket_event(ChipVPNConfig *config, VPNPeer *peer, VPNPacket *packe
 			if(config->is_server) {
 				uint32_t alloc_ip = chipvpn_get_peer_free_ip(&peers, config->gateway);
 				if(alloc_ip > 0) {
-					VPNAssignPacket packet;
-					packet.ip      = alloc_ip;
-					packet.subnet  = inet_addr(config->subnet);
-					packet.gateway = inet_addr(config->gateway);
-					packet.mtu     = htonl(CHIPVPN_MAX_MTU);
+					VPNAssignPacket assign;
+					assign.ip      = alloc_ip;
+					assign.subnet  = inet_addr(config->subnet);
+					assign.gateway = inet_addr(config->gateway);
+					assign.mtu     = htonl(CHIPVPN_MAX_MTU);
 
 					peer->internal_ip = alloc_ip;
 
-					chipvpn_peer_send_packet(peer, VPN_TYPE_ASSIGN, &packet, sizeof(packet));
+					chipvpn_peer_send_packet(peer, VPN_TYPE_ASSIGN, &assign, sizeof(assign));
 				}
 			} else {
-				VPNAssignPacket *p_assign = &packet->data.dhcp_packet;
+				VPNAssignPacket *p_assign = &data.dhcp_packet;
 
 				uint32_t peer_ip      = p_assign->ip;
 				uint32_t peer_subnet  = p_assign->subnet;
@@ -334,7 +337,7 @@ void chipvpn_socket_event(ChipVPNConfig *config, VPNPeer *peer, VPNPacket *packe
 		}
 		break;
 		case VPN_TYPE_DATA: {
-			VPNDataPacket *p_data = (VPNDataPacket*)&packet->data.data_packet;
+			VPNDataPacket *p_data = &data.data_packet;
 			IPPacket *ip_hdr = (IPPacket*)(p_data);
 			if(
 				peer->is_authed == true &&
@@ -355,16 +358,25 @@ void chipvpn_socket_event(ChipVPNConfig *config, VPNPeer *peer, VPNPacket *packe
 		case VPN_PONG: {
 			gettimeofday(&ping_stop, NULL);
 
-			char tx[20];
-			char rx[20];
+			char tx[50];
+			char rx[50];
 			strcpy(tx, chipvpn_format_bytes(peer->tx));
 			strcpy(rx, chipvpn_format_bytes(peer->rx));
-			console_log("peer %p ping took %lu ms TX: %s RX: %s", peer, ((ping_stop.tv_sec - ping_start.tv_sec) * 1000000 + ping_stop.tv_usec - ping_start.tv_usec) / 1000, tx, rx); 
+
+			uint32_t peer_index = 0;
+			for(ListNode *i = list_begin(&peers); i != list_end(&peers); i = list_next(i)) {
+				if(peer == (VPNPeer*)i) {
+					break;
+				}
+				++peer_index;
+			}
+
+			console_log("peer 0x%04x ping took %lu ms TX: %s RX: %s", peer_index, ((ping_stop.tv_sec - ping_start.tv_sec) * 1000000 + ping_stop.tv_usec - ping_start.tv_usec) / 1000, tx, rx); 
 		}
 		break;
 		case VPN_TYPE_MSG: {
 			if(!config->is_server) {
-				VPNDataPacket *p_msg = (VPNDataPacket*)&packet->data.data_packet;
+				VPNDataPacket *p_msg = (VPNDataPacket*)&data.data_packet;
 				p_msg->data[sizeof(VPNDataPacket) - 1] = '\0';
 				console_log("server => %s", p_msg->data);
 			}

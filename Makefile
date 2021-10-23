@@ -1,7 +1,24 @@
+CC      := gcc
+LD      := ld
+BIN     := bin
+SRCS    := $(wildcard *.c)
+EXE     := $(BIN)/chipvpn
+CFLAGS  := -Wall -Ofast -s
+LIBS    := 
+ifeq ($(OS),Windows_NT)
+	LIBS := $(LIBS) -lws2_32
+endif
+
 .PHONY: clean install
 
-all:
-	./build.sh compile
+all: $(EXE)
+
+$(EXE): $(SRCS) | $(BIN)
+	$(CC) $(CFLAGS) $(SRCS) $(LIBS) -o $@
+run:
+	$(EXE)
+clean:
+	rm -rf bin/*
 install:
 	-systemctl stop chipvpn
 	-mkdir -p /etc/chipvpn
@@ -9,10 +26,8 @@ install:
 	cp install/chipvpn.service /etc/systemd/system
 	cp bin/chipvpn /usr/local/sbin
 	systemctl daemon-reload
-clean:
-	./build.sh clean
 upload:
-	scp -r /home/ryan/chipvpn/* ryan@sg03.vpn.coldchip.ru:/home/ryan/chipvpn
+	scp -r /home/ryan/chipvpn/* ryan@coldchip.aws:/home/ryan/chipvpn
 upload2:
 	scp -r /home/ryan/chipvpn/* ryan@192.168.0.100:/home/ryan/chipvpn
 upload3:
