@@ -43,6 +43,7 @@ char              *chipvpn_resolve_hostname(char *ip);
 void               chipvpn_generate_random(char *buf, int len);
 const char        *chipvpn_format_bytes(uint64_t bytes);
 uint32_t           chipvpn_get_time();
+int                chipvpn_set_socket_non_block(int fd);
 
 #ifdef __cplusplus
 }

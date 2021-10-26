@@ -64,10 +64,11 @@ void chipvpn_event_loop(ChipVPNConfig *config, void (*status) (ChipVPNStatus)) {
 			error("unable to create socket");
 		}
 
-		int flags = fcntl(sock, F_GETFL);
-		fcntl(sock, F_SETFL, flags | O_NONBLOCK);
-
 		signal(SIGPIPE, SIG_IGN);
+
+		if(chipvpn_set_socket_non_block(sock) < 0) {
+			error("unable to set socket to non blocking mode");
+		}
 
 		if(setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &(char){1}, sizeof(int)) < 0){
 			error("unable to call setsockopt");
@@ -117,20 +118,18 @@ void chipvpn_event_loop(ChipVPNConfig *config, void (*status) (ChipVPNStatus)) {
 
 			console_log("connecting to [%s:%i]", config->ip, config->port);
 
-			int code = -1;
-
-			while(code == -1) {
-				code = connect(sock, (struct sockaddr*)&addr, sizeof(addr));
-				printf("%i\n", code);
+			int connect_start = chipvpn_get_time();
+			while(true) {
+				if(connect(sock, (struct sockaddr*)&addr, sizeof(addr)) != -1) {
+					break;
+				}
+				if(chipvpn_get_time() - connect_start > 5) {
+					console_log("unable to connect, reconnecting");
+					retry = true;
+					goto chipvpn_cleanup;
+				}
 			}
 			
-
-			if(code == -1) {
-				console_log("unable to connect, reconnecting");
-				retry = true;
-				goto chipvpn_cleanup;
-			}
-
 			console_log("connected");
 
 			VPNPeer *peer = chipvpn_peer_alloc(sock);
@@ -213,8 +212,9 @@ void chipvpn_event_loop(ChipVPNConfig *config, void (*status) (ChipVPNStatus)) {
 					// TODO: limit connections
 					int fd = accept(sock, NULL, 0);
 					if(fd >= 0) {
-						int flags = fcntl(fd, F_GETFL);
-						fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+						if(chipvpn_set_socket_non_block(fd) < 0) {
+							error("unable to set socket to non blocking mode");
+						}
 
 						VPNPeer *peer = chipvpn_peer_alloc(fd);
 						list_insert(list_end(&peers), peer);

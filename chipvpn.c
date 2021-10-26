@@ -203,3 +203,16 @@ uint32_t chipvpn_get_time() {
 	gettimeofday(&tv, NULL);
 	return (tv.tv_sec * 1000 + tv.tv_usec / 1000) / 1000;
 }
+
+int chipvpn_set_socket_non_block(int fd) {
+	int flags = fcntl(fd, F_GETFL);
+	if(flags == -1) {
+		return -1;
+	}
+
+	if(fcntl(fd, F_SETFL, flags | O_NONBLOCK) == 0) {
+		return 0;
+	}
+
+	return -1;
+}
