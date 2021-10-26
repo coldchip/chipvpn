@@ -38,9 +38,9 @@ typedef enum {
 	STATUS_DISCONNECTED
 } ChipVPNStatus;
 
-void chipvpn_event_loop(ChipVPNConfig *config, void (*status) (ChipVPNStatus));
-void chipvpn_socket_event(ChipVPNConfig *config, VPNPeer *peer, VPNPacket *packet, void (*status) (ChipVPNStatus));
-void chipvpn_tun_event(ChipVPNConfig *config, VPNDataPacket *packet, int size, void (*status) (ChipVPNStatus));
+void chipvpn_event_loop(ChipVPNConfig *config, void (*status)(ChipVPNStatus));
+void chipvpn_socket_event(ChipVPNConfig *config, VPNPeer *peer, VPNPacket *packet, void (*status)(ChipVPNStatus));
+void chipvpn_tun_event(ChipVPNConfig *config, VPNDataPacket *packet, int size, void (*status)(ChipVPNStatus));
 void chipvpn_event_cleanup(int type);
 
 #endif

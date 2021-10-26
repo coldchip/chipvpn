@@ -44,7 +44,7 @@ List peers;
 
 struct timeval ping_stop, ping_start;
 
-void chipvpn_event_loop(ChipVPNConfig *config, void (*status) (ChipVPNStatus)) {
+void chipvpn_event_loop(ChipVPNConfig *config, void (*status)(ChipVPNStatus)) {
 	while(1) {
 		retry = false;
 		quit = false;
@@ -146,7 +146,7 @@ void chipvpn_event_loop(ChipVPNConfig *config, void (*status) (ChipVPNStatus)) {
 
 			chipvpn_set_crypto(peer, key);
 
-			sock = -1; // discard sock as it is useless now
+			sock = -1; // discard sock as it is replaced by the allocation of peer
 		}
 
 		int server_last_update = 0;
@@ -231,12 +231,12 @@ void chipvpn_event_loop(ChipVPNConfig *config, void (*status) (ChipVPNStatus)) {
 					if(FD_ISSET(peer->fd, &rdset)) {
 						VPNPacket packet;
 						// read packet until it is a complete datagram
-						int n = chipvpn_peer_recv_nio(peer, &packet);
-						if(n > 0) {
+						int r = chipvpn_peer_recv_nio(peer, &packet);
+						if(r > 0) {
 							// datagram ready
 							chipvpn_socket_event(config, peer, &packet, status);
 						} else {
-							if(n != VPN_EAGAIN) {
+							if(r != VPN_EAGAIN) {
 								// peer I/O error
 								chipvpn_peer_dealloc(peer);
 								if(!config->is_server) {
@@ -287,7 +287,7 @@ void chipvpn_event_loop(ChipVPNConfig *config, void (*status) (ChipVPNStatus)) {
 	}
 }
 
-void chipvpn_socket_event(ChipVPNConfig *config, VPNPeer *peer, VPNPacket *packet, void (*status) (ChipVPNStatus)) {
+void chipvpn_socket_event(ChipVPNConfig *config, VPNPeer *peer, VPNPacket *packet, void (*status)(ChipVPNStatus)) {
 	VPNPacketType type = ntohl(packet->header.type);
 	uint32_t      size = ntohl(packet->header.size);
 	VPNPacketData data = packet->data;

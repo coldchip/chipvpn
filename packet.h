@@ -17,6 +17,7 @@
 #define PACKET_H
 
 #include <stdint.h>
+#include "chipvpn.h"
 
 typedef struct _IPPacket {
 	uint8_t	version:4, ihl:4;
@@ -100,7 +101,7 @@ typedef struct _VPNAssignPacket {
 } VPNAssignPacket;
 
 typedef struct _VPNDataPacket {
-	char data[8192];
+	char data[CHIPVPN_MAX_PACKET_SIZE];
 } VPNDataPacket;
 
 typedef struct _VPNPacketHeader {

@@ -26,10 +26,13 @@ extern "C"
 #include <stdbool.h>
 #include <stdint.h>
 
-#define CHIPVPN_MAX_MTU 1500
-#define CHIPVPN_VERSION 100001
+#define CHIPVPN_VERSION         1000000021L
+#define CHIPVPN_MAX_MTU         1500
+#define CHIPVPN_MAX_PACKET_SIZE 65535
 
-#define DIM(x) (sizeof(x)/sizeof(*(x)))
+#if CHIPVPN_MAX_MTU > CHIPVPN_MAX_PACKET_SIZE
+	#error "CHIPVPN_MAX_MTU < CHIPVPN_MAX_PACKET_SIZE"
+#endif
 
 char              *read_file_into_buffer(char *file);
 uint32_t           get_default_gateway();

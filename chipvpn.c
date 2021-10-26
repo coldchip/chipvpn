@@ -172,8 +172,7 @@ char *chipvpn_resolve_hostname(char *ip) {
 void chipvpn_generate_random(char *buf, int len) {
 	int fp = open("/dev/urandom", O_RDONLY);
 	if (fp >= 0) {
-		int r = read(fp, buf, len);
-		if (r < 0) {
+		if (read(fp, buf, len) != len) {
 			// something went wrong
 		}
 		close(fp);
