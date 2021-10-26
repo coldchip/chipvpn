@@ -13,23 +13,23 @@ There are hundreds of VPN software and protocols out there, and each one are des
 - The protocol uses TCP instead of UDP to bypass most firewalls.
 - It prevents changing of the IP after setting it and thus IP spoofing is not possible. 
 # Prerequisites
-A machine running Linux, preferably Ubuntu 21.04
-C compiler (gcc)  
-Having the TUN/TAP kernel module loaded
+- A machine running Linux, preferably Ubuntu 21.04
+- C compiler (gcc)  
+- Having the TUN/TAP kernel module loaded
 
 # Building from source
-`$ mkdir bin`
-`$ make`
-`$ sudo make install`
+- `$ mkdir bin`
+- `$ make`
+- `$ sudo make install`
 
 # Running it
-To run it as a server
-`sudo chipvpn server.json`
-To run it as a client
-`sudo chipvpn client.json`
+- To run it as a server
+- `sudo chipvpn server.json`
+- To run it as a client
+- `sudo chipvpn client.json`
 
 # License
-Refer to `LICENSE` file. 
+- Refer to `LICENSE` file. 
 
 # TODO
-Add encryption to the protocol
+- Add encryption to the protocol
