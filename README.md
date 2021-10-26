@@ -1,2 +1,2 @@
 # ChipVPN Core
-This is the core of ChipVPN
+![logo](https://github.com/coldchip/chipvpn/raw/master/docs/chipvpn.png)

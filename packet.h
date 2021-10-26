@@ -1,3 +1,18 @@
+/*
+ * ColdChip ChipVPN
+ *
+ * Copyright (c) 2016-2021, Ryan Loh <ryan@coldchip.ru>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ * Alternatively, this software may be distributed under the terms of BSD
+ * license.
+ *
+ * See README for more details.
+ */
+
 #ifndef PACKET_H
 #define PACKET_H
 
@@ -53,8 +68,7 @@ typedef struct _ICMPHeader {
 } ICMPHeader;
 
 typedef enum {
-	VPN_DATA_AVAILABLE = 1,
-	VPN_NO_EVENT = 0,
+	VPN_EAGAIN = 0,
 	VPN_CONNECTION_END = -1,
 	VPN_CONNECTION_PACKET_CORRUPTED = -2,
 	VPN_CONNECTION_PACKET_OVERFLOW = -3
