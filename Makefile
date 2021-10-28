@@ -29,8 +29,4 @@ install:
 upload:
 	scp -r /home/ryan/chipvpn/* ryan@coldchip.aws:/home/ryan/chipvpn
 upload2:
-	scp -r /home/ryan/chipvpn/* ryan@192.168.0.100:/home/ryan/chipvpn
-upload3:
-	scp -r /home/ryan/chipvpn/* ryan@vpn.coldchip.ru:/home/ryan/chipvpn
-upload4:
-	scp -r /home/ryan/chipvpn/* root@192.168.0.148:/root/chipvpn
+	scp -r /home/ryan/chipvpn/* root@192.168.0.101:/root/chipvpn

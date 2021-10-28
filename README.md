@@ -1,5 +1,4 @@
-
-# ChipVPN - A non blocking multipeer VPN 
+# ChipVPN - A multipeer VPN 
 ![logo](https://github.com/coldchip/chipvpn/raw/master/docs/chipvpn.png)
 
 # What's so special about ChipVPN?
@@ -14,8 +13,8 @@ There are hundreds of VPN software and protocols out there, and each one are des
 - It prevents changing of the IP after setting it and thus IP spoofing is not possible. 
 # Prerequisites
 - A machine running Linux, preferably Ubuntu 21.04
-- C compiler (gcc)  
-- Having the TUN/TAP kernel module loaded
+- C compiler (gcc)
+- TUN/TAP kernel module loaded
 
 # Building from source
 - `$ mkdir bin`

@@ -45,6 +45,8 @@ typedef struct _VPNPeer {
 VPNPeer           *chipvpn_peer_alloc(int fd);
 void               chipvpn_peer_dealloc(VPNPeer *peer);
 void               chipvpn_set_crypto(VPNPeer *peer, char *key);
+int                chipvpn_peer_dispatch_inbound(VPNPeer *peer);
+int                chipvpn_peer_dispatch_outbound(VPNPeer *peer);
 int                chipvpn_peer_recv_nio(VPNPeer *peer, VPNPacket *dst);
 int                chipvpn_peer_send_nio(VPNPeer *peer, VPNPacketType type, void *data, int size);
 int                chipvpn_peer_raw_recv(VPNPeer *peer, void *buf, int size, int *err);

@@ -153,6 +153,7 @@ void chipvpn_event_loop(ChipVPNConfig *config, void (*status)(ChipVPNStatus)) {
 		struct timeval tv;
 
 		fd_set rdset;
+		fd_set wdset;
 
 		signal(SIGINT, chipvpn_event_cleanup); // let event loop handle SIGINT
 
@@ -163,6 +164,7 @@ void chipvpn_event_loop(ChipVPNConfig *config, void (*status)(ChipVPNStatus)) {
 	    	int max = MAX(tun->fd, sock);
 
 			FD_ZERO(&rdset);
+			FD_ZERO(&wdset);
 			if(config->is_server == true) {
 				// main listening socket for server accept
 				FD_SET(sock, &rdset);
@@ -173,12 +175,15 @@ void chipvpn_event_loop(ChipVPNConfig *config, void (*status)(ChipVPNStatus)) {
 			for(ListNode *i = list_begin(&peers); i != list_end(&peers); i = list_next(i)) {
 				VPNPeer *peer = (VPNPeer*)i;
 				FD_SET(peer->fd, &rdset);
+				if(peer->outbound_buffer_pos > 0) {
+					FD_SET(peer->fd, &wdset);
+				}
 				if(peer->fd > max) {
 					max = peer->fd;
 				}
 			}
 
-			if(select(max + 1, &rdset, NULL, NULL, &tv) >= 0) {
+			if(select(max + 1, &rdset, &wdset, NULL, &tv) >= 0) {
 				/* 
 					ChipVPN's service
 				*/
@@ -222,20 +227,18 @@ void chipvpn_event_loop(ChipVPNConfig *config, void (*status)(ChipVPNStatus)) {
 				}
 
 				/* 
-					Triggered when the peer is readable
+					Triggered when the peer is readable/writable
 				*/
 				ListNode *i = list_begin(&peers);
 				while(i != list_end(&peers)) {
 					VPNPeer *peer = (VPNPeer*)i;
 					i = list_next(i);
+					// peer is readable
 					if(FD_ISSET(peer->fd, &rdset)) {
 						VPNPacket packet;
 						// read packet until it is a complete datagram
-						int r = chipvpn_peer_recv_nio(peer, &packet);
-						if(r > 0) {
-							// datagram ready
-							chipvpn_socket_event(config, peer, &packet, status);
-						} else {
+						int r = chipvpn_peer_dispatch_inbound(peer);
+						if(r <= 0) {
 							if(r != VPN_EAGAIN) {
 								// peer I/O error
 								chipvpn_peer_dealloc(peer);
@@ -244,7 +247,30 @@ void chipvpn_event_loop(ChipVPNConfig *config, void (*status)(ChipVPNStatus)) {
 									retry = true;
 									goto chipvpn_cleanup;
 								}
+								continue;
 							}
+						}
+
+						if(chipvpn_peer_recv_nio(peer, &packet) > 0) {
+							// datagram ready
+							chipvpn_socket_event(config, peer, &packet, status);
+						}
+					}
+
+					// peer is writable
+					if(FD_ISSET(peer->fd, &wdset)) {
+						int w = chipvpn_peer_dispatch_outbound(peer);
+						if(w <= 0) {
+							if(w != VPN_EAGAIN) {
+								// peer I/O error
+								chipvpn_peer_dealloc(peer);
+								if(!config->is_server) {
+									console_log("disconnected, reconnecting");
+									retry = true;
+									goto chipvpn_cleanup;
+								}
+								continue;
+							}	
 						}
 					}
 				}

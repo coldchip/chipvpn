@@ -59,7 +59,7 @@ void chipvpn_set_crypto(VPNPeer *peer, char *key) {
 	rc4_init(peer->outbound_rc4, (uint8_t*)key, 32);
 }
 
-int chipvpn_peer_recv_nio(VPNPeer *peer, VPNPacket *dst) {
+int chipvpn_peer_dispatch_inbound(VPNPeer *peer) {
 	VPNPacket *packet = (VPNPacket*)&peer->inbound_buffer;
 	uint32_t preamble = ntohl(packet->header.preamble);
 	uint32_t size     = ntohl(packet->header.size);
@@ -81,6 +81,7 @@ int chipvpn_peer_recv_nio(VPNPeer *peer, VPNPacket *dst) {
 		int readed = chipvpn_peer_raw_recv(peer, &peer->inbound_buffer[peer->inbound_buffer_pos], left, &err);
 		if(readed > 0) {
 			peer->inbound_buffer_pos += readed;
+			return readed;
 		} else {
 			if(err == EWOULDBLOCK || err == EAGAIN) {
 				// no data yet
@@ -93,39 +94,10 @@ int chipvpn_peer_recv_nio(VPNPeer *peer, VPNPacket *dst) {
 		// packet size too large
 		return VPN_CONNECTION_PACKET_OVERFLOW;
 	}
-
-	size = ntohl(packet->header.size); // refresh size
-
-	if(peer->inbound_buffer_pos == (size + sizeof(VPNPacketHeader))) {
-		// Buffer ready
-		peer->inbound_buffer_pos = 0;
-
-		memcpy(dst, packet, sizeof(VPNPacket));
-		memset(peer->inbound_buffer, 0, sizeof(peer->inbound_buffer));
-		return sizeof(VPNPacketHeader) + size;
-	}
-
-	return VPN_EAGAIN; // no event
+	return VPN_EAGAIN;
 }
 
-int chipvpn_peer_send_nio(VPNPeer *peer, VPNPacketType type, void *data, int size) {
-	int sent = VPN_EAGAIN;
-
-	if(peer->outbound_buffer_pos == 0) {
-		VPNPacket *packet       = alloca(sizeof(VPNPacketHeader) + size); // faster than malloc
-		packet->header.preamble = htonl(48484848);
-		packet->header.size     = htonl(size);
-		packet->header.type     = htonl(type);
-		if(data) {
-			memcpy((char*)&packet->data, data, size);
-		}
-
-		memcpy(peer->outbound_buffer, packet, sizeof(VPNPacketHeader) + size);
-		peer->outbound_buffer_pos = sizeof(VPNPacketHeader) + size;
-
-		sent = sizeof(VPNPacketHeader) + size;
-	} 
-
+int chipvpn_peer_dispatch_outbound(VPNPeer *peer) {
 	if(peer->outbound_buffer_pos > 0) {
 		VPNPacket *packet = (VPNPacket*)&peer->outbound_buffer;
 		uint32_t size     = ntohl(packet->header.size);
@@ -143,12 +115,53 @@ int chipvpn_peer_send_nio(VPNPeer *peer, VPNPacketType type, void *data, int siz
 			return VPN_CONNECTION_END;
 		}
 	}
+	return VPN_EAGAIN;
+}
+
+int chipvpn_peer_recv_nio(VPNPeer *peer, VPNPacket *dst) {
+	VPNPacket *packet = (VPNPacket*)&peer->inbound_buffer;
+	uint32_t size     = ntohl(packet->header.size);
+
+	if(
+		peer->inbound_buffer_pos >= sizeof(VPNPacketHeader) && 
+		peer->inbound_buffer_pos == (size + sizeof(VPNPacketHeader))
+	) {
+		// Buffer ready
+		peer->inbound_buffer_pos = 0;
+
+		memcpy(dst, packet, sizeof(VPNPacket));
+		memset(peer->inbound_buffer, 0, sizeof(peer->inbound_buffer));
+		return sizeof(VPNPacketHeader) + size;
+	}
+
+	return VPN_EAGAIN; // no event
+}
+
+int chipvpn_peer_send_nio(VPNPeer *peer, VPNPacketType type, void *data, int size) {
+	int sent = VPN_EAGAIN;
+	chipvpn_peer_dispatch_outbound(peer);
+	if(peer->outbound_buffer_pos == 0) {
+		VPNPacket *packet       = alloca(sizeof(VPNPacketHeader) + size); // faster than malloc
+		packet->header.preamble = htonl(48484848);
+		packet->header.size     = htonl(size);
+		packet->header.type     = htonl(type);
+		if(data) {
+			memcpy((char*)&packet->data, data, size);
+		}
+
+		memcpy(peer->outbound_buffer, packet, sizeof(VPNPacketHeader) + size);
+		peer->outbound_buffer_pos = sizeof(VPNPacketHeader) + size;
+
+		sent = sizeof(VPNPacketHeader) + size;
+	} 
+
+	chipvpn_peer_dispatch_outbound(peer);
 
 	return sent;
 }
 
 int chipvpn_peer_raw_recv(VPNPeer *peer, void *buf, int size, int *err) {
-	int r = recv(peer->fd, buf, size, MSG_DONTWAIT);
+	int r = recv(peer->fd, buf, size, 0);
 
 	if(err) {
 		*err = errno;
@@ -165,7 +178,7 @@ int chipvpn_peer_raw_send(VPNPeer *peer, void *buf, int size, int *err) {
 		//chipvpn_encrypt_buf(peer, (char*)buf, size);
 	}
 	
-	int w = send(peer->fd, buf, size, MSG_DONTWAIT);
+	int w = send(peer->fd, buf, size, 0);
 	if(err) {
 		*err = errno;
 	}
