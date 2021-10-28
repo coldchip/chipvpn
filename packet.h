@@ -19,6 +19,9 @@
 #include <stdint.h>
 #include "chipvpn.h"
 
+#define PLEN(packet)  (vpnpacket_len(packet))
+#define PTYPE(packet)  (vpnpacket_type(packet))
+
 typedef struct _IPPacket {
 	uint8_t	version:4, ihl:4;
     uint8_t  ip_tos;                 /* type of service */
@@ -121,5 +124,8 @@ typedef struct _VPNPacket {
 	VPNPacketHeader header;
 	VPNPacketData data;
 } VPNPacket;
+
+int vpnpacket_len(VPNPacket *packet);
+int vpnpacket_type(VPNPacket *packet);
 
 #endif

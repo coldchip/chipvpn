@@ -175,7 +175,7 @@ void chipvpn_event_loop(ChipVPNConfig *config, void (*status)(ChipVPNStatus)) {
 			for(ListNode *i = list_begin(&peers); i != list_end(&peers); i = list_next(i)) {
 				VPNPeer *peer = (VPNPeer*)i;
 				FD_SET(peer->fd, &rdset);
-				if(peer->outbound_buffer_pos > 0) {
+				if(list_size(&peer->outbound_queue) > 0) {
 					FD_SET(peer->fd, &wdset);
 				}
 				if(peer->fd > max) {
@@ -314,11 +314,9 @@ void chipvpn_event_loop(ChipVPNConfig *config, void (*status)(ChipVPNStatus)) {
 }
 
 void chipvpn_socket_event(ChipVPNConfig *config, VPNPeer *peer, VPNPacket *packet, void (*status)(ChipVPNStatus)) {
-	VPNPacketType type = ntohl(packet->header.type);
-	uint32_t      size = ntohl(packet->header.size);
 	VPNPacketData data = packet->data;
 
-	switch(type) {
+	switch(PTYPE(packet)) {
 		case VPN_SET_KEY: {
 			if(config->is_server) {
 				VPNKeyPacket *p_key = &data.key_packet;
@@ -413,10 +411,10 @@ void chipvpn_socket_event(ChipVPNConfig *config, VPNPeer *peer, VPNPacket *packe
 				peer->is_authed == true &&
 				((ip_hdr->dst_addr == peer->internal_ip && !config->is_server) || 
 				(ip_hdr->src_addr == peer->internal_ip && config->is_server)) && 
-				(size > 0 && size <= (CHIPVPN_MAX_MTU))
+				(PLEN(packet) > 0 && PLEN(packet) <= (CHIPVPN_MAX_MTU))
 			) {
-				peer->rx += size;
-				if(write(tun->fd, (char*)p_data, size)) {}
+				peer->rx += PLEN(packet);
+				if(write(tun->fd, (char*)p_data, PLEN(packet))) {}
 			}
 		}
 		break;

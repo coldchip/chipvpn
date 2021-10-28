@@ -22,10 +22,11 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-typedef struct _VPNPeerQueue {
+typedef struct _VPNPacketQueue {
 	ListNode node;
+	int rw_offset;
 	VPNPacket packet;
-} VPNPeerQueue;
+} VPNPacketQueue;
 
 typedef struct _VPNPeer {
 	ListNode node;
@@ -39,11 +40,11 @@ typedef struct _VPNPeer {
 
 	uint32_t inbound_buffer_pos;
 	char inbound_buffer[sizeof(VPNPacket)];
-	List inbound_packets;
+	List inbound_queue;
 
 	uint32_t outbound_buffer_pos;
 	char outbound_buffer[sizeof(VPNPacket)];
-	List outbound_packets;
+	List outbound_queue;
 
 	rc4_state_t *inbound_rc4;
 	rc4_state_t *outbound_rc4;
