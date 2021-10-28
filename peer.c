@@ -41,10 +41,6 @@ VPNPeer *chipvpn_peer_alloc(int fd) {
 	peer->outbound_buffer_pos = 0;
 	peer->inbound_rc4         = rc4_create((uint8_t*)&key, sizeof(key));
 	peer->outbound_rc4        = rc4_create((uint8_t*)&key, sizeof(key));
-	
-	list_clear(&peer->inbound_queue);
-	list_clear(&peer->outbound_queue);
-	
 	console_log("peer connected");
 	return peer;
 }
@@ -72,6 +68,7 @@ int chipvpn_peer_dispatch_inbound(VPNPeer *peer) {
 	}
 
 	if(
+		(peer->inbound_buffer_pos > sizeof(peer->inbound_buffer)) || 
 		(left + peer->inbound_buffer_pos) > sizeof(peer->inbound_buffer)
 	) {
 		return VPN_CONNECTION_PACKET_OVERFLOW;
@@ -87,6 +84,30 @@ int chipvpn_peer_dispatch_inbound(VPNPeer *peer) {
 	}
 
 	peer->inbound_buffer_pos += r;
+	return r;
+}
+
+int chipvpn_peer_dispatch_outbound(VPNPeer *peer) {
+	if(peer->outbound_buffer_pos > 0) {
+		VPNPacket *packet = (VPNPacket*)&peer->outbound_buffer;
+
+		int err = EWOULDBLOCK;
+		int sent = chipvpn_peer_raw_send(peer, &peer->outbound_buffer[(sizeof(VPNPacketHeader) + PLEN(packet)) - peer->outbound_buffer_pos], peer->outbound_buffer_pos, &err);
+		if(sent <= 0) {
+			if(err == EWOULDBLOCK || err == EAGAIN) {
+				return VPN_EAGAIN;
+			}
+			return VPN_CONNECTION_END;
+		}
+
+		peer->outbound_buffer_pos -= sent;
+		return sent;
+	}
+	return VPN_EAGAIN;
+}
+
+int chipvpn_peer_recv_nio(VPNPeer *peer, VPNPacket *dst) {
+	VPNPacket *packet = (VPNPacket*)&peer->inbound_buffer;
 
 	if(
 		peer->inbound_buffer_pos >= sizeof(VPNPacketHeader) && 
@@ -95,51 +116,7 @@ int chipvpn_peer_dispatch_inbound(VPNPeer *peer) {
 		// Buffer ready
 		peer->inbound_buffer_pos = 0;
 
-		VPNPacketQueue *queue = malloc(sizeof(VPNPacketQueue));
-		memcpy(&queue->packet, packet, sizeof(VPNPacketHeader) + PLEN(packet));
-		
-		list_insert(list_end(&peer->inbound_queue), queue);
-	}
-
-	return r;
-}
-
-int chipvpn_peer_dispatch_outbound(VPNPeer *peer) {
-	if(list_size(&peer->outbound_queue) > 0) {
-		VPNPacketQueue *queue   = list_back(&peer->outbound_queue);
-		VPNPacket *packet       = &queue->packet; 
-
-		int err = EWOULDBLOCK;
-		int w = chipvpn_peer_raw_send(peer, (char*)packet + sizeof(VPNPacketHeader) + PLEN(packet) - queue->rw_offset, queue->rw_offset, &err);
-		if(w <= 0) {
-			if(err == EWOULDBLOCK || err == EAGAIN) {
-				// no data yet
-				return VPN_EAGAIN;
-			}
-			// connection close
-			return VPN_CONNECTION_END;
-		}
-
-		queue->rw_offset -= w;
-		if(queue->rw_offset == 0) {
-			list_remove(&queue->node);
-			free(queue);
-		}
-		return w;
-	}
-	return VPN_EAGAIN;
-}
-
-int chipvpn_peer_recv_nio(VPNPeer *peer, VPNPacket *dst) {
-	if(list_size(&peer->inbound_queue) > 0) {
-		VPNPacketQueue *queue   = list_back(&peer->inbound_queue);
-		VPNPacket *packet       = &queue->packet; 
-
 		memcpy(dst, packet, sizeof(VPNPacketHeader) + PLEN(packet));
-
-		list_remove(&queue->node);
-		free(queue);
-
 		return sizeof(VPNPacketHeader) + PLEN(packet);
 	}
 
@@ -147,19 +124,33 @@ int chipvpn_peer_recv_nio(VPNPeer *peer, VPNPacket *dst) {
 }
 
 int chipvpn_peer_send_nio(VPNPeer *peer, VPNPacketType type, void *data, int size) {
-	VPNPacketQueue *queue   = malloc(sizeof(VPNPacketQueue));
-	queue->rw_offset        = sizeof(VPNPacketHeader) + size;
+	int sent = VPN_EAGAIN;
 
-	queue->packet.header.preamble = htonl(48484848);
-	queue->packet.header.size     = htonl(size);
-	queue->packet.header.type     = htonl(type);
-	if(data) {
-		memcpy(&queue->packet.data, data, size);
+	int r = chipvpn_peer_dispatch_outbound(peer);
+	if(r <= 0 && r != VPN_EAGAIN) {
+		return r;
 	}
 
-	list_insert(list_end(&peer->outbound_queue), queue);
+	if(peer->outbound_buffer_pos == 0) {
+		VPNPacket *packet       = alloca(sizeof(VPNPacketHeader) + size); // faster than malloc
+		packet->header.size     = htonl(size);
+		packet->header.type     = htonl(type);
+		if(data) {
+			memcpy((char*)&packet->data, data, size);
+		}
 
-	return sizeof(VPNPacketHeader) + size;
+		memcpy(peer->outbound_buffer, packet, sizeof(VPNPacketHeader) + size);
+		peer->outbound_buffer_pos = sizeof(VPNPacketHeader) + size;
+
+		sent = sizeof(VPNPacketHeader) + size;
+	}
+
+	r = chipvpn_peer_dispatch_outbound(peer);
+	if(r <= 0 && r != VPN_EAGAIN) {
+		return r;
+	}
+
+	return sent;
 }
 
 int chipvpn_peer_raw_recv(VPNPeer *peer, void *buf, int size, int *err) {

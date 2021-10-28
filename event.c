@@ -175,7 +175,7 @@ void chipvpn_event_loop(ChipVPNConfig *config, void (*status)(ChipVPNStatus)) {
 			for(ListNode *i = list_begin(&peers); i != list_end(&peers); i = list_next(i)) {
 				VPNPeer *peer = (VPNPeer*)i;
 				FD_SET(peer->fd, &rdset);
-				if(list_size(&peer->outbound_queue) > 0) {
+				if(peer->outbound_buffer_pos > 0) {
 					FD_SET(peer->fd, &wdset);
 				}
 				if(peer->fd > max) {
@@ -314,9 +314,10 @@ void chipvpn_event_loop(ChipVPNConfig *config, void (*status)(ChipVPNStatus)) {
 }
 
 void chipvpn_socket_event(ChipVPNConfig *config, VPNPeer *peer, VPNPacket *packet, void (*status)(ChipVPNStatus)) {
+	VPNPacketType type = ntohl(packet->header.type);
 	VPNPacketData data = packet->data;
 
-	switch(PTYPE(packet)) {
+	switch(type) {
 		case VPN_SET_KEY: {
 			if(config->is_server) {
 				VPNKeyPacket *p_key = &data.key_packet;

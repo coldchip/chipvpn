@@ -40,11 +40,9 @@ typedef struct _VPNPeer {
 
 	uint32_t inbound_buffer_pos;
 	char inbound_buffer[sizeof(VPNPacket)];
-	List inbound_queue;
 
 	uint32_t outbound_buffer_pos;
 	char outbound_buffer[sizeof(VPNPacket)];
-	List outbound_queue;
 
 	rc4_state_t *inbound_rc4;
 	rc4_state_t *outbound_rc4;
