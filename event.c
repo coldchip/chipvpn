@@ -247,7 +247,7 @@ void chipvpn_event_loop(ChipVPNConfig *config, void (*status)(ChipVPNStatus)) {
 									retry = true;
 									goto chipvpn_cleanup;
 								}
-								continue;
+								continue; // peer removed from list so skip the loop
 							}
 						}
 
@@ -269,7 +269,7 @@ void chipvpn_event_loop(ChipVPNConfig *config, void (*status)(ChipVPNStatus)) {
 									retry = true;
 									goto chipvpn_cleanup;
 								}
-								continue;
+								continue; // peer removed from list so skip the loop
 							}	
 						}
 					}
