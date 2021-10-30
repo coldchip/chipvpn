@@ -39,15 +39,13 @@ int main(int argc, char const *argv[]) {
 				}
 				printf("\n");
 			} else {
-				ChipVPNConfig *config = chipvpn_load_config((char*)argv[1]);
-				if(!config) {
+				ChipVPNConfig config;
+				if(!chipvpn_load_config(&config, (char*)argv[1])) {
 					error("unable to read config");
 				}
 				console_log("ColdChip ChipVPN v%i", CHIPVPN_VERSION);
-				chipvpn_event_loop(config, on_status_change);
-				chipvpn_free_config(config);
+				chipvpn_event_loop(&config, on_status_change);
 			}
-			
 		} else {
 			console_log("Usage: $ %s config.conf", argv[0]);
 		}

@@ -19,6 +19,8 @@
 #include <stdint.h>
 #include "chipvpn.h"
 
+#define PACKED __attribute__((__packed__))
+
 #define PLEN(packet)  ( vpnpacket_len(packet) )
 
 typedef struct _IPPacket {
@@ -87,40 +89,40 @@ typedef enum {
 	VPN_SET_KEY
 } VPNPacketType;
 
-typedef struct _VPNKeyPacket {
+typedef struct PACKED _VPNKeyPacket {
 	char key[32];
 } VPNKeyPacket;
 
-typedef struct _VPNAuthPacket {
+typedef struct PACKED _VPNAuthPacket {
 	char data[8192];
 } VPNAuthPacket;
 
-typedef struct _VPNAssignPacket {
+typedef struct PACKED _VPNAssignPacket {
 	uint32_t ip;
 	uint32_t subnet;
 	uint32_t gateway;
 	uint32_t mtu;
 } VPNAssignPacket;
 
-typedef struct _VPNDataPacket {
+typedef struct PACKED _VPNDataPacket {
 	char data[CHIPVPN_MAX_PACKET_SIZE];
 } VPNDataPacket;
 
-typedef struct _VPNPacketHeader {
-	VPNPacketType type;
+typedef struct PACKED _VPNPacketHeader {
+	uint8_t type;
 	uint32_t size;
 } VPNPacketHeader;
 
-typedef union _VPNPacketData {
+typedef union _VPNPacketBody {
 	VPNKeyPacket key_packet;
 	VPNAuthPacket auth_packet;
 	VPNAssignPacket dhcp_packet;
 	VPNDataPacket data_packet;
-} VPNPacketData;
+} VPNPacketBody;
 
-typedef struct _VPNPacket {
+typedef struct PACKED _VPNPacket {
 	VPNPacketHeader header;
-	VPNPacketData data;
+	VPNPacketBody data;
 } VPNPacket;
 
 int vpnpacket_len(VPNPacket *packet);

@@ -18,7 +18,7 @@
 
 #include "list.h"
 #include "packet.h"
-#include "rc4.h"
+#include "aes.h"
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -39,18 +39,18 @@ typedef struct _VPNPeer {
 	uint64_t rx;
 
 	uint32_t inbound_buffer_pos;
-	char inbound_buffer[sizeof(VPNPacket)];
+	char inbound_buffer[sizeof(VPNPacket) + 64];
 
 	uint32_t outbound_buffer_pos;
-	char outbound_buffer[sizeof(VPNPacket)];
+	char outbound_buffer[sizeof(VPNPacket) + 64];
 
-	rc4_state_t *inbound_rc4;
-	rc4_state_t *outbound_rc4;
+	AES inbound_aes;
+	AES outbound_aes;
 } VPNPeer;
 
 VPNPeer           *chipvpn_peer_alloc(int fd);
 void               chipvpn_peer_dealloc(VPNPeer *peer);
-void               chipvpn_set_crypto(VPNPeer *peer, char *key);
+void               chipvpn_set_key(VPNPeer *peer, char *key);
 int                chipvpn_peer_dispatch_inbound(VPNPeer *peer);
 int                chipvpn_peer_dispatch_outbound(VPNPeer *peer);
 int                chipvpn_peer_recv_nio(VPNPeer *peer, VPNPacket *dst);

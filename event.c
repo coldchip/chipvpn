@@ -18,7 +18,6 @@
 #include "chipvpn.h"
 #include "peer.h"
 #include "packet.h"
-#include "crypto.h"
 #include "config.h"
 #include "list.h"
 #include <unistd.h>
@@ -86,7 +85,7 @@ void chipvpn_event_loop(ChipVPNConfig *config, void (*status)(ChipVPNStatus)) {
 
 		strcpy(config->ip, resolved);
 
-		if(config->is_server) {
+		if(config->mode == MODE_SERVER) {
 			struct sockaddr_in addr;
 			memset(&addr, 0, sizeof(addr));
 			addr.sin_family      = AF_INET;
@@ -144,12 +143,12 @@ void chipvpn_event_loop(ChipVPNConfig *config, void (*status)(ChipVPNStatus)) {
 			memcpy(p_key.key, key, sizeof(key));
 			chipvpn_peer_send_nio(peer, VPN_SET_KEY, &p_key, sizeof(p_key));
 
-			chipvpn_set_crypto(peer, key);
+			chipvpn_set_key(peer, key);
 
 			sock = -1; // discard sock as it is replaced by the allocation of peer
 		}
 
-		int server_last_update = 0;
+		int chipvpn_last_update = 0;
 		struct timeval tv;
 
 		fd_set rdset;
@@ -161,11 +160,11 @@ void chipvpn_event_loop(ChipVPNConfig *config, void (*status)(ChipVPNStatus)) {
 			tv.tv_sec = 0;
 			tv.tv_usec = 200000;
 
-	    	int max = MAX(tun->fd, sock);
+			int max = MAX(tun->fd, sock);
 
 			FD_ZERO(&rdset);
 			FD_ZERO(&wdset);
-			if(config->is_server == true) {
+			if(config->mode == MODE_SERVER) {
 				// main listening socket for server accept
 				FD_SET(sock, &rdset);
 			}
@@ -184,10 +183,11 @@ void chipvpn_event_loop(ChipVPNConfig *config, void (*status)(ChipVPNStatus)) {
 			}
 
 			if(select(max + 1, &rdset, &wdset, NULL, &tv) >= 0) {
+
 				/* 
 					ChipVPN's service
 				*/
-				if(chipvpn_get_time() - server_last_update >= 2) {
+				if(chipvpn_get_time() - chipvpn_last_update >= 2) {
 					ListNode *i = list_begin(&peers);
 					while(i != list_end(&peers)) {
 						VPNPeer *peer = (VPNPeer*)i;
@@ -199,20 +199,20 @@ void chipvpn_event_loop(ChipVPNConfig *config, void (*status)(ChipVPNStatus)) {
 							}
 						} else {
 							chipvpn_peer_dealloc(peer);
-							if(!config->is_server) {
+							if(config->mode == MODE_CLIENT) {
 								console_log("disconnected, reconnecting");
 								retry = true;
 								goto chipvpn_cleanup;
 							}
 						}
 					}
-					server_last_update = chipvpn_get_time();
+					chipvpn_last_update = chipvpn_get_time();
 				}
 
 				/* 
 					Triggered when someone connects
 				*/
-				if(config->is_server == true && FD_ISSET(sock, &rdset)) {
+				if(config->mode == MODE_SERVER && FD_ISSET(sock, &rdset)) {
 					// server accept
 					// TODO: limit connections
 					int fd = accept(sock, NULL, 0);
@@ -238,17 +238,15 @@ void chipvpn_event_loop(ChipVPNConfig *config, void (*status)(ChipVPNStatus)) {
 						VPNPacket packet;
 						// read packet until it is a complete datagram
 						int r = chipvpn_peer_dispatch_inbound(peer);
-						if(r <= 0) {
-							if(r != VPN_EAGAIN) {
-								// peer I/O error
-								chipvpn_peer_dealloc(peer);
-								if(!config->is_server) {
-									console_log("disconnected, reconnecting");
-									retry = true;
-									goto chipvpn_cleanup;
-								}
-								continue; // peer removed from list so skip the loop
+						if(r <= 0 && r != VPN_EAGAIN) {
+							// peer I/O error
+							chipvpn_peer_dealloc(peer);
+							if(config->mode == MODE_CLIENT) {
+								console_log("disconnected, reconnecting");
+								retry = true;
+								goto chipvpn_cleanup;
 							}
+							continue; // peer removed from list so skip the loop
 						}
 
 						if(chipvpn_peer_recv_nio(peer, &packet) > 0) {
@@ -260,17 +258,15 @@ void chipvpn_event_loop(ChipVPNConfig *config, void (*status)(ChipVPNStatus)) {
 					// peer is writable
 					if(FD_ISSET(peer->fd, &wdset)) {
 						int w = chipvpn_peer_dispatch_outbound(peer);
-						if(w <= 0) {
-							if(w != VPN_EAGAIN) {
-								// peer I/O error
-								chipvpn_peer_dealloc(peer);
-								if(!config->is_server) {
-									console_log("disconnected, reconnecting");
-									retry = true;
-									goto chipvpn_cleanup;
-								}
-								continue; // peer removed from list so skip the loop
-							}	
+						if(w <= 0 && w != VPN_EAGAIN) {
+							// peer I/O error
+							chipvpn_peer_dealloc(peer);
+							if(config->mode == MODE_CLIENT) {
+								console_log("disconnected, reconnecting");
+								retry = true;
+								goto chipvpn_cleanup;
+							}
+							continue; // peer removed from list so skip the loop
 						}
 					}
 				}
@@ -314,14 +310,14 @@ void chipvpn_event_loop(ChipVPNConfig *config, void (*status)(ChipVPNStatus)) {
 }
 
 void chipvpn_socket_event(ChipVPNConfig *config, VPNPeer *peer, VPNPacket *packet, void (*status)(ChipVPNStatus)) {
-	VPNPacketType type = ntohl(packet->header.type);
-	VPNPacketData data = packet->data;
+	VPNPacketType type = (VPNPacketType)(packet->header.type);
+	VPNPacketBody data = packet->data;
 
 	switch(type) {
 		case VPN_SET_KEY: {
-			if(config->is_server) {
+			if(config->mode == MODE_SERVER) {
 				VPNKeyPacket *p_key = &data.key_packet;
-				chipvpn_set_crypto(peer, p_key->key);
+				chipvpn_set_key(peer, p_key->key);
 
 				chipvpn_peer_send_nio(peer, VPN_SET_KEY, NULL, 0);
 			} else {
@@ -334,7 +330,7 @@ void chipvpn_socket_event(ChipVPNConfig *config, VPNPeer *peer, VPNPacket *packe
 		}
 		break;
 		case VPN_TYPE_AUTH: {
-			if(config->is_server) {
+			if(config->mode == MODE_SERVER) {
 				VPNAuthPacket *p_auth = &data.auth_packet;
 				if(memcmp(p_auth, config->token, strlen(config->token)) == 0) {
 					peer->is_authed = true;
@@ -357,7 +353,7 @@ void chipvpn_socket_event(ChipVPNConfig *config, VPNPeer *peer, VPNPacket *packe
 		}
 		break;
 		case VPN_TYPE_ASSIGN: {
-			if(config->is_server) {
+			if(config->mode == MODE_SERVER) {
 				uint32_t alloc_ip = chipvpn_get_peer_free_ip(&peers, config->gateway);
 				if(alloc_ip > 0) {
 					VPNAssignPacket assign;
@@ -407,11 +403,11 @@ void chipvpn_socket_event(ChipVPNConfig *config, VPNPeer *peer, VPNPacket *packe
 		break;
 		case VPN_TYPE_DATA: {
 			VPNDataPacket *p_data = &data.data_packet;
-			IPPacket *ip_hdr = (IPPacket*)(p_data);
+			IPPacket *ip_hdr = (IPPacket*)(p_data->data);
 			if(
-				peer->is_authed == true &&
-				((ip_hdr->dst_addr == peer->internal_ip && !config->is_server) || 
-				(ip_hdr->src_addr == peer->internal_ip && config->is_server)) && 
+				(peer->is_authed == true) &&
+				((ip_hdr->dst_addr == peer->internal_ip && config->mode == MODE_CLIENT) || 
+				(ip_hdr->src_addr == peer->internal_ip && config->mode == MODE_SERVER)) && 
 				(PLEN(packet) > 0 && PLEN(packet) <= (CHIPVPN_MAX_MTU))
 			) {
 				peer->rx += PLEN(packet);
@@ -444,7 +440,7 @@ void chipvpn_socket_event(ChipVPNConfig *config, VPNPeer *peer, VPNPacket *packe
 		}
 		break;
 		case VPN_TYPE_MSG: {
-			if(!config->is_server) {
+			if(config->mode == MODE_CLIENT) {
 				VPNDataPacket *p_msg = (VPNDataPacket*)&data.data_packet;
 				p_msg->data[sizeof(VPNDataPacket) - 1] = '\0';
 				console_log("server => %s", p_msg->data);
@@ -459,9 +455,9 @@ void chipvpn_socket_event(ChipVPNConfig *config, VPNPeer *peer, VPNPacket *packe
 }
 
 void chipvpn_tun_event(ChipVPNConfig *config, VPNDataPacket *packet, int size, void (*status) (ChipVPNStatus)) {
-	IPPacket *ip_hdr = (IPPacket*)packet;
+	IPPacket *ip_hdr = (IPPacket*)(packet->data);
 
-	VPNPeer *peer = chipvpn_get_peer_by_ip(&peers, config->is_server ? ip_hdr->dst_addr : ip_hdr->src_addr);
+	VPNPeer *peer = chipvpn_get_peer_by_ip(&peers, config->mode == MODE_SERVER ? ip_hdr->dst_addr : ip_hdr->src_addr);
 	if(peer) {
 		if(peer->is_authed == true) {
 			peer->tx += size;
@@ -473,6 +469,6 @@ void chipvpn_tun_event(ChipVPNConfig *config, VPNDataPacket *packet, int size, v
 void chipvpn_event_cleanup(int type) {
 	if(type == 0) {}
 	console_log("SIGINT received, terminating ChipVPN");
-    quit = true;
+	quit = true;
 }
 

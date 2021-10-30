@@ -20,17 +20,16 @@
 #include <stdbool.h>
 #include <string.h>
 
-ChipVPNConfig *chipvpn_load_config(char *config_file) {
+bool chipvpn_load_config(ChipVPNConfig *config, char *config_file) {
 	char *buf = read_file_into_buffer(config_file);
-
 	if(!buf) {
-		return NULL;
+		return false;
 	}
 
 	cJSON *json = cJSON_Parse(buf);
 	if(!json) {
 		warning("unable to parse JSON in config file");
-		return NULL;
+		return false;
 	}
 	cJSON *cjson_connect         = cJSON_GetObjectItem(json, "connect");
 	cJSON *cjson_bind            = cJSON_GetObjectItem(json, "bind");
@@ -41,16 +40,14 @@ ChipVPNConfig *chipvpn_load_config(char *config_file) {
 	cJSON *cjson_gateway         = cJSON_GetObjectItem(json, "gateway");
 	cJSON *cjson_subnet          = cJSON_GetObjectItem(json, "subnet");
 
-	
-	ChipVPNConfig *config = malloc(sizeof(ChipVPNConfig));
 	chipvpn_load_default_config(config);
 
 	if(cjson_connect && cJSON_IsString(cjson_connect)) {
-		config->is_server = false;
+		config->mode = MODE_CLIENT;
 		strcpy(config->ip, cjson_connect->valuestring);
 	}
 	if(cjson_bind && cJSON_IsString(cjson_bind)) {
-		config->is_server = true;
+		config->mode = MODE_SERVER;
 		strcpy(config->ip, cjson_bind->valuestring);
 	}
 	if(cjson_pull_routes && cJSON_IsBool(cjson_pull_routes) && cJSON_IsTrue(cjson_pull_routes)) {
@@ -75,20 +72,16 @@ ChipVPNConfig *chipvpn_load_config(char *config_file) {
 	free(buf);
 	cJSON_Delete(json);
 
-	return config;
+	return true;
 }
 
 void chipvpn_load_default_config(ChipVPNConfig *config) {
 	strcpy(config->ip, "0.0.0.0");
 	config->port = 443;
 	strcpy(config->token, "abcdef");
-	config->is_server = true;
+	config->mode = MODE_SERVER;
 	config->pull_routes = false;
 	config->max_peers = 8;
 	strcpy(config->gateway, "10.9.8.1");
 	strcpy(config->subnet, "255.255.255.0");
-}
-
-void chipvpn_free_config(ChipVPNConfig *config) {
-	free(config);
 }
