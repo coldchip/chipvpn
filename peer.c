@@ -120,9 +120,9 @@ int chipvpn_peer_recv_nio(VPNPeer *peer, VPNPacket *dst) {
 		// Buffer ready
 		peer->inbound_buffer_pos = 0;
 
-		aes_ctr_xcrypt(&peer->inbound_aes, (uint8_t*)&packet->data, PLEN(packet));
+		memcpy(dst, packet, sizeof(VPNPacketHeader));
+		aes_ctr_xcrypt_cpy(&peer->inbound_aes, ((uint8_t*)dst) + sizeof(VPNPacketHeader), (uint8_t*)&packet->data, PLEN(packet));
 		
-		memcpy(dst, packet, sizeof(VPNPacketHeader) + PLEN(packet));
 		return sizeof(VPNPacketHeader) + PLEN(packet);
 	}
 
@@ -142,14 +142,12 @@ int chipvpn_peer_send_nio(VPNPeer *peer, VPNPacketType type, void *data, int siz
 		packet->header.size = htonl(size);
 		packet->header.type = (uint8_t)(type);
 		if(data && size > 0) {
-			memcpy((char*)&packet->data, data, size);
-			
-			aes_ctr_xcrypt(&peer->outbound_aes, (uint8_t*)&packet->data, PLEN(packet));
+			aes_ctr_xcrypt_cpy(&peer->outbound_aes, (uint8_t*)&packet->data, data, size);
 		}
 
-		peer->outbound_buffer_pos = sizeof(VPNPacketHeader) + PLEN(packet);
+		peer->outbound_buffer_pos = sizeof(VPNPacketHeader) + size;
 
-		sent = sizeof(VPNPacketHeader) + size;
+		sent = peer->outbound_buffer_pos;
 	}
 
 	r = chipvpn_peer_dispatch_outbound(peer);

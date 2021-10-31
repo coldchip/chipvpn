@@ -12,9 +12,9 @@
 
 // The #ifndef-guard allows it to be configured before #include'ing or at compile time.
 
-//#define AES128 1
+#define AES128 1
 //#define AES192 1
-#define AES256 1
+//#define AES256 1
 
 #define AES_BLOCKLEN 16 // Block length in bytes - AES is 128b block only
 
@@ -45,6 +45,7 @@ void aes_set_iv(AES *ctx, const uint8_t *iv);
 // NOTES: you need to set IV in ctx with AES_init_ctx_iv() or AES_ctx_set_iv()
 //        no IV should ever be reused with the same key 
 void aes_ctr_xcrypt(AES *ctx, uint8_t* buf, size_t length);
+void aes_ctr_xcrypt_cpy(AES *ctx, uint8_t* dst, uint8_t* src, size_t length);
 
 
 #endif // _AES_H_

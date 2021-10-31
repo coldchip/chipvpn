@@ -21,6 +21,9 @@
 #include "aes.h"
 #include <stdint.h>
 #include <stdbool.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <netinet/ip.h>
 
 typedef struct _VPNPacketQueue {
 	ListNode node;
@@ -31,6 +34,7 @@ typedef struct _VPNPacketQueue {
 typedef struct _VPNPeer {
 	ListNode node;
 	int fd;
+	struct sockaddr_in addr;
 	bool is_authed;
 	uint32_t last_ping;
 	uint32_t internal_ip;

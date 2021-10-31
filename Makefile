@@ -30,3 +30,5 @@ upload:
 	scp -r /home/ryan/chipvpn/* ryan@coldchip.aws:/home/ryan/chipvpn
 upload2:
 	scp -r /home/ryan/chipvpn/* root@192.168.0.101:/root/chipvpn
+upload3:
+	scp -r /home/ryan/chipvpn/* pi@192.168.0.100:/home/pi/chipvpn

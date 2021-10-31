@@ -317,3 +317,31 @@ void aes_ctr_xcrypt(AES *ctx, uint8_t* buf, size_t length) {
 		buf[i] = (buf[i] ^ buffer[bi]);
 	}
 }
+
+void aes_ctr_xcrypt_cpy(AES *ctx, uint8_t* dst, uint8_t* src, size_t length) {
+	uint8_t buffer[AES_BLOCKLEN];
+
+	size_t i;
+	int bi;
+	for (i = 0, bi = AES_BLOCKLEN; i < length; ++i, ++bi) {
+		if (bi == AES_BLOCKLEN) {
+			/* we need to regen xor compliment in buffer */
+			memcpy(buffer, ctx->Iv, AES_BLOCKLEN);
+			Cipher((state_t*)buffer, ctx->RoundKey);
+
+			/* Increment Iv and handle overflow */
+			for (bi = (AES_BLOCKLEN - 1); bi >= 0; --bi) {
+				/* inc will overflow */
+				if (ctx->Iv[bi] == 255) {
+					ctx->Iv[bi] = 0;
+					continue;
+				} 
+				ctx->Iv[bi] += 1;
+				break;   
+			}
+			bi = 0;
+		}
+
+		dst[i] = (src[i] ^ buffer[bi]);
+	}
+}

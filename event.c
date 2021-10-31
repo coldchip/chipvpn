@@ -215,11 +215,16 @@ void chipvpn_event_loop(ChipVPNConfig *config, void (*status)(ChipVPNStatus)) {
 				if(config->mode == MODE_SERVER && FD_ISSET(sock, &rdset)) {
 					// server accept
 					// TODO: limit connections
-					int fd = accept(sock, NULL, 0);
+					struct sockaddr_in addr;
+					socklen_t addr_size = sizeof(addr);
+
+					int fd = accept(sock, (struct sockaddr*)&addr, &addr_size);
 					if(fd >= 0) {
 						if(chipvpn_set_socket_non_block(fd) < 0) {
 							error("unable to set socket to non blocking mode");
 						}
+
+						console_log("IP: %s", inet_ntoa(addr.sin_addr));
 
 						VPNPeer *peer = chipvpn_peer_alloc(fd);
 						list_insert(list_end(&peers), peer);
