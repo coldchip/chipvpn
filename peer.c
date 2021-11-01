@@ -21,6 +21,8 @@
 #include <stdlib.h>
 #include <arpa/inet.h>
 #include <errno.h>
+#include <openssl/evp.h>
+#include <openssl/aes.h>
 
 VPNPeer *chipvpn_peer_alloc(int fd) {
 	char key[] = {
@@ -28,11 +30,6 @@ VPNPeer *chipvpn_peer_alloc(int fd) {
 		0xfe, 0xf4, 0x6f, 0xf0, 0x87, 0x58, 0x8d, 0x0e, 
 		0x02, 0x78, 0xaf, 0x91, 0x49, 0x52, 0xc3, 0xd4, 
 		0x32, 0x17, 0xb1, 0x3f, 0x67, 0xd9, 0xcb, 0xac 
-	};
-
-	uint8_t iv[] = { 
-		0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 
-		0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f 
 	};
 
 	VPNPeer *peer             = malloc(sizeof(VPNPeer));
@@ -43,8 +40,16 @@ VPNPeer *chipvpn_peer_alloc(int fd) {
 	peer->inbound_buffer_pos  = 0;
 	peer->outbound_buffer_pos = 0;
 
-	aes_set_iv(&peer->inbound_aes, iv);
-	aes_set_iv(&peer->outbound_aes, iv);
+	peer->inbound_aes = EVP_CIPHER_CTX_new();
+	if(!peer->inbound_aes) {
+		error("unable to set aes ctx for peer");
+	}
+
+	peer->outbound_aes = EVP_CIPHER_CTX_new();
+	if(!peer->outbound_aes) {
+		error("unable to set aes ctx for peer");
+	}
+
 	chipvpn_set_key(peer, key);
 
 	console_log("peer connected");
@@ -59,8 +64,13 @@ void chipvpn_peer_dealloc(VPNPeer *peer) {
 }
 
 void chipvpn_set_key(VPNPeer *peer, char *key) {
-	aes_set_key(&peer->inbound_aes, (uint8_t*)key);
-	aes_set_key(&peer->outbound_aes, (uint8_t*)key);
+	uint8_t iv[] = { 
+		0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 
+		0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f 
+	};
+
+	EVP_CipherInit(peer->inbound_aes, EVP_aes_256_ctr(), (const unsigned char*)key, (const unsigned char*)&iv, 0);
+	EVP_CipherInit(peer->outbound_aes, EVP_aes_256_ctr(), (const unsigned char*)key, (const unsigned char*)&iv, 0);
 }
 
 int chipvpn_peer_dispatch_inbound(VPNPeer *peer) {
@@ -121,8 +131,10 @@ int chipvpn_peer_recv_nio(VPNPeer *peer, VPNPacket *dst) {
 		peer->inbound_buffer_pos = 0;
 
 		memcpy(dst, packet, sizeof(VPNPacketHeader));
-		aes_ctr_xcrypt_cpy(&peer->inbound_aes, ((uint8_t*)dst) + sizeof(VPNPacketHeader), (uint8_t*)&packet->data, PLEN(packet));
-		
+		// aes_ctr_xcrypt_cpy(&peer->inbound_aes, ((uint8_t*)dst) + sizeof(VPNPacketHeader), (uint8_t*)&packet->data, PLEN(packet));
+		int len;
+		EVP_CipherUpdate(peer->inbound_aes, ((unsigned char*)dst) + sizeof(VPNPacketHeader), &len, (unsigned char*)&packet->data, PLEN(packet));
+		EVP_CipherFinal(peer->inbound_aes, ((unsigned char*)dst) + sizeof(VPNPacketHeader) + len, &len);
 		return sizeof(VPNPacketHeader) + PLEN(packet);
 	}
 
@@ -142,7 +154,10 @@ int chipvpn_peer_send_nio(VPNPeer *peer, VPNPacketType type, void *data, int siz
 		packet->header.size = htonl(size);
 		packet->header.type = (uint8_t)(type);
 		if(data && size > 0) {
-			aes_ctr_xcrypt_cpy(&peer->outbound_aes, (uint8_t*)&packet->data, data, size);
+			int len;
+			EVP_CipherUpdate(peer->outbound_aes, (unsigned char*)&packet->data, &len, data, size);
+			EVP_CipherFinal(peer->outbound_aes, (unsigned char*)&packet->data + len, &len);
+			//aes_ctr_xcrypt_cpy(&peer->outbound_aes, (uint8_t*)&packet->data, data, size);
 		}
 
 		peer->outbound_buffer_pos = sizeof(VPNPacketHeader) + size;

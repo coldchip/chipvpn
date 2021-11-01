@@ -18,12 +18,13 @@
 
 #include "list.h"
 #include "packet.h"
-#include "aes.h"
 #include <stdint.h>
 #include <stdbool.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netinet/ip.h>
+#include <openssl/evp.h>
+#include <openssl/aes.h>
 
 typedef struct _VPNPacketQueue {
 	ListNode node;
@@ -48,8 +49,8 @@ typedef struct _VPNPeer {
 	uint32_t outbound_buffer_pos;
 	char outbound_buffer[sizeof(VPNPacket) + 64];
 
-	AES inbound_aes;
-	AES outbound_aes;
+	EVP_CIPHER_CTX *inbound_aes;
+	EVP_CIPHER_CTX *outbound_aes;
 } VPNPeer;
 
 VPNPeer           *chipvpn_peer_alloc(int fd);
