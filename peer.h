@@ -52,13 +52,15 @@ typedef struct _VPNPeer {
 	Crypto *outbound_aes;
 } VPNPeer;
 
-VPNPeer           *chipvpn_peer_alloc(int fd);
-void               chipvpn_peer_dealloc(VPNPeer *peer);
+VPNPeer           *chipvpn_peer_new(int fd);
+void               chipvpn_peer_free(VPNPeer *peer);
 void               chipvpn_set_key(VPNPeer *peer, char *key);
+bool               chipvpn_peer_readable(VPNPeer *peer);
+bool               chipvpn_peer_writeable(VPNPeer *peer);
 int                chipvpn_peer_dispatch_inbound(VPNPeer *peer);
 int                chipvpn_peer_dispatch_outbound(VPNPeer *peer);
-int                chipvpn_peer_recv_nio(VPNPeer *peer, VPNPacket *dst);
-int                chipvpn_peer_send_nio(VPNPeer *peer, VPNPacketType type, void *data, int size);
+int                chipvpn_peer_recv(VPNPeer *peer, VPNPacket *dst);
+int                chipvpn_peer_send(VPNPeer *peer, VPNPacketType type, void *data, int size);
 int                chipvpn_peer_raw_recv(VPNPeer *peer, void *buf, int size, int *err);
 int                chipvpn_peer_raw_send(VPNPeer *peer, void *buf, int size, int *err);
 uint32_t           chipvpn_get_peer_free_ip(List *peers, char *gateway);
