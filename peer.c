@@ -70,6 +70,12 @@ void chipvpn_set_key(VPNPeer *peer, char *key) {
 		0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f 
 	};
 
+	printf("set key ");
+	for(int i = 0; i < 32; i++) {
+		printf("%02x", key[i] & 0xff);
+	}
+	printf("\n");
+
 	crypto_set_key(peer->inbound_aes, key, iv);
 	crypto_set_key(peer->outbound_aes, key, iv);
 }
@@ -135,13 +141,13 @@ int chipvpn_peer_dispatch_outbound(VPNPeer *peer) {
 		peer->outbound_buffer_pos -= sent;
 		return sent;
 	}
+
 	return VPN_EAGAIN;
 }
 
 int chipvpn_peer_recv(VPNPeer *peer, VPNPacket *dst) {
-	VPNPacket *packet = (VPNPacket*)&peer->inbound_buffer;
-
 	if(chipvpn_peer_readable(peer)) {
+		VPNPacket *packet = (VPNPacket*)&peer->inbound_buffer;
 		// Buffer ready
 		peer->inbound_buffer_pos = 0;
 

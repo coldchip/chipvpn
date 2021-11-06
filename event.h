@@ -19,6 +19,7 @@
 #include "peer.h"
 #include "packet.h"
 #include "config.h"
+#include <stdint.h>
 
 #ifndef MAX
 #define MAX(a,b) \
@@ -27,9 +28,12 @@ __typeof__ (b) _b = (b); \
 _a > _b ? _a : _b; })
 #endif
 
-typedef struct IPC_ {
-	int fd;
-} IPC;
+typedef struct GUI_ {
+	uint64_t tx;
+	uint64_t rx;
+	char ip[20];
+	uint16_t port;
+} GUI;
 
 typedef enum {
 	STATUS_CONNECTING,
@@ -42,6 +46,7 @@ void chipvpn_event_loop(ChipVPNConfig *config, void (*status)(ChipVPNStatus));
 void chipvpn_socket_event(ChipVPNConfig *config, VPNPeer *peer, VPNPacket *packet, void (*status)(ChipVPNStatus));
 void chipvpn_tun_event(ChipVPNConfig *config, VPNDataPacket *packet, int size, void (*status)(ChipVPNStatus));
 void chipvpn_disconnect_peer(ChipVPNConfig *config, VPNPeer *peer);
+void chipvpn_gui_event(GUI *gui);
 void chipvpn_cleanup_event(int type);
 
 #endif

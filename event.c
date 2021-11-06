@@ -33,6 +33,10 @@
 #include <sys/socket.h>
 #include <arpa/inet.h> 
 #include <netinet/in.h>
+#include <ncurses.h>
+
+GUI gui;
+WINDOW *window;
 
 bool quit = false;
 bool retry = false;
@@ -210,6 +214,18 @@ void chipvpn_event_loop(ChipVPNConfig *config, void (*status)(ChipVPNStatus)) {
 							chipvpn_disconnect_peer(config, peer);
 						}
 					}
+
+					if(config->mode == MODE_CLIENT) {
+						VPNPeer *peer = (VPNPeer*)list_begin(&peers);
+						if(peer) {
+							gui.tx = peer->tx;
+							gui.rx = peer->rx;
+						}
+						strcpy(gui.ip, config->ip);
+						gui.port = config->port;
+					}
+					chipvpn_gui_event(&gui);
+
 					chipvpn_last_update = chipvpn_get_time();
 				}
 
@@ -220,9 +236,8 @@ void chipvpn_event_loop(ChipVPNConfig *config, void (*status)(ChipVPNStatus)) {
 					// server accept
 					// TODO: limit connections
 					struct sockaddr_in addr;
-					socklen_t addr_size = sizeof(addr);
 
-					int fd = accept(sock, (struct sockaddr*)&addr, &addr_size);
+					int fd = accept(sock, (struct sockaddr*)&addr, &(socklen_t){sizeof(addr)});
 					if(fd >= 0) {
 						if(chipvpn_set_socket_non_block(fd) < 0) {
 							error("unable to set socket to non blocking mode");
@@ -365,8 +380,8 @@ void chipvpn_socket_event(ChipVPNConfig *config, VPNPeer *peer, VPNPacket *packe
 
 					VPNAssignPacket p_assign_enc;
 
-					if(crypto_encrypt(peer->outbound_aes, &p_assign_enc, &assign, sizeof(assign)) == -1) {
-						console_log("unable to decrypt packet of peer");
+					if(!crypto_encrypt(peer->outbound_aes, &p_assign_enc, &assign, sizeof(assign))) {
+						console_log("unable to encrypt packet of peer");
 						chipvpn_disconnect_peer(config, peer);
 						return;
 					}
@@ -376,7 +391,7 @@ void chipvpn_socket_event(ChipVPNConfig *config, VPNPeer *peer, VPNPacket *packe
 			} else {
 				VPNAssignPacket p_assign;
 
-				if(crypto_decrypt(peer->inbound_aes, &p_assign, &data.dhcp_packet, PLEN(packet)) == -1) {
+				if(!crypto_decrypt(peer->inbound_aes, &p_assign, &data.dhcp_packet, PLEN(packet))) {
 					console_log("unable to decrypt packet of peer");
 					chipvpn_disconnect_peer(config, peer);
 					return;
@@ -408,6 +423,10 @@ void chipvpn_socket_event(ChipVPNConfig *config, VPNPeer *peer, VPNPacket *packe
 				peer->rx          = 0;
 				console_log("initialization sequence complete");
 
+				window = initscr();
+				noecho();
+				curs_set(FALSE);
+
 				if(status) {
 					status(STATUS_CONNECTED);
 				}
@@ -416,7 +435,7 @@ void chipvpn_socket_event(ChipVPNConfig *config, VPNPeer *peer, VPNPacket *packe
 		break;
 		case VPN_TYPE_DATA: {
 			VPNDataPacket p_data;
-			if(crypto_decrypt(peer->inbound_aes, &p_data, &data.data_packet, PLEN(packet)) == -1) {
+			if(!crypto_decrypt(peer->inbound_aes, &p_data, &data.data_packet, PLEN(packet))) {
 				console_log("unable to decrypt packet of peer");
 				chipvpn_disconnect_peer(config, peer);
 				return;
@@ -427,7 +446,7 @@ void chipvpn_socket_event(ChipVPNConfig *config, VPNPeer *peer, VPNPacket *packe
 				(peer->is_authed == true) &&
 				((ip_hdr->dst_addr == peer->internal_ip && config->mode == MODE_CLIENT) || 
 				(ip_hdr->src_addr == peer->internal_ip && config->mode == MODE_SERVER)) && 
-				(PLEN(packet) > 0 && PLEN(packet) <= (CHIPVPN_MAX_MTU))
+				(PLEN(packet) > 0 && PLEN(packet) <= CHIPVPN_MAX_MTU)
 			) {
 				peer->rx += PLEN(packet);
 				if(write(tun->fd, (char*)&p_data, PLEN(packet))) {}
@@ -441,21 +460,6 @@ void chipvpn_socket_event(ChipVPNConfig *config, VPNPeer *peer, VPNPacket *packe
 		break;
 		case VPN_PONG: {
 			gettimeofday(&ping_stop, NULL);
-
-			char tx[50];
-			char rx[50];
-			strcpy(tx, chipvpn_format_bytes(peer->tx));
-			strcpy(rx, chipvpn_format_bytes(peer->rx));
-
-			uint32_t peer_index = 0;
-			for(ListNode *i = list_begin(&peers); i != list_end(&peers); i = list_next(i)) {
-				if(peer == (VPNPeer*)i) {
-					break;
-				}
-				++peer_index;
-			}
-
-			console_log("peer 0x%04x ping took %lu ms TX: %s RX: %s", peer_index, ((ping_stop.tv_sec - ping_start.tv_sec) * 1000000 + ping_stop.tv_usec - ping_start.tv_usec) / 1000, tx, rx); 
 		}
 		break;
 		case VPN_TYPE_MSG: {
@@ -486,8 +490,8 @@ void chipvpn_tun_event(ChipVPNConfig *config, VPNDataPacket *packet, int size, v
 
 		VPNDataPacket packet_enc;
 
-		if(crypto_encrypt(peer->outbound_aes, &packet_enc, packet, size) == -1) {
-			console_log("unable to decrypt packet of peer");
+		if(!crypto_encrypt(peer->outbound_aes, &packet_enc, packet, size)) {
+			console_log("unable to encrypt packet of peer");
 			chipvpn_disconnect_peer(config, peer);
 			return;
 		}
@@ -508,8 +512,86 @@ void chipvpn_disconnect_peer(ChipVPNConfig *config, VPNPeer *peer) {
 	}
 }
 
+void chipvpn_gui_event(GUI *gui) {
+	int width = COLS - 1;
+	int height = LINES - 1;
+	int current_line = 0;
+
+	start_color();
+	init_pair(1, COLOR_GREEN, COLOR_BLACK);
+	init_pair(2, COLOR_CYAN, COLOR_BLACK);
+	init_pair(3, COLOR_WHITE, COLOR_BLACK);
+	init_pair(4, COLOR_RED, COLOR_MAGENTA);
+	init_pair(5, COLOR_WHITE, COLOR_BLACK);
+
+	wclear(window);
+
+	// box(window, ACS_VLINE, ACS_HLINE);
+
+	wattron(window, COLOR_PAIR(2) | A_BOLD);
+	mvwprintw(window, current_line, 0, "ChipVPN v%i", CHIPVPN_VERSION);
+	wattroff(window, COLOR_PAIR(2) | A_BOLD);
+	current_line += 2;
+
+	wattron(window, COLOR_PAIR(1));
+	mvwprintw(window, current_line, 0, "Session Status: ");
+	mvwprintw(window, current_line, width / 3, "online");
+	wattroff(window, COLOR_PAIR(1));
+	current_line += 1;
+
+	wattron(window, COLOR_PAIR(3));
+	mvwprintw(window, current_line, 0, "Account Type: ");
+	mvwprintw(window, current_line, width / 3, "pro");
+	wattroff(window, COLOR_PAIR(3));
+	current_line += 1;
+
+	wattron(window, COLOR_PAIR(3));
+	mvwprintw(window, current_line, 0, "Region: ");
+	mvwprintw(window, current_line, width / 3, "Singapore");
+	wattroff(window, COLOR_PAIR(3));
+	current_line += 1;
+
+	wattron(window, COLOR_PAIR(3));
+	mvwprintw(window, current_line, 0, "VPN Server: ");
+	mvwprintw(window, current_line, width / 3, "tcp://%s:%i", gui->ip, gui->port);
+	wattroff(window, COLOR_PAIR(3));
+	current_line += 1;
+
+	char tx[50];
+	char rx[50];
+	strcpy(tx, chipvpn_format_bytes(gui->tx));
+	strcpy(rx, chipvpn_format_bytes(gui->rx));
+
+	wattron(window, COLOR_PAIR(3));
+	mvwprintw(window, current_line, 0, "TX: ");
+	mvwprintw(window, current_line, width / 3, "%s", tx);
+	wattroff(window, COLOR_PAIR(3));
+	current_line += 1;
+
+	wattron(window, COLOR_PAIR(3));
+	mvwprintw(window, current_line, 0, "RX: ");
+	mvwprintw(window, current_line, width / 3, "%s", rx);
+	wattroff(window, COLOR_PAIR(3));
+	current_line += 1;
+
+	wattron(window, COLOR_PAIR(3));
+	mvwprintw(window, current_line, 0, "Quota Used: ");
+	mvwprintw(window, current_line, width / 3, "90 MB / 10 GB");
+	wattroff(window, COLOR_PAIR(3));
+	current_line += 1;
+
+	wattron(window, COLOR_PAIR(3));
+	mvwprintw(window, current_line, 0, "");
+	mvwprintw(window, current_line, width / 3, "[###          ]");
+	wattroff(window, COLOR_PAIR(3));
+	current_line += 1;
+
+	wrefresh(window);
+}
+
 void chipvpn_cleanup_event(int type) {
 	if(type == 0) {}
+	endwin();
 	console_log("SIGINT received, terminating ChipVPN");
 	quit = true;
 }

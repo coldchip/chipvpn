@@ -23,7 +23,7 @@
 #include "chipvpn.h"
 
 void on_status_change(ChipVPNStatus status) {
-	console_log("changed status: %i", status);
+	// console_log("changed status: %i", status);
 }
 
 int main(int argc, char const *argv[]) {
