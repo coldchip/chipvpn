@@ -26,7 +26,7 @@ extern "C"
 #include <stdbool.h>
 #include <stdint.h>
 
-#define CHIPVPN_VERSION         1000000021L
+#define CHIPVPN_VERSION         1000000088L
 #define CHIPVPN_MAX_MTU         1500
 #define CHIPVPN_MAX_PACKET_SIZE 4096
 

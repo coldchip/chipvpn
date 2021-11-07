@@ -3,7 +3,7 @@ LD      := ld
 BIN     := bin
 SRCS    := $(wildcard *.c)
 EXE     := $(BIN)/chipvpn
-CFLAGS  := -Wall -Ofast -s
+CFLAGS  := -Wall -Ofast 
 LIBS    := -lssl -lcrypto -lncurses
 ifeq ($(OS),Windows_NT)
 	LIBS := $(LIBS) -lws2_32

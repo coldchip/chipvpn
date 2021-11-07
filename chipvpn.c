@@ -115,7 +115,6 @@ void error(char *format, ...) {
 	vprintf(fmt, args);
 	
 	va_end(args);
-	exit(1);
 }
 
 char *chipvpn_malloc_fmt(char *format, ...) {
