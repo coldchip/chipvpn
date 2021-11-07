@@ -35,7 +35,7 @@
 #include <netinet/in.h>
 
 bool quit = true;
-bool retry = false;
+bool retry = true;
 
 Tun *tun = NULL;
 
@@ -509,6 +509,6 @@ void chipvpn_disconnect_peer(ChipVPNConfig *config, VPNPeer *peer) {
 void chipvpn_exit(int type) {
 	if(type == 0) {}
 	quit = true;
-	
+	retry = false;
 }
 
