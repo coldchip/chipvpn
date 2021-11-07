@@ -20,7 +20,6 @@
 #include "packet.h"
 #include "config.h"
 #include <stdint.h>
-#include <ncurses.h>
 
 #ifndef MAX
 #define MAX(a,b) \
@@ -29,28 +28,18 @@ __typeof__ (b) _b = (b); \
 _a > _b ? _a : _b; })
 #endif
 
-typedef enum {
-	STATUS_CONNECTING,
-	STATUS_CONNECTED,
-	STATUS_DISCONNECTING,
-	STATUS_DISCONNECTED
-} ChipVPNStatus;
-
-typedef struct GUI_ {
-	WINDOW *window;
-	ChipVPNStatus status;
-	uint64_t tx;
-	uint64_t rx;
-	char ip[20];
-	uint16_t port;
-	char route[1024];
-} GUI;
-
 void chipvpn_event_loop(ChipVPNConfig *config);
 void chipvpn_socket_event(ChipVPNConfig *config, VPNPeer *peer, VPNPacket *packet);
+
+void chipvpn_set_key_event(ChipVPNConfig *config, VPNPeer *peer, VPNKeyPacket *packet);
+void chipvpn_auth_event(ChipVPNConfig *config, VPNPeer *peer, VPNAuthPacket *packet);
+void chipvpn_assign_event(ChipVPNConfig *config, VPNPeer *peer, VPNAssignPacket *packet);
+void chipvpn_data_event(ChipVPNConfig *config, VPNPeer *peer, VPNDataPacket *packet, int size);
+void chipvpn_ping_event(ChipVPNConfig *config, VPNPeer *peer);
+void chipvpn_pong_event(ChipVPNConfig *config, VPNPeer *peer);
+
 void chipvpn_tun_event(ChipVPNConfig *config, VPNDataPacket *packet, int size);
 void chipvpn_disconnect_peer(ChipVPNConfig *config, VPNPeer *peer);
-void chipvpn_gui_event(GUI *gui);
 void chipvpn_exit(int type);
 
 #endif
