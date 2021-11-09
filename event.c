@@ -18,6 +18,7 @@
 #include "chipvpn.h"
 #include "peer.h"
 #include "packet.h"
+#include "firewall.h"
 #include "config.h"
 #include "list.h"
 #include <unistd.h>
@@ -33,6 +34,7 @@
 #include <sys/socket.h>
 #include <arpa/inet.h> 
 #include <netinet/in.h>
+#include <openssl/rand.h>
 
 bool quit = true;
 bool retry = true;
@@ -48,10 +50,11 @@ void chipvpn_event_loop(ChipVPNConfig *config) {
 
 	while(1) {
 		quit = false;
+		retry = true;
 
 		list_clear(&peers);
 
-		tun = open_tun("");
+		tun = chipvpn_tun_open("");
 		if(tun  == NULL) {
 			error("tuntap adaptor creation failed, please run as sudo");
 		}
@@ -98,10 +101,10 @@ void chipvpn_event_loop(ChipVPNConfig *config) {
 
 			console_log("server started on [%s:%i]", config->ip, config->port);
 
-			if(!tun_setip(tun, inet_addr(config->gateway), inet_addr(config->subnet), CHIPVPN_MAX_MTU)) {
+			if(!chipvpn_tun_setip(tun, inet_addr(config->gateway), inet_addr(config->subnet), CHIPVPN_MAX_MTU)) {
 				error("unable to assign ip to tunnel adapter");
 			}
-			if(!tun_bringup(tun)) {
+			if(!chipvpn_tun_ifup(tun)) {
 				error("unable to bring up tunnel adapter");
 			}
 		} else {
@@ -131,14 +134,11 @@ void chipvpn_event_loop(ChipVPNConfig *config) {
 
 			console_log("key exchange begin");
 
-			char key[32];
-			chipvpn_generate_random(key, sizeof(key));
+			VPNKeyPacket packet;
+			RAND_priv_bytes((unsigned char*)&packet.key, sizeof(packet.key));
+			chipvpn_peer_send(peer, VPN_SET_KEY, &packet, sizeof(packet));
 
-			VPNKeyPacket p_key;
-			memcpy(p_key.key, key, sizeof(key));	
-			chipvpn_peer_send(peer, VPN_SET_KEY, &p_key, sizeof(p_key));
-
-			chipvpn_set_key(peer, key);
+			chipvpn_set_key(peer, packet.key);
 
 			sock = -1; // discard sock as it is replaced by the allocation of peer
 		}
@@ -152,37 +152,29 @@ void chipvpn_event_loop(ChipVPNConfig *config) {
 			tv.tv_sec = 0;
 			tv.tv_usec = 200000;
 
-			int max = MAX(tun->fd, sock);
-
 			FD_ZERO(&rdset);
 			FD_ZERO(&wdset);
+
+			FD_SET(tun->fd, &rdset);
+			
+			int max = 0;
+			max = MAX(max, tun->fd);
 
 			if(config->mode == MODE_SERVER) {
 				// listening socket for server accept
 				FD_SET(sock, &rdset);
+				max = MAX(max, sock);
 			}
-			FD_SET(tun->fd, &rdset);
-
 
 			for(ListNode *i = list_begin(&peers); i != list_end(&peers); i = list_next(i)) {
 				VPNPeer *peer = (VPNPeer*)i;
 				if(!chipvpn_peer_readable(peer)) {
-					/* 
-						when peer's buffer cannot read fully constructed packet yet
-						(attempt to read to buffer from socket)
-					*/
 					FD_SET(peer->fd, &rdset);
 				}
 				if(!chipvpn_peer_writeable(peer)) {
-					/* 
-						when peer's buffer cannot write fully constructed packet yet
-						(attempt to flush buffer to socket)
-					*/
 					FD_SET(peer->fd, &wdset);
 				}
-				if(peer->fd > max) {
-					max = peer->fd;
-				}
+				max = MAX(max, peer->fd);
 			}
 
 			if(select(max + 1, &rdset, &wdset, NULL, &tv) >= 0) {
@@ -190,20 +182,7 @@ void chipvpn_event_loop(ChipVPNConfig *config) {
 					ChipVPN's service
 				*/
 				if(chipvpn_get_time() - chipvpn_last_update >= 1) {
-					ListNode *i = list_begin(&peers);
-					while(i != list_end(&peers)) {
-						VPNPeer *peer = (VPNPeer*)i;
-						i = list_next(i);
-						if(chipvpn_get_time() - peer->last_ping < 10) {
-							if(peer->is_authed == true) {
-								chipvpn_peer_send(peer, VPN_PING, NULL, 0);
-								gettimeofday(&ping_start, NULL);
-							}
-						} else {
-							chipvpn_disconnect_peer(config, peer);
-						}
-					}
-
+					chipvpn_service(config);
 					chipvpn_last_update = chipvpn_get_time();
 				}
 
@@ -211,8 +190,6 @@ void chipvpn_event_loop(ChipVPNConfig *config) {
 					Triggered when someone connects
 				*/
 				if(config->mode == MODE_SERVER && FD_ISSET(sock, &rdset)) {
-					// server accept
-					// TODO: limit connections
 					struct sockaddr_in addr;
 
 					int fd = accept(sock, (struct sockaddr*)&addr, &(socklen_t){sizeof(addr)});
@@ -237,7 +214,6 @@ void chipvpn_event_loop(ChipVPNConfig *config) {
 					i = list_next(i);
 					// peer is readable
 					if(FD_ISSET(peer->fd, &rdset)) {
-						VPNPacket packet;
 						// read packet until it is a complete datagram
 						int r = chipvpn_peer_dispatch_inbound(peer);
 						if(r <= 0 && r != VPN_EAGAIN) {
@@ -246,8 +222,8 @@ void chipvpn_event_loop(ChipVPNConfig *config) {
 							continue; // peer removed from list so skip the loop
 						}
 
+						VPNPacket packet;
 						if(chipvpn_peer_recv(peer, &packet) > 0) {
-							// datagram ready
 							chipvpn_socket_event(config, peer, &packet);
 						}
 					}
@@ -286,7 +262,7 @@ void chipvpn_event_loop(ChipVPNConfig *config) {
 		}
 
 		close(sock);
-		free_tun(tun);
+		chipvpn_tun_free(tun);
 
 		if(retry == true) {
 			sleep(2);
@@ -335,6 +311,22 @@ void chipvpn_socket_event(ChipVPNConfig *config, VPNPeer *peer, VPNPacket *packe
 		}
 		break;
 	}	
+}
+
+void chipvpn_service(ChipVPNConfig *config) {
+	ListNode *i = list_begin(&peers);
+	while(i != list_end(&peers)) {
+		VPNPeer *peer = (VPNPeer*)i;
+		i = list_next(i);
+		if(chipvpn_get_time() - peer->last_ping < 10) {
+			if(peer->is_authed == true) {
+				chipvpn_peer_send(peer, VPN_PING, NULL, 0);
+				gettimeofday(&ping_start, NULL);
+			}
+		} else {
+			chipvpn_disconnect_peer(config, peer);
+		}
+	}
 }
 
 void chipvpn_set_key_event(ChipVPNConfig *config, VPNPeer *peer, VPNKeyPacket *packet) {
@@ -403,10 +395,10 @@ void chipvpn_assign_event(ChipVPNConfig *config, VPNPeer *peer, VPNAssignPacket 
 		uint32_t peer_gateway = p_assign.gateway;
 		uint32_t peer_mtu     = ntohl(p_assign.mtu);
 
-		if(!tun_setip(tun, peer_ip, peer_subnet, peer_mtu)) {
+		if(!chipvpn_tun_setip(tun, peer_ip, peer_subnet, peer_mtu)) {
 			error("unable to assign ip to tunnel adapter");
 		}
-		if(!tun_bringup(tun)) {
+		if(!chipvpn_tun_ifup(tun)) {
 			error("unable to bring up tunnel adapter");
 		}
 
@@ -439,6 +431,7 @@ void chipvpn_data_event(ChipVPNConfig *config, VPNPeer *peer, VPNDataPacket *pac
 	IPPacket *ip_hdr = (IPPacket*)(&p_data.data);
 	if(
 		(peer->is_authed == true) &&
+		(validate_inbound_packet(ip_hdr) == true) &&
 		((ip_hdr->dst_addr == peer->internal_ip && config->mode == MODE_CLIENT) || 
 		(ip_hdr->src_addr == peer->internal_ip && config->mode == MODE_SERVER)) && 
 		(size > 0 && size <= CHIPVPN_MAX_MTU)
@@ -477,9 +470,10 @@ void chipvpn_tun_event(ChipVPNConfig *config, VPNDataPacket *packet, int size) {
 
 	VPNPeer *peer = chipvpn_get_peer_by_ip(&peers, config->mode == MODE_SERVER ? ip_hdr->dst_addr : ip_hdr->src_addr);
 	if(
-		peer && 
-		peer->is_authed == true &&
-		chipvpn_peer_writeable(peer)
+		(peer) && 
+		(peer->is_authed == true) &&
+		(validate_outbound_packet(ip_hdr) == true) &&
+		(chipvpn_peer_writeable(peer))
 	) {
 		peer->tx += size;
 

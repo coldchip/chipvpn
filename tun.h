@@ -20,13 +20,13 @@
 #include <stdbool.h>
 
 typedef struct _Tun {
-	char *dev;
+	char dev[128];
 	int fd;
 } Tun;
 
-Tun *open_tun(char *dev);
-bool tun_setip(Tun *tun, uint32_t ip, uint32_t mask, int mtu);
-bool tun_bringup(Tun *tun);
-void free_tun(Tun *tun);
+Tun *chipvpn_tun_open(char *dev);
+bool chipvpn_tun_setip(Tun *tun, uint32_t ip, uint32_t mask, int mtu);
+bool chipvpn_tun_ifup(Tun *tun);
+void chipvpn_tun_free(Tun *tun);
 
 #endif

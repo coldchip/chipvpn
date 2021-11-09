@@ -18,30 +18,56 @@
 #include <stdbool.h>
 #include <netinet/in.h>
 
-bool validate_packet(char *stream) {
-	IPPacket *ip_hdr = (IPPacket*)(stream);
-
+bool validate_inbound_packet(IPPacket *ip_hdr) {
 	if(ip_hdr->ip_p == IPPROTO_TCP) {
 		int ip_size = 4 * ip_hdr->ihl;
-		TCPHeader *tcp_hdr = (TCPHeader*)(stream + ip_size);
+		TCPHeader *tcp_hdr = (TCPHeader*)(((char *)ip_hdr) + ip_size);
 		if(tcp_hdr) {
-
+			//printf("firewall allowed TCP traffic\n");
 		}
 		return true;
 	}
 	if(ip_hdr->ip_p == IPPROTO_UDP) {
 		int ip_size = 4 * ip_hdr->ihl;
-		UDPHeader *udp_hdr = (UDPHeader*)(stream + ip_size);
+		UDPHeader *udp_hdr = (UDPHeader*)(((char *)ip_hdr) + ip_size);
 		if(udp_hdr) {
-			
+			//printf("firewall allowed UDP traffic\n");
 		}
 		return true;
 	}
 	if(ip_hdr->ip_p == IPPROTO_ICMP) {
 		int ip_size = 4 * ip_hdr->ihl;
-		ICMPHeader *icmp_hdr = (ICMPHeader*)(stream + ip_size);
+		ICMPHeader *icmp_hdr = (ICMPHeader*)(((char *)ip_hdr) + ip_size);
 		if(icmp_hdr) {
-			
+			//printf("firewall allowed ICMP traffic\n");
+		}
+		return true;
+	}
+	return false;
+}
+
+bool validate_outbound_packet(IPPacket *ip_hdr) {
+	if(ip_hdr->ip_p == IPPROTO_TCP) {
+		int ip_size = 4 * ip_hdr->ihl;
+		TCPHeader *tcp_hdr = (TCPHeader*)(((char *)ip_hdr) + ip_size);
+		if(tcp_hdr) {
+			//printf("firewall allowed TCP traffic\n");
+		}
+		return true;
+	}
+	if(ip_hdr->ip_p == IPPROTO_UDP) {
+		int ip_size = 4 * ip_hdr->ihl;
+		UDPHeader *udp_hdr = (UDPHeader*)(((char *)ip_hdr) + ip_size);
+		if(udp_hdr) {
+			//printf("firewall allowed UDP traffic\n");
+		}
+		return true;
+	}
+	if(ip_hdr->ip_p == IPPROTO_ICMP) {
+		int ip_size = 4 * ip_hdr->ihl;
+		ICMPHeader *icmp_hdr = (ICMPHeader*)(((char *)ip_hdr) + ip_size);
+		if(icmp_hdr) {
+			//printf("firewall allowed ICMP traffic\n");
 		}
 		return true;
 	}

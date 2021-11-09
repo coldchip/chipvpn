@@ -17,7 +17,9 @@
 #define FIREWALL_H
 
 #include <stdbool.h>
+#include "packet.h"
 
-bool validate_packet(char *stream);
+bool validate_inbound_packet(IPPacket *ip_hdr);
+bool validate_outbound_packet(IPPacket *ip_hdr);
 
 #endif

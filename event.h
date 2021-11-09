@@ -31,6 +31,7 @@ _a > _b ? _a : _b; })
 void chipvpn_event_loop(ChipVPNConfig *config);
 void chipvpn_socket_event(ChipVPNConfig *config, VPNPeer *peer, VPNPacket *packet);
 
+void chipvpn_service(ChipVPNConfig *config);
 void chipvpn_set_key_event(ChipVPNConfig *config, VPNPeer *peer, VPNKeyPacket *packet);
 void chipvpn_auth_event(ChipVPNConfig *config, VPNPeer *peer, VPNAuthPacket *packet);
 void chipvpn_assign_event(ChipVPNConfig *config, VPNPeer *peer, VPNAssignPacket *packet);
