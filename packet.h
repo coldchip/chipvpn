@@ -17,6 +17,7 @@
 #define PACKET_H
 
 #include <stdint.h>
+#include <netinet/in.h>
 #include "chipvpn.h"
 
 #define PACKED __attribute__((__packed__))
@@ -32,8 +33,8 @@ typedef struct _IPPacket {
     uint8_t  ip_ttl;                 /* time to live */
     uint8_t  ip_p;                   /* protocol */
     uint16_t ip_sum;                 /* checksum */
-   	uint32_t src_addr;   			/* Source IP address. */
-    uint32_t dst_addr;
+   	struct in_addr src_addr;   			/* Source IP address. */
+    struct in_addr dst_addr;
 } IPPacket;
 
 typedef struct _TCPHeader {

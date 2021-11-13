@@ -18,6 +18,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <netinet/in.h>
 
 typedef struct _Tun {
 	char dev[128];
@@ -25,7 +26,7 @@ typedef struct _Tun {
 } Tun;
 
 Tun *chipvpn_tun_open(char *dev);
-bool chipvpn_tun_setip(Tun *tun, uint32_t ip, uint32_t mask, int mtu);
+bool chipvpn_tun_setip(Tun *tun, struct in_addr ip, struct in_addr mask, int mtu);
 bool chipvpn_tun_ifup(Tun *tun);
 void chipvpn_tun_free(Tun *tun);
 

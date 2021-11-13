@@ -20,26 +20,26 @@
 
 bool validate_inbound_packet(IPPacket *ip_hdr) {
 	if(ip_hdr->ip_p == IPPROTO_TCP) {
-		int ip_size = 4 * ip_hdr->ihl;
-		TCPHeader *tcp_hdr = (TCPHeader*)(((char *)ip_hdr) + ip_size);
+		int start_offset = 4 * ip_hdr->ihl;
+		TCPHeader *tcp_hdr = (TCPHeader*)(((char *)ip_hdr) + start_offset);
 		if(tcp_hdr) {
-			//printf("firewall allowed TCP traffic\n");
+			//printf("inbound TCP traffic\n");
 		}
 		return true;
 	}
 	if(ip_hdr->ip_p == IPPROTO_UDP) {
-		int ip_size = 4 * ip_hdr->ihl;
-		UDPHeader *udp_hdr = (UDPHeader*)(((char *)ip_hdr) + ip_size);
+		int start_offset = 4 * ip_hdr->ihl;
+		UDPHeader *udp_hdr = (UDPHeader*)(((char *)ip_hdr) + start_offset);
 		if(udp_hdr) {
-			//printf("firewall allowed UDP traffic\n");
+			//printf("inbound UDP traffic\n");
 		}
 		return true;
 	}
 	if(ip_hdr->ip_p == IPPROTO_ICMP) {
-		int ip_size = 4 * ip_hdr->ihl;
-		ICMPHeader *icmp_hdr = (ICMPHeader*)(((char *)ip_hdr) + ip_size);
+		int start_offset = 4 * ip_hdr->ihl;
+		ICMPHeader *icmp_hdr = (ICMPHeader*)(((char *)ip_hdr) + start_offset);
 		if(icmp_hdr) {
-			//printf("firewall allowed ICMP traffic\n");
+			//printf("inbound ICMP traffic\n");
 		}
 		return true;
 	}
@@ -48,26 +48,26 @@ bool validate_inbound_packet(IPPacket *ip_hdr) {
 
 bool validate_outbound_packet(IPPacket *ip_hdr) {
 	if(ip_hdr->ip_p == IPPROTO_TCP) {
-		int ip_size = 4 * ip_hdr->ihl;
-		TCPHeader *tcp_hdr = (TCPHeader*)(((char *)ip_hdr) + ip_size);
+		int start_offset = 4 * ip_hdr->ihl;
+		TCPHeader *tcp_hdr = (TCPHeader*)(((char *)ip_hdr) + start_offset);
 		if(tcp_hdr) {
-			//printf("firewall allowed TCP traffic\n");
+			//printf("outbound TCP traffic\n");
 		}
 		return true;
 	}
 	if(ip_hdr->ip_p == IPPROTO_UDP) {
-		int ip_size = 4 * ip_hdr->ihl;
-		UDPHeader *udp_hdr = (UDPHeader*)(((char *)ip_hdr) + ip_size);
+		int start_offset = 4 * ip_hdr->ihl;
+		UDPHeader *udp_hdr = (UDPHeader*)(((char *)ip_hdr) + start_offset);
 		if(udp_hdr) {
-			//printf("firewall allowed UDP traffic\n");
+			//printf("outbound UDP traffic\n");
 		}
 		return true;
 	}
 	if(ip_hdr->ip_p == IPPROTO_ICMP) {
-		int ip_size = 4 * ip_hdr->ihl;
-		ICMPHeader *icmp_hdr = (ICMPHeader*)(((char *)ip_hdr) + ip_size);
+		int start_offset = 4 * ip_hdr->ihl;
+		ICMPHeader *icmp_hdr = (ICMPHeader*)(((char *)ip_hdr) + start_offset);
 		if(icmp_hdr) {
-			//printf("firewall allowed ICMP traffic\n");
+			//printf("outbound ICMP traffic\n");
 		}
 		return true;
 	}

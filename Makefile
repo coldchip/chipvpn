@@ -1,9 +1,11 @@
 CC      := gcc
-LD      := ld
+#CC      := mipsel-openwrt-linux-musl-gcc
 BIN     := bin
 SRCS    := $(wildcard *.c)
 EXE     := $(BIN)/chipvpn
+BUILDROOT := /home/ryan/openwrt-19.07.7
 CFLAGS  := -Wall -Ofast 
+#CFLAGS  := -Wall -Ofast -I$(BUILDROOT)/staging_dir/target-mipsel_24kc_musl/usr/include -L$(BUILDROOT)/staging_dir/target-mipsel_24kc_musl/usr/lib -Wl,-rpath-link=$(BUILDROOT)/staging_dir/target-mipsel_24kc_musl/usr/lib 
 LIBS    := -lssl -lcrypto
 ifeq ($(OS),Windows_NT)
 	LIBS := $(LIBS) -lws2_32
@@ -31,4 +33,4 @@ upload:
 upload2:
 	scp -r /home/ryan/chipvpn/* root@192.168.0.101:/root/chipvpn
 upload3:
-	scp -r /home/ryan/chipvpn/* pi@192.168.0.100:/home/pi/chipvpn
+	scp -r /home/ryan/chipvpn/* ryan@192.168.0.100:/home/ryan/chipvpn

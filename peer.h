@@ -37,7 +37,7 @@ typedef struct _VPNPeer {
 	struct sockaddr_in addr;
 	bool is_authed;
 	uint32_t last_ping;
-	uint32_t internal_ip;
+	struct in_addr internal_ip;
 
 	uint64_t tx;
 	uint64_t rx;
@@ -63,7 +63,7 @@ int                chipvpn_peer_recv(VPNPeer *peer, VPNPacket *dst);
 int                chipvpn_peer_send(VPNPeer *peer, VPNPacketType type, void *data, int size);
 int                chipvpn_peer_raw_recv(VPNPeer *peer, void *buf, int size, int *err);
 int                chipvpn_peer_raw_send(VPNPeer *peer, void *buf, int size, int *err);
-uint32_t           chipvpn_get_peer_free_ip(List *peers, char *gateway);
-VPNPeer           *chipvpn_get_peer_by_ip(List *peers, uint32_t ip);
+struct in_addr     chipvpn_get_peer_free_ip(List *peers, char *gateway);
+VPNPeer           *chipvpn_get_peer_by_ip(List *peers, struct in_addr ip);
 
 #endif

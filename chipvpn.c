@@ -44,7 +44,7 @@ char *read_file_into_buffer(char *file) {
 	return p;
 }
 
-uint32_t get_default_gateway() {
+struct in_addr get_default_gateway() {
 	char ip_addr[16];
 	char cmd[] = "ip route show default | awk '/default/ {print $3}' |  tr -cd '[a-zA-Z0-9]._-'";
 	FILE* fp = popen(cmd, "r");
@@ -54,7 +54,10 @@ uint32_t get_default_gateway() {
 	}
 	pclose(fp);
 	ip_addr[15] = '\0';
-	return inet_addr(ip_addr);
+
+	struct in_addr in_gw;
+	inet_aton(ip_addr, &in_gw);
+	return in_gw;
 }
 
 int exec_sprintf(char *format, ...) {
@@ -115,6 +118,8 @@ void error(char *format, ...) {
 	vprintf(fmt, args);
 	
 	va_end(args);
+
+	exit(1);
 }
 
 char *chipvpn_malloc_fmt(char *format, ...) {

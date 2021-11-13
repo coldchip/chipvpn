@@ -61,7 +61,7 @@ Tun *chipvpn_tun_open(char *dev) {
 	return tun;
 }
 
-bool chipvpn_tun_setip(Tun* tun, uint32_t ip, uint32_t mask, int mtu) {
+bool chipvpn_tun_setip(Tun* tun, struct in_addr ip, struct in_addr mask, int mtu) {
 	if(tun) {
 		struct ifreq ifr;
 		ifr.ifr_addr.sa_family = AF_INET;
@@ -72,10 +72,10 @@ bool chipvpn_tun_setip(Tun* tun, uint32_t ip, uint32_t mask, int mtu) {
 
 		int fd = socket(AF_INET, SOCK_DGRAM, 0);
 
-		addr->sin_addr.s_addr = ip;
+		addr->sin_addr.s_addr = ip.s_addr;
 		ioctl(fd, SIOCSIFADDR, &ifr);
 
-		addr->sin_addr.s_addr = mask;
+		addr->sin_addr.s_addr = mask.s_addr;
 		ioctl(fd, SIOCSIFNETMASK, &ifr);
 
 		ifr.ifr_mtu = mtu;

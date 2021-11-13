@@ -39,7 +39,7 @@ int main(int argc, char const *argv[]) {
 				if(!chipvpn_load_config(&config, (char*)argv[1])) {
 					error("unable to read config");
 				}
-				chipvpn_event_loop(&config);
+				chipvpn_init(&config);
 			}
 		} else {
 			console_log("Usage: $ %s config.conf", argv[0]);

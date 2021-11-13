@@ -35,7 +35,7 @@ extern "C"
 #endif
 
 char              *read_file_into_buffer(char *file);
-uint32_t           get_default_gateway();
+struct in_addr     get_default_gateway();
 int                exec_sprintf(char *format, ...);
 void               warning(char *format, ...);
 void               error(char *format, ...);
