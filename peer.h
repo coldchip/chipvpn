@@ -63,7 +63,7 @@ int                chipvpn_peer_recv(VPNPeer *peer, VPNPacket *dst);
 int                chipvpn_peer_send(VPNPeer *peer, VPNPacketType type, void *data, int size);
 int                chipvpn_peer_raw_recv(VPNPeer *peer, void *buf, int size, int *err);
 int                chipvpn_peer_raw_send(VPNPeer *peer, void *buf, int size, int *err);
-struct in_addr     chipvpn_get_peer_free_ip(List *peers, char *gateway);
+bool               chipvpn_get_peer_free_ip(List *peers, struct in_addr gateway, struct in_addr *assign);
 VPNPeer           *chipvpn_get_peer_by_ip(List *peers, struct in_addr ip);
 
 #endif

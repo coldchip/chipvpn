@@ -84,8 +84,9 @@ typedef enum {
 	VPN_TYPE_AUTH,
 	VPN_PING,
 	VPN_PONG,
-	VPN_TYPE_MSG,
-	VPN_SET_KEY
+	VPN_SET_KEY,
+
+	VPN_MSG_AUTH_ERROR
 } VPNPacketType;
 
 typedef struct PACKED _VPNKeyPacket {
@@ -93,7 +94,7 @@ typedef struct PACKED _VPNKeyPacket {
 } VPNKeyPacket;
 
 typedef struct PACKED _VPNAuthPacket {
-	char data[8192];
+	char token[8192];
 } VPNAuthPacket;
 
 typedef struct PACKED _VPNAssignPacket {

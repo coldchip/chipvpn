@@ -22,7 +22,7 @@ bool crypto_encrypt(Crypto *crypto, void *dst, void *src, int length) {
 	if(!EVP_CipherUpdate(crypto->ctx, (unsigned char*)dst, &i, (unsigned char*)src, length)) {
 		return false;
 	}
-	if(!EVP_CipherFinal(crypto->ctx, (unsigned char*)dst + i, &i)) {
+	if(!EVP_CipherFinal_ex(crypto->ctx, (unsigned char*)dst + i, &i)) {
 		return false;
 	}
 	return true;
@@ -33,7 +33,7 @@ bool crypto_decrypt(Crypto *crypto, void *dst, void *src, int length) {
 	if(!EVP_CipherUpdate(crypto->ctx, (unsigned char*)dst, &i, (unsigned char*)src, length)) {
 		return false;
 	}
-	if(!EVP_CipherFinal(crypto->ctx, (unsigned char*)dst + i, &i)) {
+	if(!EVP_CipherFinal_ex(crypto->ctx, (unsigned char*)dst + i, &i)) {
 		return false;
 	}
 	return true;

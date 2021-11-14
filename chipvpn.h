@@ -37,7 +37,7 @@ extern "C"
 char              *read_file_into_buffer(char *file);
 struct in_addr     get_default_gateway();
 int                exec_sprintf(char *format, ...);
-void               warning(char *format, ...);
+void               warning_log(char *format, ...);
 void               error(char *format, ...);
 void               console_log(char *format, ...);
 char              *chipvpn_malloc_fmt(char *format, ...);

@@ -154,13 +154,7 @@ void chipvpn_setup() {
 		VPNPeer *peer = chipvpn_peer_new(sock);
 		list_insert(list_end(&peers), peer);
 
-		console_log("key exchange begin");
-
-		VPNKeyPacket packet;
-		RAND_priv_bytes((unsigned char*)&packet.key, sizeof(packet.key));
-		chipvpn_peer_send(peer, VPN_SET_KEY, &packet, sizeof(packet));
-
-		chipvpn_set_key(peer, packet.key);
+		chipvpn_peer_send(peer, VPN_SET_KEY, NULL, 0);
 
 		sock = -1; // discard sock as it is replaced by the allocation of peer
 	}
@@ -226,6 +220,8 @@ void chipvpn_loop() {
 
 					VPNPeer *peer = chipvpn_peer_new(fd);
 					list_insert(list_end(&peers), peer);
+
+					console_log("key exchange begin");
 				}
 			}
 
@@ -319,13 +315,12 @@ void chipvpn_socket_event(VPNPeer *peer, VPNPacket *packet) {
 			chipvpn_pong_event(peer);
 		}
 		break;
-		case VPN_TYPE_MSG: {
-
+		case VPN_MSG_AUTH_ERROR: {
+			warning_log("peer => authentication error");
 		}
 		break;
 		default: {
 			chipvpn_disconnect_peer(peer);
-			return;
 		}
 		break;
 	}	
@@ -349,24 +344,45 @@ void chipvpn_service() {
 
 void chipvpn_set_key_event(VPNPeer *peer, VPNKeyPacket *packet) {
 	if(config->mode == MODE_SERVER) {
-		chipvpn_set_key(peer, packet->key);
-
-		chipvpn_peer_send(peer, VPN_SET_KEY, NULL, 0);
+		console_log("key exchange success");
+		VPNKeyPacket packet;
+		RAND_priv_bytes((unsigned char*)&packet.key, sizeof(packet.key));
+		chipvpn_set_key(peer, packet.key);
+		chipvpn_peer_send(peer, VPN_SET_KEY, &packet, sizeof(packet));
 	} else {
 		console_log("key exchange success");
+		chipvpn_set_key(peer, packet->key);
 
 		VPNAuthPacket auth;
-		strcpy(auth.data, config->token);
-		chipvpn_peer_send(peer, VPN_TYPE_AUTH, &auth, sizeof(auth));
+		strcpy(auth.token, config->token);
+
+		VPNAuthPacket p_auth_enc;
+		if(!crypto_encrypt(peer->outbound_aes, &p_auth_enc, &auth, sizeof(p_auth_enc))) {
+			console_log("unable to encrypt packet of peer");
+			chipvpn_disconnect_peer(peer);
+			return;
+		}
+
+		chipvpn_peer_send(peer, VPN_TYPE_AUTH, &p_auth_enc, sizeof(p_auth_enc));
+		return;
 	}
 }
 
 void chipvpn_auth_event(VPNPeer *peer, VPNAuthPacket *packet) {
 	if(config->mode == MODE_SERVER) {
-		if(memcmp(packet, config->token, strlen(config->token)) == 0) {
+		VPNAuthPacket auth;
+		if(!crypto_decrypt(peer->inbound_aes, &auth, packet, sizeof(VPNAuthPacket))) {
+			console_log("unable to decrypt packet of peer");
+			chipvpn_disconnect_peer(peer);
+			return;
+		}
+
+		if(memcmp(auth.token, config->token, strlen(config->token)) == 0) {
 			peer->is_authed = true;
 			chipvpn_peer_send(peer, VPN_TYPE_AUTH, NULL, 0);
+			return;
 		} else {
+			chipvpn_peer_send(peer, VPN_MSG_AUTH_ERROR, NULL, 0);
 			chipvpn_disconnect_peer(peer);
 			return;
 		}
@@ -374,20 +390,22 @@ void chipvpn_auth_event(VPNPeer *peer, VPNAuthPacket *packet) {
 		console_log("peer authenticated");
 		peer->is_authed = true;
 		chipvpn_peer_send(peer, VPN_TYPE_ASSIGN, NULL, 0);
+		return;
 	}
 }
 
 void chipvpn_assign_event(VPNPeer *peer, VPNAssignPacket *packet) {
 	if(config->mode == MODE_SERVER) {
-		struct in_addr alloc_ip = chipvpn_get_peer_free_ip(&peers, config->gateway);
-		if(alloc_ip.s_addr > 0) {
+
+		struct in_addr gateway;
+		inet_aton(config->gateway, &gateway);
+
+		if(chipvpn_get_peer_free_ip(&peers, gateway, &peer->internal_ip)) {
 			VPNAssignPacket assign;
-			assign.ip      = alloc_ip.s_addr;
+			assign.ip      = peer->internal_ip.s_addr;
 			assign.subnet  = inet_addr(config->subnet);
 			assign.gateway = inet_addr(config->gateway);
 			assign.mtu     = htonl(CHIPVPN_MAX_MTU);
-
-			peer->internal_ip = alloc_ip;
 
 			VPNAssignPacket p_assign_enc;
 
@@ -398,6 +416,10 @@ void chipvpn_assign_event(VPNPeer *peer, VPNAssignPacket *packet) {
 			}
 
 			chipvpn_peer_send(peer, VPN_TYPE_ASSIGN, &p_assign_enc, sizeof(assign));
+			return;
+		} else {
+			chipvpn_disconnect_peer(peer);
+			return;
 		}
 	} else {
 		VPNAssignPacket p_assign;
@@ -447,7 +469,7 @@ void chipvpn_assign_event(VPNPeer *peer, VPNAssignPacket *packet) {
 		peer->tx          = 0;
 		peer->rx          = 0;
 		console_log("initialization sequence complete");
-
+		return;
 	}
 }
 
@@ -469,12 +491,14 @@ void chipvpn_data_event(VPNPeer *peer, VPNDataPacket *packet, int size) {
 	) {
 		peer->rx += size;
 		if(write(tun->fd, (char*)&p_data, size)) {}
+		return;
 	}
 }
 
 void chipvpn_ping_event(VPNPeer *peer) {
 	peer->last_ping = chipvpn_get_time();
 	chipvpn_peer_send(peer, VPN_PONG, NULL, 0);
+	return;
 }
 
 void chipvpn_pong_event(VPNPeer *peer) {
@@ -494,6 +518,7 @@ void chipvpn_pong_event(VPNPeer *peer) {
 	}
 
 	console_log("peer 0x%04x ping took %lu ms TX: %s RX: %s", peer_index, ((ping_stop.tv_sec - ping_start.tv_sec) * 1000000 + ping_stop.tv_usec - ping_start.tv_usec) / 1000, tx, rx); 
+	return;
 }
 
 void chipvpn_tun_event(VPNDataPacket *packet, int size) {
@@ -517,6 +542,7 @@ void chipvpn_tun_event(VPNDataPacket *packet, int size) {
 		}
 
 		chipvpn_peer_send(peer, VPN_TYPE_DATA, &packet_enc, size);
+		return;
 	}
 }
 

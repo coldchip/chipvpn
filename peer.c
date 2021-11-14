@@ -70,12 +70,6 @@ void chipvpn_set_key(VPNPeer *peer, char *key) {
 		0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f 
 	};
 
-	printf("set key ");
-	for(int i = 0; i < 32; i++) {
-		printf("%02x", key[i] & 0xff);
-	}
-	printf("\n");
-
 	crypto_set_key(peer->inbound_aes, key, iv);
 	crypto_set_key(peer->outbound_aes, key, iv);
 }
@@ -214,9 +208,9 @@ int chipvpn_peer_raw_send(VPNPeer *peer, void *buf, int size, int *err) {
 	return w;
 }
 
-struct in_addr chipvpn_get_peer_free_ip(List *peers, char *gateway) {
-	uint32_t start = inet_addr(gateway) + (1   << 24);
-	uint32_t end   = inet_addr(gateway) + (200 << 24);
+bool chipvpn_get_peer_free_ip(List *peers, struct in_addr gateway, struct in_addr *assign) {
+	uint32_t start = gateway.s_addr + (1   << 24);
+	uint32_t end   = gateway.s_addr + (200 << 24);
 	bool     trip  = false;
 
 	for(uint32_t ip = ntohl(start); ip < ntohl(end); ip++) {
@@ -228,15 +222,12 @@ struct in_addr chipvpn_get_peer_free_ip(List *peers, char *gateway) {
 			}
 		}
 		if(trip == false) {
-			struct in_addr addr;
-			addr.s_addr = htonl(ip);
-			return addr;
+			assign->s_addr = htonl(ip);
+			return true;
 		}
 	}
 
-	struct in_addr addr;
-	addr.s_addr = 0;
-	return addr;
+	return false;
 }
 
 VPNPeer *chipvpn_get_peer_by_ip(List *peers, struct in_addr ip) {

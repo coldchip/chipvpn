@@ -90,7 +90,7 @@ void console_log(char *format, ...) {
 	va_end(args);
 }
 
-void warning(char *format, ...) {
+void warning_log(char *format, ...) {
 	va_list args;
 	va_start(args, format);
 

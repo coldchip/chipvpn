@@ -28,7 +28,6 @@ bool chipvpn_load_config(ChipVPNConfig *config, char *config_file) {
 
 	cJSON *json = cJSON_Parse(buf);
 	if(!json) {
-		warning("unable to parse JSON in config file");
 		return false;
 	}
 	cJSON *cjson_connect         = cJSON_GetObjectItem(json, "connect");
