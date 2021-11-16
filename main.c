@@ -42,7 +42,7 @@ int main(int argc, char const *argv[]) {
 				chipvpn_init(&config);
 			}
 		} else {
-			console_log("Usage: $ %s config.conf", argv[0]);
+			console_log("Usage: $ %s config.json", argv[0]);
 		}
 		return 0;
 	}

@@ -30,15 +30,17 @@ _a > _b ? _a : _b; })
 
 void chipvpn_init(ChipVPNConfig *config);
 void chipvpn_setup();
+bool chipvpn_bind(char *ip, int port);
+VPNPeer *chipvpn_connect(char *ip, int port);
 void chipvpn_loop();
 void chipvpn_cleanup();
 
 void chipvpn_socket_event(VPNPeer *peer, VPNPacket *packet);
 
 void chipvpn_service();
-void chipvpn_set_key_event(VPNPeer *peer, VPNKeyPacket *packet);
-void chipvpn_auth_event(VPNPeer *peer, VPNAuthPacket *packet);
-void chipvpn_assign_event(VPNPeer *peer, VPNAssignPacket *packet);
+void chipvpn_set_key_event(VPNPeer *peer, VPNKeyPacket *packet, int size);
+void chipvpn_auth_event(VPNPeer *peer, VPNAuthPacket *packet, int size);
+void chipvpn_assign_event(VPNPeer *peer, VPNAssignPacket *packet, int size);
 void chipvpn_data_event(VPNPeer *peer, VPNDataPacket *packet, int size);
 void chipvpn_ping_event(VPNPeer *peer);
 void chipvpn_pong_event(VPNPeer *peer);

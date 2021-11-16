@@ -94,7 +94,7 @@ typedef struct PACKED _VPNKeyPacket {
 } VPNKeyPacket;
 
 typedef struct PACKED _VPNAuthPacket {
-	char token[8192];
+	char token[512];
 } VPNAuthPacket;
 
 typedef struct PACKED _VPNAssignPacket {
