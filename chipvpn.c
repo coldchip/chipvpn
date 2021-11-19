@@ -14,6 +14,7 @@
  */
 
 #include "chipvpn.h"
+#include "packet.h"
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdbool.h>
@@ -24,7 +25,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/time.h>
-#include <arpa/inet.h> 
+#include <arpa/inet.h>
 
 char *read_file_into_buffer(char *file) {
 	FILE *infp = fopen(file, "rb");
@@ -75,19 +76,45 @@ int exec_sprintf(char *format, ...) {
 	return res;
 }
 
-void console_log(char *format, ...) {
-	va_list args;
-	va_start(args, format);
-
-	char fmt[1000];
-	#ifdef __linux
-		snprintf(fmt, sizeof(fmt), "\033[0;32m[ChipVPN] %s\033[0m\n", format);
-	#else
-		snprintf(fmt, sizeof(fmt), "[ChipVPN] %s\n", format);
-	#endif
-	vprintf(fmt, args);
-	
-	va_end(args);
+void msg_log(VPNPacketType type) {
+	switch(type) {
+		case VPN_MSG_AUTH_ERROR: {
+			warning_log("authentication error, invalid credentials [ERR_CODE::%i]", chipvpn_checksum16(&(int) { VPN_MSG_AUTH_ERROR }, sizeof(int)));
+		}
+		break;
+		case VPN_MSG_AUTH_SUCCESS: {
+			console_log("\033[0;34mauthentication success [CODE::%i]\033[0m", chipvpn_checksum16(&(int) { VPN_MSG_AUTH_ERROR }, sizeof(int)));
+		}
+		break;
+		case VPN_MSG_UNAUTHORIZED: {
+			warning_log("packet rejected, zone not authorized [ERR_CODE::%i]", chipvpn_checksum16(&(int) { VPN_MSG_UNAUTHORIZED }, sizeof(int)));
+		}
+		break;
+		case VPN_MSG_DECRYPTION_ERROR: {
+			warning_log("packet rejected, unable to decrypt packet [ERR_CODE::%i]", chipvpn_checksum16(&(int) { VPN_MSG_DECRYPTION_ERROR }, sizeof(int)));
+		}
+		break;
+		case VPN_MSG_ENCRYPTION_ERROR: {
+			warning_log("packet rejected, unable to encrypt packet [ERR_CODE::%i]", chipvpn_checksum16(&(int) { VPN_MSG_DECRYPTION_ERROR }, sizeof(int)));
+		}
+		break;
+		case VPN_MSG_PACKET_OVERSIZE: {
+			warning_log("packet rejected, invalid packet size [ERR_CODE::%i]", chipvpn_checksum16(&(int) { VPN_MSG_PACKET_OVERSIZE }, sizeof(int)));
+		}
+		break;
+		case VPN_MSG_PACKET_UNKNOWN: {
+			warning_log("packet rejected, invalid packet received [ERR_CODE::%i]", chipvpn_checksum16(&(int) { VPN_MSG_PACKET_UNKNOWN }, sizeof(int)));
+		}
+		break;
+		case VPN_MSG_ASSIGN_EXHAUSTED: {
+			warning_log("unable to allocate ip address [ERR_CODE::%i]", chipvpn_checksum16(&(int) { VPN_MSG_PACKET_UNKNOWN }, sizeof(int)));
+		}
+		break;
+		default: {
+			warning_log("unknown error [ERR_CODE::%i]", chipvpn_checksum16(&type, sizeof(int)));
+		}
+		break;
+	}
 }
 
 void warning_log(char *format, ...) {
@@ -122,18 +149,19 @@ void error(char *format, ...) {
 	exit(1);
 }
 
-char *chipvpn_malloc_fmt(char *format, ...) {
+void console_log(char *format, ...) {
 	va_list args;
 	va_start(args, format);
-	int len = vsnprintf(NULL, 0, format, args);
-	va_end(args);
-	
-	va_start(args, format);
-	char *result = malloc((len * sizeof(char)) + 1);
-	vsnprintf(result, len + 1, format, args);
-	va_end(args);
 
-	return result;
+	char fmt[1000];
+	#ifdef __linux
+		snprintf(fmt, sizeof(fmt), "\033[0;32m[ChipVPN] %s\033[0m\n", format);
+	#else
+		snprintf(fmt, sizeof(fmt), "[ChipVPN] %s\n", format);
+	#endif
+	vprintf(fmt, args);
+	
+	va_end(args);
 }
 
 uint16_t chipvpn_checksum16(void *data, unsigned int bytes) {
@@ -183,7 +211,7 @@ void chipvpn_generate_random(char *buf, int len) {
 	}
 }
 
-const char *chipvpn_format_bytes(uint64_t bytes) {
+char *chipvpn_format_bytes(uint64_t bytes) {
 	char *suffix[] = {"B", "KB", "MB", "GB", "TB", "PB"};
 	char length = sizeof(suffix) / sizeof(suffix[0]);
 
@@ -191,7 +219,7 @@ const char *chipvpn_format_bytes(uint64_t bytes) {
 	double dblBytes = bytes;
 
 	if (bytes > 1024) {
-		for (i = 0; (bytes / 1024) > 0 && i < length-1; i++, bytes /= 1024) {
+		for (i = 0; (bytes / 1024) > 0 && i < length - 1; i++, bytes /= 1024) {
 			dblBytes = bytes / 1024.0;
 		}
 	}

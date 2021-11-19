@@ -60,5 +60,7 @@ int                chipvpn_peer_raw_send(VPNPeer *peer, void *buf, int size, int
 bool               chipvpn_get_peer_free_ip(List *peers, struct in_addr gateway, struct in_addr *assign);
 VPNPeer           *chipvpn_get_peer_by_ip(List *peers, struct in_addr ip);
 bool               chipvpn_peer_authed(VPNPeer *peer);
+void               chipvpn_peer_login(VPNPeer *peer);
+void               chipvpn_peer_logout(VPNPeer *peer);
 
 #endif

@@ -13,43 +13,30 @@
  * See README for more details.
  */
 
-#ifndef CHIPVPN
-#define CHIPVPN
+#ifndef CHIPVPN_H
+#define CHIPVPN_H
 
-#ifdef __cplusplus
-extern "C"
-{
-#endif
-
+#include "packet.h"
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdint.h>
 
-#define CHIPVPN_VERSION         1000000088L
-#define CHIPVPN_MAX_MTU         1500
-#define CHIPVPN_MAX_PACKET_SIZE 4096
-
-#if CHIPVPN_MAX_MTU > CHIPVPN_MAX_PACKET_SIZE
-	#error "CHIPVPN_MAX_MTU < CHIPVPN_MAX_PACKET_SIZE"
-#endif
+#define CHIPVPN_VERSION 10000001L
+#define CHIPVPN_MAX_MTU 1500
 
 char              *read_file_into_buffer(char *file);
 struct in_addr     get_default_gateway();
 int                exec_sprintf(char *format, ...);
+void               msg_log(VPNPacketType type);
 void               warning_log(char *format, ...);
 void               error(char *format, ...);
 void               console_log(char *format, ...);
-char              *chipvpn_malloc_fmt(char *format, ...);
 uint16_t           chipvpn_checksum16(void *data, unsigned int bytes);
 char              *chipvpn_resolve_hostname(char *ip);
 void               chipvpn_generate_random(char *buf, int len);
-const char        *chipvpn_format_bytes(uint64_t bytes);
+char              *chipvpn_format_bytes(uint64_t bytes);
 uint32_t           chipvpn_get_time();
 int                chipvpn_set_socket_non_block(int fd);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

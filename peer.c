@@ -26,13 +26,6 @@
 #include <openssl/aes.h>
 
 VPNPeer *chipvpn_peer_new(int fd) {
-	char key[] = {
-		0xc3, 0xc7, 0x91, 0x59, 0xc3, 0x46, 0x62, 0x8a, 
-		0xfe, 0xf4, 0x6f, 0xf0, 0x87, 0x58, 0x8d, 0x0e, 
-		0x02, 0x78, 0xaf, 0x91, 0x49, 0x52, 0xc3, 0xd4, 
-		0x32, 0x17, 0xb1, 0x3f, 0x67, 0xd9, 0xcb, 0xac 
-	};
-
 	VPNPeer *peer             = malloc(sizeof(VPNPeer));
 	peer->fd                  = fd;
 	peer->is_authed           = false;
@@ -41,6 +34,8 @@ VPNPeer *chipvpn_peer_new(int fd) {
 	peer->last_ping           = chipvpn_get_time();
 	peer->inbound_buffer_pos  = 0;
 	peer->outbound_buffer_pos = 0;
+
+	chipvpn_peer_logout(peer);
 
 	peer->inbound_aes = crypto_new();
 	if(!peer->inbound_aes) {
@@ -52,13 +47,12 @@ VPNPeer *chipvpn_peer_new(int fd) {
 		error("unable to set aes ctx for peer");
 	}
 
-	chipvpn_set_key(peer, key);
-
 	console_log("peer connected");
 	return peer;
 }
 
 void chipvpn_peer_free(VPNPeer *peer) {
+	chipvpn_peer_logout(peer);
 	crypto_free(peer->inbound_aes);
 	crypto_free(peer->outbound_aes);
 	free(peer);
@@ -242,4 +236,12 @@ VPNPeer *chipvpn_get_peer_by_ip(List *peers, struct in_addr ip) {
 
 bool chipvpn_peer_authed(VPNPeer *peer) {
 	return peer->is_authed;
+}
+
+void chipvpn_peer_login(VPNPeer *peer) {
+	peer->is_authed = true;
+}
+
+void chipvpn_peer_logout(VPNPeer *peer) {
+	peer->is_authed = false;
 }

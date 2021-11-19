@@ -18,7 +18,8 @@
 
 #include <stdint.h>
 #include <netinet/in.h>
-#include "chipvpn.h"
+
+#define CHIPVPN_MAX_PACKET_SIZE 4096
 
 #define PACKED __attribute__((__packed__))
 
@@ -87,9 +88,13 @@ typedef enum {
 	VPN_TYPE_SET_KEY,
 
 	VPN_MSG_AUTH_ERROR,
+	VPN_MSG_AUTH_SUCCESS,
 	VPN_MSG_UNAUTHORIZED,
 	VPN_MSG_DECRYPTION_ERROR,
-	VPN_MSG_PACKET_OVERSIZE
+	VPN_MSG_ENCRYPTION_ERROR,
+	VPN_MSG_PACKET_OVERSIZE,
+	VPN_MSG_PACKET_UNKNOWN,
+	VPN_MSG_ASSIGN_EXHAUSTED
 } VPNPacketType;
 
 typedef struct PACKED _VPNKeyPacket {
