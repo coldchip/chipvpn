@@ -65,7 +65,7 @@ void chipvpn_setup() {
 
 	tun = chipvpn_tun_open("");
 	if(tun == NULL) {
-		error("tuntap adaptor creation failed, please run as sudo");
+		error("tuntap adapter creation failed, please run as sudo");
 	}
 
 	list_clear(&peers);
@@ -110,10 +110,10 @@ void chipvpn_setup() {
 		inet_aton(config->gateway, &gateway);
 
 		if(!chipvpn_tun_setip(tun, gateway, subnet, CHIPVPN_MAX_MTU)) {
-			error("unable to assign ip to tunnel adapter");
+			error("unable to assign ip to tun adapter");
 		}
 		if(!chipvpn_tun_ifup(tun)) {
-			error("unable to bring up tunnel adapter");
+			error("unable to bring up tun adapter");
 		}
 	} else {
 		console_log("connecting to [%s:%i]", config->ip, config->port);
@@ -149,7 +149,7 @@ VPNPeer *chipvpn_connect(char *ip, int port) {
 
 	int connect_start = chipvpn_get_time();
 	while(true) {
-		if(connect(sock, (struct sockaddr*)&addr, sizeof(addr)) != -1) {
+		if(connect(sock, (struct sockaddr *)&addr, sizeof(addr)) != -1) {
 			break;
 		}
 		if(chipvpn_get_time() - connect_start > 5) {
@@ -160,7 +160,7 @@ VPNPeer *chipvpn_connect(char *ip, int port) {
 	VPNPeer *peer = chipvpn_peer_new(sock);
 	list_insert(list_end(&peers), peer);
 
-	chipvpn_peer_send(peer, VPN_SET_KEY, NULL, 0);
+	chipvpn_peer_send(peer, VPN_TYPE_SET_KEY, NULL, 0);
 
 	sock = -1; // discard sock as it is replaced by the allocation of peer
 	return peer;
@@ -222,7 +222,7 @@ void chipvpn_loop() {
 						error("unable to set socket to non blocking mode");
 					}
 
-					console_log("IP: %s", inet_ntoa(addr.sin_addr));
+					console_log("peer connected via ip: %s", inet_ntoa(addr.sin_addr));
 
 					VPNPeer *peer = chipvpn_peer_new(fd);
 					list_insert(list_end(&peers), peer);
@@ -296,7 +296,7 @@ void chipvpn_socket_event(VPNPeer *peer, VPNPacket *packet) {
 	VPNPacketType type = (VPNPacketType)(packet->header.type);
 	VPNPacketBody data = packet->data;
 	switch(type) {
-		case VPN_SET_KEY: {
+		case VPN_TYPE_SET_KEY: {
 			chipvpn_set_key_event(peer, &data.key_packet, PLEN(packet));
 		}
 		break;
@@ -305,23 +305,59 @@ void chipvpn_socket_event(VPNPeer *peer, VPNPacket *packet) {
 		}
 		break;
 		case VPN_TYPE_ASSIGN: {
+			if(!chipvpn_peer_authed(peer)) {
+				console_log("packet not authorized");
+				chipvpn_peer_send(peer, VPN_MSG_UNAUTHORIZED, NULL, 0);
+				chipvpn_disconnect_peer(peer);
+				return;
+			}
 			chipvpn_assign_event(peer, &data.dhcp_packet, PLEN(packet));
 		}
 		break;
 		case VPN_TYPE_DATA: {
+			if(!chipvpn_peer_authed(peer)) {
+				console_log("packet not authorized");
+				chipvpn_peer_send(peer, VPN_MSG_UNAUTHORIZED, NULL, 0);
+				chipvpn_disconnect_peer(peer);
+				return;
+			}
 			chipvpn_data_event(peer, &data.data_packet, PLEN(packet));
 		}
 		break;
-		case VPN_PING: {
+		case VPN_TYPE_PING: {
+			if(!chipvpn_peer_authed(peer)) {
+				console_log("packet not authorized");
+				chipvpn_peer_send(peer, VPN_MSG_UNAUTHORIZED, NULL, 0);
+				chipvpn_disconnect_peer(peer);
+				return;
+			}
 			chipvpn_ping_event(peer);
 		}
 		break;
-		case VPN_PONG: {
+		case VPN_TYPE_PONG: {
+			if(!chipvpn_peer_authed(peer)) {
+				console_log("packet not authorized");
+				chipvpn_peer_send(peer, VPN_MSG_UNAUTHORIZED, NULL, 0);
+				chipvpn_disconnect_peer(peer);
+				return;
+			}
 			chipvpn_pong_event(peer);
 		}
 		break;
 		case VPN_MSG_AUTH_ERROR: {
-			warning_log("peer => authentication error");
+			warning_log("peer => authentication error, invalid credentials [ERR_CODE::%i]", VPN_MSG_AUTH_ERROR);
+		}
+		break;
+		case VPN_MSG_UNAUTHORIZED: {
+			warning_log("peer => packet rejected, zone not authorized [ERR_CODE::%i]", VPN_MSG_UNAUTHORIZED);
+		}
+		break;
+		case VPN_MSG_DECRYPTION_ERROR: {
+			warning_log("peer => packet rejected, unable to decrypt packet [ERR_CODE::%i]", VPN_MSG_DECRYPTION_ERROR);
+		}
+		break;
+		case VPN_MSG_PACKET_OVERSIZE: {
+			warning_log("peer => packet rejected, invalid packet size [ERR_CODE::%i]", VPN_MSG_PACKET_OVERSIZE);
 		}
 		break;
 		default: {
@@ -337,8 +373,8 @@ void chipvpn_service() {
 		VPNPeer *peer = (VPNPeer*)i;
 		i = list_next(i);
 		if(chipvpn_get_time() - peer->last_ping < 10) {
-			if(peer->is_authed == true) {
-				chipvpn_peer_send(peer, VPN_PING, NULL, 0);
+			if(chipvpn_peer_authed(peer)) {
+				chipvpn_peer_send(peer, VPN_TYPE_PING, NULL, 0);
 				gettimeofday(&ping_start, NULL);
 			}
 		} else {
@@ -353,7 +389,7 @@ void chipvpn_set_key_event(VPNPeer *peer, VPNKeyPacket *packet, int size) {
 		VPNKeyPacket packet;
 		RAND_priv_bytes((unsigned char*)&packet.key, sizeof(packet.key));
 		chipvpn_set_key(peer, packet.key);
-		chipvpn_peer_send(peer, VPN_SET_KEY, &packet, sizeof(packet));
+		chipvpn_peer_send(peer, VPN_TYPE_SET_KEY, &packet, sizeof(packet));
 	} else {
 		console_log("key exchange success");
 		chipvpn_set_key(peer, packet->key);
@@ -375,7 +411,8 @@ void chipvpn_set_key_event(VPNPeer *peer, VPNKeyPacket *packet, int size) {
 void chipvpn_auth_event(VPNPeer *peer, VPNAuthPacket *packet, int size) {
 	if(config->mode == MODE_SERVER) {
 		if(size > sizeof(VPNAuthPacket)) {
-			console_log("peer sent an oversized packet");
+			console_log("packet size too big");
+			chipvpn_peer_send(peer, VPN_MSG_PACKET_OVERSIZE, NULL, 0);
 			chipvpn_disconnect_peer(peer);
 			return;
 		}
@@ -383,6 +420,7 @@ void chipvpn_auth_event(VPNPeer *peer, VPNAuthPacket *packet, int size) {
 		VPNAuthPacket auth;
 		if(!crypto_decrypt(peer->inbound_aes, &auth, packet, size)) {
 			console_log("unable to decrypt packet of peer");
+			chipvpn_peer_send(peer, VPN_MSG_DECRYPTION_ERROR, NULL, 0);
 			chipvpn_disconnect_peer(peer);
 			return;
 		}
@@ -408,32 +446,32 @@ void chipvpn_auth_event(VPNPeer *peer, VPNAuthPacket *packet, int size) {
 
 void chipvpn_assign_event(VPNPeer *peer, VPNAssignPacket *packet, int size) {
 	if(config->mode == MODE_SERVER) {
-
 		struct in_addr gateway;
 		inet_aton(config->gateway, &gateway);
 
-		if(chipvpn_get_peer_free_ip(&peers, gateway, &peer->internal_ip)) {
-			VPNAssignPacket assign, p_assign;
-			assign.ip      = peer->internal_ip.s_addr;
-			assign.subnet  = inet_addr(config->subnet);
-			assign.gateway = inet_addr(config->gateway);
-			assign.mtu     = htonl(CHIPVPN_MAX_MTU);
-
-			if(!crypto_encrypt(peer->outbound_aes, &p_assign, &assign, sizeof(assign))) {
-				console_log("unable to encrypt packet of peer");
-				chipvpn_disconnect_peer(peer);
-				return;
-			}
-
-			chipvpn_peer_send(peer, VPN_TYPE_ASSIGN, &p_assign, sizeof(p_assign));
-			return;
-		} else {
+		if(!chipvpn_get_peer_free_ip(&peers, gateway, &peer->internal_ip)) {
 			chipvpn_disconnect_peer(peer);
 			return;
 		}
+
+		VPNAssignPacket assign, p_assign;
+		assign.ip      = peer->internal_ip.s_addr;
+		assign.subnet  = inet_addr(config->subnet);
+		assign.gateway = inet_addr(config->gateway);
+		assign.mtu     = htonl(CHIPVPN_MAX_MTU);
+
+		if(!crypto_encrypt(peer->outbound_aes, &p_assign, &assign, sizeof(assign))) {
+			console_log("unable to encrypt packet of peer");
+			chipvpn_disconnect_peer(peer);
+			return;
+		}
+
+		chipvpn_peer_send(peer, VPN_TYPE_ASSIGN, &p_assign, sizeof(p_assign));
+		return;
 	} else {
 		if(size > sizeof(VPNAssignPacket)) {
-			console_log("peer sent an oversized packet");
+			console_log("packet size too big");
+			chipvpn_peer_send(peer, VPN_MSG_PACKET_OVERSIZE, NULL, 0);
 			chipvpn_disconnect_peer(peer);
 			return;
 		}
@@ -441,6 +479,7 @@ void chipvpn_assign_event(VPNPeer *peer, VPNAssignPacket *packet, int size) {
 		VPNAssignPacket p_assign;
 		if(!crypto_decrypt(peer->inbound_aes, &p_assign, packet, size)) {
 			console_log("unable to decrypt packet of peer");
+			chipvpn_peer_send(peer, VPN_MSG_DECRYPTION_ERROR, NULL, 0);
 			chipvpn_disconnect_peer(peer);
 			return;
 		}
@@ -488,22 +527,23 @@ void chipvpn_assign_event(VPNPeer *peer, VPNAssignPacket *packet, int size) {
 
 void chipvpn_data_event(VPNPeer *peer, VPNDataPacket *packet, int size) {
 	if(size > sizeof(VPNDataPacket)) {
-		console_log("peer sent an oversized packet");
+		console_log("packet size too big");
+		chipvpn_peer_send(peer, VPN_MSG_PACKET_OVERSIZE, NULL, 0);
 		chipvpn_disconnect_peer(peer);
 		return;
 	}
-	
+
 	VPNDataPacket p_data;
 	if(!crypto_decrypt(peer->inbound_aes, &p_data, packet, size)) {
 		console_log("unable to decrypt packet of peer");
+		chipvpn_peer_send(peer, VPN_MSG_DECRYPTION_ERROR, NULL, 0);
 		chipvpn_disconnect_peer(peer);
 		return;
 	}
 	
 	IPPacket *ip_hdr = (IPPacket*)(&p_data.data);
 	if(
-		(peer->is_authed == true) &&
-		(validate_inbound_packet(ip_hdr) == true) &&
+		(validate_inbound_packet(ip_hdr)) &&
 		((ip_hdr->dst_addr.s_addr == peer->internal_ip.s_addr && config->mode == MODE_CLIENT) || 
 		(ip_hdr->src_addr.s_addr == peer->internal_ip.s_addr && config->mode == MODE_SERVER)) && 
 		(size > 0 && size <= CHIPVPN_MAX_MTU)
@@ -511,7 +551,7 @@ void chipvpn_data_event(VPNPeer *peer, VPNDataPacket *packet, int size) {
 		peer->rx += size;
 
 		if(write(tun->fd, (char*)&p_data, size) != size) {
-			error("tun adapter error, unable to write");
+			error("unable to write to tun adapter");
 		}
 		return;
 	}
@@ -519,7 +559,7 @@ void chipvpn_data_event(VPNPeer *peer, VPNDataPacket *packet, int size) {
 
 void chipvpn_ping_event(VPNPeer *peer) {
 	peer->last_ping = chipvpn_get_time();
-	chipvpn_peer_send(peer, VPN_PONG, NULL, 0);
+	chipvpn_peer_send(peer, VPN_TYPE_PONG, NULL, 0);
 	return;
 }
 
@@ -549,8 +589,8 @@ void chipvpn_tun_event(VPNDataPacket *packet, int size) {
 	VPNPeer *peer = chipvpn_get_peer_by_ip(&peers, config->mode == MODE_SERVER ? ip_hdr->dst_addr : ip_hdr->src_addr);
 	if(
 		(peer) && 
-		(peer->is_authed == true) &&
-		(validate_outbound_packet(ip_hdr) == true) &&
+		(chipvpn_peer_authed(peer)) &&
+		(validate_outbound_packet(ip_hdr)) &&
 		(chipvpn_peer_writeable(peer))
 	) {
 		peer->tx += size;

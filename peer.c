@@ -239,3 +239,7 @@ VPNPeer *chipvpn_get_peer_by_ip(List *peers, struct in_addr ip) {
 	}
 	return NULL;
 }
+
+bool chipvpn_peer_authed(VPNPeer *peer) {
+	return peer->is_authed;
+}

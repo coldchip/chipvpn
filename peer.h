@@ -25,12 +25,6 @@
 #include <netinet/in.h>
 #include <netinet/ip.h>
 
-typedef struct _VPNPacketQueue {
-	ListNode node;
-	int rw_offset;
-	VPNPacket packet;
-} VPNPacketQueue;
-
 typedef struct _VPNPeer {
 	ListNode node;
 	int fd;
@@ -43,10 +37,10 @@ typedef struct _VPNPeer {
 	uint64_t rx;
 
 	uint32_t inbound_buffer_pos;
-	char inbound_buffer[sizeof(VPNPacket) + 64];
+	char inbound_buffer[sizeof(VPNPacket)];
 
 	uint32_t outbound_buffer_pos;
-	char outbound_buffer[sizeof(VPNPacket) + 64];
+	char outbound_buffer[sizeof(VPNPacket)];
 
 	Crypto *inbound_aes;
 	Crypto *outbound_aes;
@@ -65,5 +59,6 @@ int                chipvpn_peer_raw_recv(VPNPeer *peer, void *buf, int size, int
 int                chipvpn_peer_raw_send(VPNPeer *peer, void *buf, int size, int *err);
 bool               chipvpn_get_peer_free_ip(List *peers, struct in_addr gateway, struct in_addr *assign);
 VPNPeer           *chipvpn_get_peer_by_ip(List *peers, struct in_addr ip);
+bool               chipvpn_peer_authed(VPNPeer *peer);
 
 #endif
