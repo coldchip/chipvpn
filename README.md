@@ -31,4 +31,4 @@ There are hundreds of VPN software and protocols out there, and each one are des
 - Refer to `LICENSE` file. 
 
 # TODO
-- Add encryption to the protocol
+- 

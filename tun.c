@@ -27,7 +27,7 @@
 #include <sys/ioctl.h>
 #include <netinet/in.h>
 
-Tun *chipvpn_tun_open(char *dev) {
+VPNTun *chipvpn_tun_open(char *dev) {
 	struct ifreq ifr;
 
 	char *clonedev = "/dev/net/tun";
@@ -54,14 +54,14 @@ Tun *chipvpn_tun_open(char *dev) {
 		return NULL;
 	}
 
-	Tun *tun = malloc(sizeof(Tun));
+	VPNTun *tun = malloc(sizeof(VPNTun));
 	tun->fd = fd;
 	strcpy(tun->dev, ifr.ifr_name);
 
 	return tun;
 }
 
-bool chipvpn_tun_setip(Tun* tun, struct in_addr ip, struct in_addr mask, int mtu) {
+bool chipvpn_tun_setip(VPNTun* tun, struct in_addr ip, struct in_addr mask, int mtu) {
 	if(tun) {
 		struct ifreq ifr;
 		ifr.ifr_addr.sa_family = AF_INET;
@@ -87,7 +87,7 @@ bool chipvpn_tun_setip(Tun* tun, struct in_addr ip, struct in_addr mask, int mtu
 	return false;
 }
 
-bool chipvpn_tun_ifup(Tun* tun) {
+bool chipvpn_tun_ifup(VPNTun* tun) {
 	if(tun) {
 		struct ifreq ifr;
 		ifr.ifr_addr.sa_family = AF_INET;
@@ -106,7 +106,7 @@ bool chipvpn_tun_ifup(Tun* tun) {
 	return false;
 }
 
-void chipvpn_tun_free(Tun *tun) {
+void chipvpn_tun_free(VPNTun *tun) {
 	if(tun) {
 		if(tun->dev) {
 			struct ifreq ifr;

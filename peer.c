@@ -58,6 +58,17 @@ void chipvpn_peer_free(VPNPeer *peer) {
 	free(peer);
 }
 
+void chipvpn_peer_disconnect(VPNPeer *peer) {
+	console_log("peer disconnected");
+	list_remove(&peer->node);
+	close(peer->fd);
+	chipvpn_peer_free(peer);
+
+	//if(config->mode == MODE_CLIENT) {
+	//	terminate = true;
+	//}
+}
+
 void chipvpn_set_key(VPNPeer *peer, char *key) {
 	char iv[] = { 
 		0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 

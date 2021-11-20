@@ -21,14 +21,14 @@
 #include <netinet/in.h>
 #include "chipvpn.h"
 
-typedef struct _Tun {
+typedef struct _VPNTun {
 	char dev[128];
 	int fd;
-} Tun;
+} VPNTun;
 
-Tun *chipvpn_tun_open(char *dev);
-bool chipvpn_tun_setip(Tun *tun, struct in_addr ip, struct in_addr mask, int mtu);
-bool chipvpn_tun_ifup(Tun *tun);
-void chipvpn_tun_free(Tun *tun);
+VPNTun *chipvpn_tun_open(char *dev);
+bool chipvpn_tun_setip(VPNTun *tun, struct in_addr ip, struct in_addr mask, int mtu);
+bool chipvpn_tun_ifup(VPNTun *tun);
+void chipvpn_tun_free(VPNTun *tun);
 
 #endif

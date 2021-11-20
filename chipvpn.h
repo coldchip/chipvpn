@@ -22,7 +22,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define CHIPVPN_VERSION 10000001L
+#define CHIPVPN_VERSION 10000002L
 #define CHIPVPN_MAX_MTU 1500
 
 char              *read_file_into_buffer(char *file);
@@ -37,6 +37,5 @@ char              *chipvpn_resolve_hostname(char *ip);
 void               chipvpn_generate_random(char *buf, int len);
 char              *chipvpn_format_bytes(uint64_t bytes);
 uint32_t           chipvpn_get_time();
-int                chipvpn_set_socket_non_block(int fd);
 
 #endif

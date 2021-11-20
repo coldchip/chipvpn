@@ -110,6 +110,10 @@ void msg_log(VPNPacketType type) {
 			warning_log("unable to allocate ip address [ERR_CODE::%i]", chipvpn_checksum16(&(int) { VPN_MSG_PACKET_UNKNOWN }, sizeof(int)));
 		}
 		break;
+		case VPN_MSG_PEER_TIMEOUT: {
+			warning_log("peer timeout [ERR_CODE::%i]", chipvpn_checksum16(&(int) { VPN_MSG_PACKET_UNKNOWN }, sizeof(int)));
+		}
+		break;
 		default: {
 			warning_log("unknown error [ERR_CODE::%i]", chipvpn_checksum16(&type, sizeof(int)));
 		}
@@ -233,17 +237,4 @@ uint32_t chipvpn_get_time() {
 	struct timeval tv;
 	gettimeofday(&tv, NULL);
 	return (tv.tv_sec * 1000 + tv.tv_usec / 1000) / 1000;
-}
-
-int chipvpn_set_socket_non_block(int fd) {
-	int flags = fcntl(fd, F_GETFL);
-	if(flags == -1) {
-		return -1;
-	}
-
-	if(fcntl(fd, F_SETFL, flags | O_NONBLOCK) == 0) {
-		return 0;
-	}
-
-	return -1;
 }
