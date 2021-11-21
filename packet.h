@@ -75,11 +75,6 @@ typedef struct _ICMPHeader {
 } ICMPHeader;
 
 typedef enum {
-	VPN_EAGAIN = 0,
-	VPN_CONNECTION_END = -1
-} VPNPacketError;
-
-typedef enum {
 	VPN_TYPE_DATA,
 	VPN_TYPE_ASSIGN,
 	VPN_TYPE_AUTH,

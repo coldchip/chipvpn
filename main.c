@@ -13,14 +13,14 @@
  * See README for more details.
  */
 
+#include "event.h"
+#include "config.h"
+#include "chipvpn.h"
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include "event.h"
-#include "config.h"
-#include "chipvpn.h"
 
 int main(int argc, char const *argv[]) {
 	console_log("ColdChip ChipVPN v%i", CHIPVPN_VERSION);

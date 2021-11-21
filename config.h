@@ -24,14 +24,15 @@ typedef enum {
 } VPNMode;
 
 typedef struct _ChipVPNConfig {
+	VPNMode  mode;
 	char     ip[1024];
 	int      port;
 	char     token[1024];
-	VPNMode  mode;
 	bool     pull_routes;
 	int      max_peers;
 	char     gateway[32];
 	char     subnet[32];
+	char     plugin[1024];
 } ChipVPNConfig;
 
 bool     chipvpn_load_config(ChipVPNConfig *config, char *config_file);

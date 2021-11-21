@@ -38,6 +38,7 @@ bool chipvpn_load_config(ChipVPNConfig *config, char *config_file) {
 	cJSON *cjson_max_peers       = cJSON_GetObjectItem(json, "max_peers");
 	cJSON *cjson_gateway         = cJSON_GetObjectItem(json, "gateway");
 	cJSON *cjson_subnet          = cJSON_GetObjectItem(json, "subnet");
+	cJSON *cjson_plugin          = cJSON_GetObjectItem(json, "plugin");
 
 	chipvpn_load_default_config(config);
 
@@ -48,6 +49,12 @@ bool chipvpn_load_config(ChipVPNConfig *config, char *config_file) {
 	if(cjson_bind && cJSON_IsString(cjson_bind)) {
 		config->mode = MODE_SERVER;
 		strcpy(config->ip, cjson_bind->valuestring);
+	}
+	if((cjson_port && cJSON_IsNumber(cjson_port))) {
+		config->port  = cjson_port->valueint;
+	}
+	if((cjson_token && cJSON_IsString(cjson_token))) {
+		strcpy(config->token, cjson_token->valuestring);
 	}
 	if(cjson_pull_routes && cJSON_IsBool(cjson_pull_routes) && cJSON_IsTrue(cjson_pull_routes)) {
 		config->pull_routes = true;
@@ -61,11 +68,8 @@ bool chipvpn_load_config(ChipVPNConfig *config, char *config_file) {
 	if((cjson_subnet && cJSON_IsString(cjson_subnet))) {
 		strcpy(config->subnet, cjson_subnet->valuestring);
 	}
-	if((cjson_port && cJSON_IsNumber(cjson_port))) {
-		config->port  = cjson_port->valueint;
-	}
-	if((cjson_token && cJSON_IsString(cjson_token))) {
-		strcpy(config->token, cjson_token->valuestring);
+	if((cjson_plugin && cJSON_IsString(cjson_plugin))) {
+		strcpy(config->plugin, cjson_plugin->valuestring);
 	}
 
 	free(buf);
@@ -75,12 +79,13 @@ bool chipvpn_load_config(ChipVPNConfig *config, char *config_file) {
 }
 
 void chipvpn_load_default_config(ChipVPNConfig *config) {
+	config->mode = MODE_SERVER;
 	strcpy(config->ip, "0.0.0.0");
 	config->port = 443;
 	strcpy(config->token, "abcdef");
-	config->mode = MODE_SERVER;
 	config->pull_routes = false;
 	config->max_peers = 8;
 	strcpy(config->gateway, "10.9.8.1");
 	strcpy(config->subnet, "255.255.255.0");
+	strcpy(config->plugin, "");
 }

@@ -13,6 +13,7 @@
  * See README for more details.
  */
 
+#include "chipvpn.h"
 #include "firewall.h"
 #include "packet.h"
 #include <stdbool.h>
@@ -43,6 +44,7 @@ bool validate_inbound_packet(IPPacket *ip_hdr) {
 		}
 		return true;
 	}
+	warning_log("unknown inbound packet dropped");
 	return false;
 }
 
@@ -71,5 +73,6 @@ bool validate_outbound_packet(IPPacket *ip_hdr) {
 		}
 		return true;
 	}
+	warning_log("unknown outbound packet dropped");
 	return false;
 }

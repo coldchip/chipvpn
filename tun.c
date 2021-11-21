@@ -100,7 +100,6 @@ bool chipvpn_tun_ifup(VPNTun* tun) {
 		ioctl(fd, SIOCSIFFLAGS, &ifr);
 
 	    close(fd);
-
 	    return true;
 	}
 	return false;

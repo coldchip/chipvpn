@@ -33,6 +33,7 @@
 #include <arpa/inet.h> 
 #include <netinet/in.h>
 #include <openssl/rand.h>
+#include <dlfcn.h>
 
 bool terminate = false;
 
@@ -41,10 +42,24 @@ ChipVPNConfig *config = NULL;
 VPNTun    *tun  = NULL;
 VPNSocket *host = NULL;
 
+bool (*chipvpn_plugin_login)(char *token) = NULL;
+
 struct timeval ping_stop, ping_start;
 
 void chipvpn_init(ChipVPNConfig *c) {
 	signal(SIGINT, chipvpn_exit);
+
+	if(strlen(c->plugin) > 0) {
+		void *handle = dlopen(c->plugin, RTLD_NOW);
+		if(!handle) {
+			error("unable to load plugin %s", c->plugin);
+		}
+
+		console_log("loaded ChipVPN plugin %s", c->plugin);
+		chipvpn_plugin_login = dlsym(handle, "chipvpn_login");
+
+		// dlclose(handle);
+	}
 
 	config = c;
 
@@ -78,7 +93,6 @@ void chipvpn_setup() {
 		console_log("unable to resolve hostname, reconnecting");
 		sleep(1);
 	}
-
 	strcpy(config->ip, resolved);
 
 	if(config->mode == MODE_SERVER) {
@@ -353,14 +367,23 @@ void chipvpn_auth_event(VPNPeer *peer, VPNAuthPacket *packet, int size) {
 			msg_log(VPN_MSG_AUTH_SUCCESS);
 			chipvpn_peer_send(peer, VPN_TYPE_AUTH, NULL, 0);
 			return;
-		} else {
-			chipvpn_peer_logout(peer);
+		} 
 
-			msg_log(VPN_MSG_AUTH_ERROR);
-			chipvpn_peer_send(peer, VPN_MSG_AUTH_ERROR, NULL, 0);
-			chipvpn_peer_disconnect(peer);
+		if(chipvpn_plugin_login && chipvpn_plugin_login(auth.token)) {
+			chipvpn_peer_login(peer);
+		
+			msg_log(VPN_MSG_AUTH_SUCCESS);
+			chipvpn_peer_send(peer, VPN_TYPE_AUTH, NULL, 0);
 			return;
 		}
+		
+		chipvpn_peer_logout(peer);
+
+		msg_log(VPN_MSG_AUTH_ERROR);
+		chipvpn_peer_send(peer, VPN_MSG_AUTH_ERROR, NULL, 0);
+		chipvpn_peer_disconnect(peer);
+		return;
+		
 	} else {
 		chipvpn_peer_login(peer);
 

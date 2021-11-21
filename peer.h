@@ -25,6 +25,11 @@
 #include <netinet/in.h>
 #include <netinet/ip.h>
 
+typedef enum {
+	VPN_EAGAIN = 0,
+	VPN_CONNECTION_END = -1
+} VPNPacketError;
+
 typedef struct _VPNPeer {
 	ListNode node;
 	int fd;
