@@ -69,7 +69,7 @@ void chipvpn_peer_disconnect(VPNPeer *peer) {
 	//}
 }
 
-void chipvpn_set_key(VPNPeer *peer, char *key) {
+void chipvpn_peer_set_key(VPNPeer *peer, char *key) {
 	char iv[] = { 
 		0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 
 		0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f 
@@ -144,7 +144,7 @@ int chipvpn_peer_dispatch_outbound(VPNPeer *peer) {
 	return VPN_EAGAIN;
 }
 
-int chipvpn_peer_recv(VPNPeer *peer, VPNPacket *dst) {
+bool chipvpn_peer_recv(VPNPeer *peer, VPNPacket *dst) {
 	if(chipvpn_peer_readable(peer)) {
 		VPNPacket *packet = (VPNPacket*)&peer->inbound_buffer;
 		// Buffer ready
@@ -152,18 +152,16 @@ int chipvpn_peer_recv(VPNPeer *peer, VPNPacket *dst) {
 
 		memcpy(dst, packet, sizeof(VPNPacketHeader) + PLEN(packet));
 
-		return sizeof(VPNPacketHeader) + PLEN(packet);
+		return true;
 	}
 
-	return VPN_EAGAIN; // no event
+	return false;
 }
 
-int chipvpn_peer_send(VPNPeer *peer, VPNPacketType type, void *data, int size) {
-	int sent = VPN_EAGAIN;
-
+bool chipvpn_peer_send(VPNPeer *peer, VPNPacketType type, void *data, int size) {
 	int r = chipvpn_peer_dispatch_outbound(peer);
 	if(r <= 0 && r != VPN_EAGAIN) {
-		return r;
+		return false;
 	}
 
 	if(chipvpn_peer_writeable(peer)) {
@@ -176,15 +174,16 @@ int chipvpn_peer_send(VPNPeer *peer, VPNPacketType type, void *data, int size) {
 
 		peer->outbound_buffer_pos = sizeof(VPNPacketHeader) + size;
 
-		sent = peer->outbound_buffer_pos;
+	} else {
+		return false;
 	}
 
 	r = chipvpn_peer_dispatch_outbound(peer);
 	if(r <= 0 && r != VPN_EAGAIN) {
-		return r;
+		return false;
 	}
 
-	return sent;
+	return true;
 }
 
 int chipvpn_peer_raw_recv(VPNPeer *peer, void *buf, int size, int *err) {
@@ -213,7 +212,7 @@ int chipvpn_peer_raw_send(VPNPeer *peer, void *buf, int size, int *err) {
 	return w;
 }
 
-bool chipvpn_get_peer_free_ip(List *peers, struct in_addr gateway, struct in_addr *assign) {
+bool chipvpn_peer_get_free_ip(List *peers, struct in_addr gateway, struct in_addr *assign) {
 	uint32_t start = gateway.s_addr + (1   << 24);
 	uint32_t end   = gateway.s_addr + (200 << 24);
 	bool     trip  = false;
@@ -235,7 +234,7 @@ bool chipvpn_get_peer_free_ip(List *peers, struct in_addr gateway, struct in_add
 	return false;
 }
 
-VPNPeer *chipvpn_get_peer_by_ip(List *peers, struct in_addr ip) {
+VPNPeer *chipvpn_peer_get_by_ip(List *peers, struct in_addr ip) {
 	for(ListNode *i = list_begin(peers); i != list_end(peers); i = list_next(i)) {
 		VPNPeer *peer = (VPNPeer*)i;
 		if(peer->internal_ip.s_addr == ip.s_addr) {
@@ -245,7 +244,7 @@ VPNPeer *chipvpn_get_peer_by_ip(List *peers, struct in_addr ip) {
 	return NULL;
 }
 
-bool chipvpn_peer_authed(VPNPeer *peer) {
+bool chipvpn_peer_is_authed(VPNPeer *peer) {
 	return peer->is_authed;
 }
 

@@ -25,11 +25,6 @@
 #include <netinet/in.h>
 #include <netinet/ip.h>
 
-typedef enum {
-	VPN_EAGAIN = 0,
-	VPN_CONNECTION_END = -1
-} VPNPacketError;
-
 typedef struct _VPNPeer {
 	ListNode node;
 	int fd;
@@ -54,18 +49,18 @@ typedef struct _VPNPeer {
 VPNPeer           *chipvpn_peer_new(int fd);
 void               chipvpn_peer_free(VPNPeer *peer);
 void               chipvpn_peer_disconnect(VPNPeer *peer);
-void               chipvpn_set_key(VPNPeer *peer, char *key);
+void               chipvpn_peer_set_key(VPNPeer *peer, char *key);
 bool               chipvpn_peer_readable(VPNPeer *peer);
 bool               chipvpn_peer_writeable(VPNPeer *peer);
 int                chipvpn_peer_dispatch_inbound(VPNPeer *peer);
 int                chipvpn_peer_dispatch_outbound(VPNPeer *peer);
-int                chipvpn_peer_recv(VPNPeer *peer, VPNPacket *dst);
-int                chipvpn_peer_send(VPNPeer *peer, VPNPacketType type, void *data, int size);
+bool               chipvpn_peer_recv(VPNPeer *peer, VPNPacket *dst);
+bool               chipvpn_peer_send(VPNPeer *peer, VPNPacketType type, void *data, int size);
 int                chipvpn_peer_raw_recv(VPNPeer *peer, void *buf, int size, int *err);
 int                chipvpn_peer_raw_send(VPNPeer *peer, void *buf, int size, int *err);
-bool               chipvpn_get_peer_free_ip(List *peers, struct in_addr gateway, struct in_addr *assign);
-VPNPeer           *chipvpn_get_peer_by_ip(List *peers, struct in_addr ip);
-bool               chipvpn_peer_authed(VPNPeer *peer);
+bool               chipvpn_peer_get_free_ip(List *peers, struct in_addr gateway, struct in_addr *assign);
+VPNPeer           *chipvpn_peer_get_by_ip(List *peers, struct in_addr ip);
+bool               chipvpn_peer_is_authed(VPNPeer *peer);
 void               chipvpn_peer_login(VPNPeer *peer);
 void               chipvpn_peer_logout(VPNPeer *peer);
 

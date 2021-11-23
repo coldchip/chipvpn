@@ -33,18 +33,25 @@ void chipvpn_setup();
 void chipvpn_loop();
 void chipvpn_cleanup();
 
-void chipvpn_service();
+void chipvpn_ticker();
 
-void chipvpn_socket_event(VPNPeer *peer, VPNPacket *packet);
+bool chipvpn_socket_event(VPNPeer *peer, VPNPacket *packet);
 
-void chipvpn_set_key_event(VPNPeer *peer, VPNKeyPacket *packet, int size);
-void chipvpn_auth_event(VPNPeer *peer, VPNAuthPacket *packet, int size);
-void chipvpn_assign_event(VPNPeer *peer, VPNAssignPacket *packet, int size);
-void chipvpn_data_event(VPNPeer *peer, VPNDataPacket *packet, int size);
-void chipvpn_ping_event(VPNPeer *peer);
-void chipvpn_pong_event(VPNPeer *peer);
+bool chipvpn_send_key(VPNPeer *peer);
+bool chipvpn_recv_key(VPNPeer *peer, VPNKeyPacket *packet, int size);
 
-void chipvpn_tun_event(VPNDataPacket *packet, int size);
+bool chipvpn_send_auth(VPNPeer *peer);
+bool chipvpn_recv_auth(VPNPeer *peer, VPNAuthPacket *packet, int size);
+
+bool chipvpn_send_assign(VPNPeer *peer);
+bool chipvpn_recv_assign(VPNPeer *peer, VPNAssignPacket *packet, int size);
+
+bool chipvpn_send_data(VPNDataPacket *packet, int size);
+bool chipvpn_recv_data(VPNPeer *peer, VPNDataPacket *packet, int size);
+
+bool chipvpn_ping_event(VPNPeer *peer);
+bool chipvpn_pong_event(VPNPeer *peer);
+
 void chipvpn_disconnect_peer(VPNPeer *peer);
 void chipvpn_exit(int type);
 

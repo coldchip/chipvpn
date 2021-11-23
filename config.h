@@ -29,6 +29,7 @@ typedef struct _ChipVPNConfig {
 	int      port;
 	char     token[1024];
 	bool     pull_routes;
+	bool     push_routes;
 	int      max_peers;
 	char     gateway[32];
 	char     subnet[32];

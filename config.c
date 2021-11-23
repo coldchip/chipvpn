@@ -35,6 +35,7 @@ bool chipvpn_load_config(ChipVPNConfig *config, char *config_file) {
 	cJSON *cjson_port            = cJSON_GetObjectItem(json, "port");
 	cJSON *cjson_token           = cJSON_GetObjectItem(json, "token");
 	cJSON *cjson_pull_routes     = cJSON_GetObjectItem(json, "pull_routes");
+	cJSON *cjson_push_routes     = cJSON_GetObjectItem(json, "push_routes");
 	cJSON *cjson_max_peers       = cJSON_GetObjectItem(json, "max_peers");
 	cJSON *cjson_gateway         = cJSON_GetObjectItem(json, "gateway");
 	cJSON *cjson_subnet          = cJSON_GetObjectItem(json, "subnet");
@@ -58,6 +59,9 @@ bool chipvpn_load_config(ChipVPNConfig *config, char *config_file) {
 	}
 	if(cjson_pull_routes && cJSON_IsBool(cjson_pull_routes) && cJSON_IsTrue(cjson_pull_routes)) {
 		config->pull_routes = true;
+	}
+	if(cjson_push_routes && cJSON_IsBool(cjson_push_routes) && cJSON_IsTrue(cjson_push_routes)) {
+		config->push_routes = true;
 	}
 	if(cjson_max_peers && cJSON_IsNumber(cjson_max_peers) && cjson_max_peers->valueint > 0) {
 		config->max_peers = cjson_max_peers->valueint;
@@ -84,6 +88,7 @@ void chipvpn_load_default_config(ChipVPNConfig *config) {
 	config->port = 443;
 	strcpy(config->token, "abcdef");
 	config->pull_routes = false;
+	config->push_routes = false;
 	config->max_peers = 8;
 	strcpy(config->gateway, "10.9.8.1");
 	strcpy(config->subnet, "255.255.255.0");
