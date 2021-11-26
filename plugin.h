@@ -1,7 +1,12 @@
 #ifndef PLUGIN_H
 #define PLUGIN_H
 
+#include <pthread.h>
 #include "list.h"
+
+static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+
+List plugin_queue;
 
 typedef enum {
 	QUEUE_LOGIN,
@@ -13,10 +18,9 @@ typedef struct _PluginQueue {
 	QueueType type;
 	void *peer;
 	char *token;
-
 } PluginQueue;
 
-void test(PluginQueue *queue);
+void chipvpn_plugin_callback(PluginQueue *queue);
 
 typedef void (*CHIPVPN_PLUGIN_CALLBACK)(PluginQueue *queue);
 

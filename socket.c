@@ -105,6 +105,20 @@ VPNPeer *chipvpn_socket_accept(VPNSocket *host) {
 	return NULL;
 }
 
+bool chipvpn_socket_has_peer(VPNSocket *host, VPNPeer *peer) {
+	ListNode *i = list_begin(&host->peers);
+	while(i != list_end(&host->peers)) {
+		VPNPeer *current = (VPNPeer*)i;
+		i = list_next(i);
+		
+		if(current == peer) {
+			return true;
+		}
+	}
+	
+	return false;
+}
+
 void chipvpn_socket_free(VPNSocket *host) {
 	ListNode *i = list_begin(&host->peers);
 	while(i != list_end(&host->peers)) {

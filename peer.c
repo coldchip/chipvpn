@@ -31,6 +31,8 @@ VPNPeer *chipvpn_peer_new(int fd) {
 	peer->is_authed           = false;
 	peer->tx                  = 0;
 	peer->rx                  = 0;
+	peer->tx_max              = 0xFFFFFFFFFFFFFFFF;
+	peer->rx_max              = 0xFFFFFFFFFFFFFFFF;
 	peer->last_ping           = chipvpn_get_time();
 	peer->inbound_buffer_pos  = 0;
 	peer->outbound_buffer_pos = 0;

@@ -35,6 +35,8 @@ typedef struct _VPNPeer {
 
 	uint64_t tx;
 	uint64_t rx;
+	uint64_t tx_max;
+	uint64_t rx_max;
 
 	uint32_t inbound_buffer_pos;
 	char inbound_buffer[sizeof(VPNPacket)];
@@ -52,8 +54,8 @@ void               chipvpn_peer_disconnect(VPNPeer *peer);
 void               chipvpn_peer_set_key(VPNPeer *peer, char *key);
 bool               chipvpn_peer_readable(VPNPeer *peer);
 bool               chipvpn_peer_writeable(VPNPeer *peer);
-int                chipvpn_peer_dispatch_inbound(VPNPeer *peer);
-int                chipvpn_peer_dispatch_outbound(VPNPeer *peer);
+VPNPacketError     chipvpn_peer_dispatch_inbound(VPNPeer *peer);
+VPNPacketError     chipvpn_peer_dispatch_outbound(VPNPeer *peer);
 bool               chipvpn_peer_recv(VPNPeer *peer, VPNPacket *dst);
 bool               chipvpn_peer_send(VPNPeer *peer, VPNPacketType type, void *data, int size);
 int                chipvpn_peer_raw_recv(VPNPeer *peer, void *buf, int size, int *err);

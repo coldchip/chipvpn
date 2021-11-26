@@ -75,6 +75,7 @@ typedef struct _ICMPHeader {
 } ICMPHeader;
 
 typedef enum {
+	VPN_HAS_DATA = 1,
 	VPN_EAGAIN = 0,
 	VPN_CONNECTION_END = -1
 } VPNPacketError;
@@ -82,6 +83,7 @@ typedef enum {
 typedef enum {
 	VPN_TYPE_SET_KEY,
 	VPN_TYPE_AUTH,
+	VPN_TYPE_AUTH_REPLY,
 	VPN_TYPE_ASSIGN,
 	VPN_TYPE_DATA,
 	VPN_TYPE_PING,
@@ -95,7 +97,8 @@ typedef enum {
 	VPN_MSG_PACKET_OVERSIZE,
 	VPN_MSG_PACKET_UNKNOWN,
 	VPN_MSG_ASSIGN_EXHAUSTED,
-	VPN_MSG_PEER_TIMEOUT
+	VPN_MSG_PEER_TIMEOUT,
+	VPN_MSG_QUOTA_EXCEEDED
 } VPNPacketType;
 
 typedef struct PACKED _VPNKeyPacket {

@@ -83,7 +83,7 @@ void msg_log(VPNPacketType type) {
 		}
 		break;
 		case VPN_MSG_AUTH_SUCCESS: {
-			console_log("\033[0;34mauthentication success [CODE::%i]\033[0m", chipvpn_checksum16(&(int) { VPN_MSG_AUTH_ERROR }, sizeof(int)));
+			console_log("\033[0;34mauthentication success [CODE::%i]\033[0m", chipvpn_checksum16(&(int) { VPN_MSG_AUTH_SUCCESS }, sizeof(int)));
 		}
 		break;
 		case VPN_MSG_UNAUTHORIZED: {
@@ -95,7 +95,7 @@ void msg_log(VPNPacketType type) {
 		}
 		break;
 		case VPN_MSG_ENCRYPTION_ERROR: {
-			warning_log("packet rejected, unable to encrypt packet [ERR_CODE::%i]", chipvpn_checksum16(&(int) { VPN_MSG_DECRYPTION_ERROR }, sizeof(int)));
+			warning_log("packet rejected, unable to encrypt packet [ERR_CODE::%i]", chipvpn_checksum16(&(int) { VPN_MSG_ENCRYPTION_ERROR }, sizeof(int)));
 		}
 		break;
 		case VPN_MSG_PACKET_OVERSIZE: {
@@ -107,11 +107,15 @@ void msg_log(VPNPacketType type) {
 		}
 		break;
 		case VPN_MSG_ASSIGN_EXHAUSTED: {
-			warning_log("unable to allocate ip address [ERR_CODE::%i]", chipvpn_checksum16(&(int) { VPN_MSG_PACKET_UNKNOWN }, sizeof(int)));
+			warning_log("unable to allocate ip address [ERR_CODE::%i]", chipvpn_checksum16(&(int) { VPN_MSG_ASSIGN_EXHAUSTED }, sizeof(int)));
 		}
 		break;
 		case VPN_MSG_PEER_TIMEOUT: {
-			warning_log("peer timeout [ERR_CODE::%i]", chipvpn_checksum16(&(int) { VPN_MSG_PACKET_UNKNOWN }, sizeof(int)));
+			warning_log("peer timeout [ERR_CODE::%i]", chipvpn_checksum16(&(int) { VPN_MSG_PEER_TIMEOUT }, sizeof(int)));
+		}
+		break;
+		case VPN_MSG_QUOTA_EXCEEDED: {
+			warning_log("peer quota exceeded, contact the server administrator [ERR_CODE::%i]", chipvpn_checksum16(&(int) { VPN_MSG_QUOTA_EXCEEDED }, sizeof(int)));
 		}
 		break;
 		default: {
@@ -216,7 +220,7 @@ void chipvpn_generate_random(char *buf, int len) {
 }
 
 char *chipvpn_format_bytes(uint64_t bytes) {
-	char *suffix[] = {"B", "KB", "MB", "GB", "TB", "PB"};
+	char *suffix[] = {"B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB"};
 	char length = sizeof(suffix) / sizeof(suffix[0]);
 
 	int i = 0;
