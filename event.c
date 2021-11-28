@@ -39,18 +39,17 @@
 
 bool terminate = false;
 
-void *handle = NULL;
-
 ChipVPNConfig *config = NULL;
 
-VPNTun    *tun  = NULL;
-VPNSocket *host = NULL;
-
+void *handle = NULL;
 void (*chipvpn_plugin_oninit)(CHIPVPN_PLUGIN_CALLBACK callback) = NULL;
 void (*chipvpn_plugin_onconnect)(VPNPeer *peer)                 = NULL;
 void (*chipvpn_plugin_onlogin)(VPNPeer *peer, char *token)      = NULL;
 void (*chipvpn_plugin_ondisconnect)(VPNPeer *peer)              = NULL;
 void (*chipvpn_plugin_ontick)()                                 = NULL;
+
+VPNTun    *tun  = NULL;
+VPNSocket *host = NULL;
 
 void chipvpn_init(ChipVPNConfig *c) {
 	signal(SIGINT, chipvpn_exit);
@@ -598,6 +597,7 @@ VPNPacketError chipvpn_send_data(VPNPeer *peer, VPNDataPacket *packet, int size)
 	if(
 		(chipvpn_peer_is_authed(peer)) &&
 		(validate_outbound_packet(ip_hdr)) &&
+		(!chipvpn_peer_match_outbound_rule(peer, ip_hdr->dst_addr.s_addr)) &&
 		(chipvpn_peer_writeable(peer))
 	) {
 		if(peer->tx >= peer->tx_max) {
@@ -639,6 +639,7 @@ VPNPacketError chipvpn_recv_data(VPNPeer *peer, VPNDataPacket *packet, int size)
 	IPPacket *ip_hdr = (IPPacket*)(&p_data.data);
 	if(
 		(validate_inbound_packet(ip_hdr)) &&
+		(!chipvpn_peer_match_inbound_rule(peer, ip_hdr->dst_addr.s_addr)) &&
 		((ip_hdr->dst_addr.s_addr == peer->internal_ip.s_addr && config->mode == MODE_CLIENT) || 
 		(ip_hdr->src_addr.s_addr == peer->internal_ip.s_addr && config->mode == MODE_SERVER)) && 
 		(size > 0 && size <= CHIPVPN_MAX_MTU)

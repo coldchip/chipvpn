@@ -237,6 +237,23 @@ char *chipvpn_format_bytes(uint64_t bytes) {
 	return output;
 }
 
+bool cidr_to_ip_and_mask(const char *cidr, uint32_t *ip, uint32_t *mask) {
+	uint8_t a, b, c, d, bits;
+	if (sscanf(cidr, "%hhu.%hhu.%hhu.%hhu/%hhu", &a, &b, &c, &d, &bits) < 5) {
+	    return false; /* didn't convert enough of CIDR */
+	}
+	if (bits > 32) {
+	    return false; /* Invalid bit count */
+	}
+	*ip =
+	    (d << 24UL) |
+	    (c << 16UL) |
+	    (b << 8UL) |
+	    (a << 0UL);
+	*mask = (0xFFFFFFFFUL << (32 - bits)) & 0xFFFFFFFFUL;
+	return true;
+}
+
 uint32_t chipvpn_get_time() {
 	struct timeval tv;
 	gettimeofday(&tv, NULL);
