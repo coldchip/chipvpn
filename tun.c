@@ -27,7 +27,7 @@
 #include <sys/ioctl.h>
 #include <netinet/in.h>
 
-VPNTun *chipvpn_tun_open(char *dev) {
+VPNTun *chipvpn_tun_open(const char *dev) {
 	struct ifreq ifr;
 
 	char *clonedev = "/dev/net/tun";

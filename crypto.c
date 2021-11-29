@@ -13,8 +13,8 @@ Crypto *crypto_new() {
 	return crypto;
 }
 
-bool crypto_set_key(Crypto *crypto, char *key, char *iv) {
-	return EVP_CipherInit(crypto->ctx, EVP_aes_256_ctr(), (unsigned char*)key, (unsigned char*)iv, 0);
+bool crypto_set_key(Crypto *crypto, unsigned char *key, unsigned char *iv) {
+	return EVP_CipherInit(crypto->ctx, EVP_aes_256_ctr(), key, iv, 0);
 }
 
 bool crypto_encrypt(Crypto *crypto, void *dst, void *src, int length) {

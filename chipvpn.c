@@ -27,7 +27,7 @@
 #include <sys/time.h>
 #include <arpa/inet.h>
 
-char *read_file_into_buffer(char *file) {
+char *read_file_into_buffer(const char *file) {
 	FILE *infp = fopen(file, "rb");
 	if (!infp) {
 		return NULL;
@@ -61,7 +61,7 @@ struct in_addr get_default_gateway() {
 	return in_gw;
 }
 
-int exec_sprintf(char *format, ...) {
+int exec_sprintf(const char *format, ...) {
 	va_list args;
 	va_start(args, format);
 
@@ -125,7 +125,7 @@ void msg_log(VPNPacketType type) {
 	}
 }
 
-void warning_log(char *format, ...) {
+void warning_log(const char *format, ...) {
 	va_list args;
 	va_start(args, format);
 
@@ -140,7 +140,7 @@ void warning_log(char *format, ...) {
 	va_end(args);
 }
 
-void error(char *format, ...) {
+void error(const char *format, ...) {
 	va_list args;
 	va_start(args, format);
 
@@ -157,7 +157,7 @@ void error(char *format, ...) {
 	exit(1);
 }
 
-void console_log(char *format, ...) {
+void console_log(const char *format, ...) {
 	va_list args;
 	va_start(args, format);
 
@@ -197,7 +197,7 @@ uint16_t chipvpn_checksum16(void *data, unsigned int bytes) {
 	return (~((uint16_t) total_sum));
 }
 
-char *chipvpn_resolve_hostname(char *ip) {
+char *chipvpn_resolve_hostname(const char *ip) {
 	struct hostent *he = gethostbyname(ip);
 	if(he == NULL) {
 		return NULL;
@@ -209,7 +209,7 @@ char *chipvpn_resolve_hostname(char *ip) {
 	return inet_ntoa(*domain);
 }
 
-void chipvpn_generate_random(char *buf, int len) {
+void chipvpn_generate_random(unsigned char *buf, int len) {
 	int fp = open("/dev/urandom", O_RDONLY);
 	if (fp >= 0) {
 		if (read(fp, buf, len) != len) {

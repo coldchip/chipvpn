@@ -596,8 +596,7 @@ VPNPacketError chipvpn_send_data(VPNPeer *peer, VPNDataPacket *packet, int size)
 	IPPacket *ip_hdr = (IPPacket*)(packet->data);
 	if(
 		(chipvpn_peer_is_authed(peer)) &&
-		(validate_outbound_packet(ip_hdr)) &&
-		(!chipvpn_peer_match_outbound_rule(peer, ip_hdr->dst_addr.s_addr)) &&
+		(chipvpn_firewall_match_rule(&peer->outbound_firewall, ip_hdr->dst_addr.s_addr)) &&
 		(chipvpn_peer_writeable(peer))
 	) {
 		if(peer->tx >= peer->tx_max) {
@@ -638,8 +637,7 @@ VPNPacketError chipvpn_recv_data(VPNPeer *peer, VPNDataPacket *packet, int size)
 	
 	IPPacket *ip_hdr = (IPPacket*)(&p_data.data);
 	if(
-		(validate_inbound_packet(ip_hdr)) &&
-		(!chipvpn_peer_match_inbound_rule(peer, ip_hdr->dst_addr.s_addr)) &&
+		(chipvpn_firewall_match_rule(&peer->inbound_firewall, ip_hdr->dst_addr.s_addr)) &&
 		((ip_hdr->dst_addr.s_addr == peer->internal_ip.s_addr && config->mode == MODE_CLIENT) || 
 		(ip_hdr->src_addr.s_addr == peer->internal_ip.s_addr && config->mode == MODE_SERVER)) && 
 		(size > 0 && size <= CHIPVPN_MAX_MTU)

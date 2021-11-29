@@ -46,7 +46,7 @@ int chipvpn_socket_set_non_block(int fd) {
 	return -1;
 }
 
-bool chipvpn_socket_bind(VPNSocket *host, char *ip, int port) {
+bool chipvpn_socket_bind(VPNSocket *host, const char *ip, int port) {
 	struct sockaddr_in addr;
 	memset(&addr, 0, sizeof(addr));
 	addr.sin_family      = AF_INET;
@@ -63,7 +63,7 @@ bool chipvpn_socket_bind(VPNSocket *host, char *ip, int port) {
 	return true;
 }
 
-VPNPeer *chipvpn_socket_connect(VPNSocket *host, char *ip, int port) {
+VPNPeer *chipvpn_socket_connect(VPNSocket *host, const char *ip, int port) {
 	struct sockaddr_in     addr;
 	memset(&addr, 0, sizeof(addr));
 	addr.sin_family      = AF_INET;

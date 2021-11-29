@@ -17,6 +17,7 @@
 #include "packet.h"
 #include "chipvpn.h"
 #include "crypto.h"
+#include "firewall.h"
 #include <string.h>
 #include <unistd.h>
 #include <stdlib.h>
@@ -40,6 +41,10 @@ VPNPeer *chipvpn_peer_new(int fd) {
 	list_clear(&peer->inbound_firewall);
 	list_clear(&peer->outbound_firewall);
 
+	// Allow all inbound/outbound traffic on peer
+	chipvpn_firewall_add_rule(&peer->outbound_firewall, "0.0.0.0/0", RULE_ALLOW);
+	chipvpn_firewall_add_rule(&peer->inbound_firewall, "0.0.0.0/0", RULE_ALLOW);
+
 	chipvpn_peer_logout(peer);
 
 	peer->inbound_aes = crypto_new();
@@ -59,14 +64,16 @@ VPNPeer *chipvpn_peer_new(int fd) {
 void chipvpn_peer_free(VPNPeer *peer) {
 	chipvpn_peer_logout(peer);
 
+	// firewall rules cleanup
 	while(!list_empty(&peer->inbound_firewall)) {
-		VPNPeerRule *rule = (VPNPeerRule*)list_remove(list_begin(&peer->inbound_firewall));
-		chipvpn_peer_free_rule(rule);
+		VPNRule *rule = (VPNRule*)list_remove(list_begin(&peer->inbound_firewall));
+		chipvpn_firewall_free_rule(rule);
 	}
 
+	// firewall rules cleanup
 	while(!list_empty(&peer->outbound_firewall)) {
-		VPNPeerRule *rule = (VPNPeerRule*)list_remove(list_begin(&peer->outbound_firewall));
-		chipvpn_peer_free_rule(rule);
+		VPNRule *rule = (VPNRule*)list_remove(list_begin(&peer->outbound_firewall));
+		chipvpn_firewall_free_rule(rule);
 	}
 
 	crypto_free(peer->inbound_aes);
@@ -79,16 +86,12 @@ void chipvpn_peer_disconnect(VPNPeer *peer) {
 	list_remove(&peer->node);
 	close(peer->fd);
 	chipvpn_peer_free(peer);
-
-	//if(config->mode == MODE_CLIENT) {
-	//	terminate = true;
-	//}
 }
 
-void chipvpn_peer_set_key(VPNPeer *peer, char *key) {
-	char iv[] = { 
-		0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 
-		0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f 
+void chipvpn_peer_set_key(VPNPeer *peer, unsigned char *key) {
+	unsigned char iv[] = { 
+		0x8e, 0xa2, 0x98, 0x96, 0xc2, 0x37, 0xe8, 0x6e, 
+		0x40, 0x7a, 0x74, 0x57, 0x68, 0x72, 0x1b, 0xa9 
 	};
 
 	crypto_set_key(peer->inbound_aes, key, iv);
@@ -229,6 +232,7 @@ int chipvpn_peer_raw_send(VPNPeer *peer, void *buf, int size, int *err) {
 }
 
 bool chipvpn_peer_get_free_ip(List *peers, struct in_addr gateway, struct in_addr *assign) {
+	// Seems dirty. Please fix
 	uint32_t start = gateway.s_addr + (1   << 24);
 	uint32_t end   = gateway.s_addr + (200 << 24);
 	bool     trip  = false;
@@ -270,61 +274,4 @@ void chipvpn_peer_login(VPNPeer *peer) {
 
 void chipvpn_peer_logout(VPNPeer *peer) {
 	peer->is_authed = false;
-}
-
-VPNPeerRule *chipvpn_peer_new_rule(const char *cidr) {
-	uint32_t ip, mask;
-	if(cidr_to_ip_and_mask(cidr, &ip, &mask)) {
-		VPNPeerRule *rule = malloc(sizeof(VPNPeerRule));
-		rule->ip     = ip;
-		rule->mask = mask;
-		return rule;
-	}
-	return NULL;
-}
-
-bool chipvpn_peer_add_inbound_rule(VPNPeer *peer, const char *cidr) {
-	VPNPeerRule *rule = chipvpn_peer_new_rule(cidr);
-	if(rule) {
-		list_insert(list_begin(&peer->inbound_firewall), rule);
-		return true;
-	}
-	return false;
-}
-
-bool chipvpn_peer_add_outbound_rule(VPNPeer *peer, const char *cidr) {
-	VPNPeerRule *rule = chipvpn_peer_new_rule(cidr);
-	if(rule) {
-		list_insert(list_begin(&peer->outbound_firewall), rule);
-		return true;
-	}
-	return false;
-}
-
-bool chipvpn_peer_match_inbound_rule(VPNPeer *peer, uint32_t ip) {
-	for(ListNode *i = list_begin(&peer->inbound_firewall); i != list_end(&peer->inbound_firewall); i = list_next(i)) {
-		VPNPeerRule *rule = (VPNPeerRule*)i;
-		uint32_t start = rule->ip & rule->mask;
-		uint32_t end   = rule->ip | ~rule->mask;
-		if(ip >= start && ip <= end) {
-			return true;
-		}
-	}
-	return false;
-}
-
-bool chipvpn_peer_match_outbound_rule(VPNPeer *peer, uint32_t ip) {
-	for(ListNode *i = list_begin(&peer->outbound_firewall); i != list_end(&peer->outbound_firewall); i = list_next(i)) {
-		VPNPeerRule *rule = (VPNPeerRule*)i;
-		uint32_t start = rule->ip & rule->mask;
-		uint32_t end   = rule->ip | ~rule->mask;
-		if(ip >= start && ip <= end) {
-			return true;
-		}
-	}
-	return false;
-}
-
-void chipvpn_peer_free_rule(VPNPeerRule *rule) {
-	free(rule);
 }

@@ -36,7 +36,7 @@ typedef struct _ChipVPNConfig {
 	char     plugin[1024];
 } ChipVPNConfig;
 
-bool     chipvpn_load_config(ChipVPNConfig *config, char *config_file);
+bool     chipvpn_load_config(ChipVPNConfig *config, const char *config_file);
 void     chipvpn_load_default_config(ChipVPNConfig *config);
 
 #endif

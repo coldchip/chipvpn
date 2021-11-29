@@ -29,7 +29,7 @@ int main(int argc, char const *argv[]) {
 		srand((unsigned) time(NULL));
 		if(argv[1] != NULL) {
 			if(strcmp(argv[1], "genkey") == 0) {
-				char key[16];
+				unsigned char key[16];
 				chipvpn_generate_random(key, sizeof(key));
 				for(int i = 0; i < (int)sizeof(key); i++) {
 					printf("%02x", key[i] & 0xFF);

@@ -17,62 +17,46 @@
 #include "firewall.h"
 #include "packet.h"
 #include <stdbool.h>
-#include <netinet/in.h>
+#include <stdlib.h>
 
-bool validate_inbound_packet(IPPacket *ip_hdr) {
-	if(ip_hdr->ip_p == IPPROTO_TCP) {
-		int start_offset = 4 * ip_hdr->ihl;
-		TCPHeader *tcp_hdr = (TCPHeader*)(((char *)ip_hdr) + start_offset);
-		if(tcp_hdr) {
-			//printf("inbound TCP traffic\n");
-		}
+VPNRule *chipvpn_firewall_new_rule(const char *cidr, VPNRuleMode mode) {
+	uint32_t ip, mask;
+	if(cidr_to_ip_and_mask(cidr, &ip, &mask)) {
+		VPNRule *rule = malloc(sizeof(VPNRule));
+		rule->ip     = ip;
+		rule->mask   = mask;
+		rule->mode   = mode;
+		return rule;
+	}
+	return NULL;
+}
+
+bool chipvpn_firewall_add_rule(List *list, const char *cidr, VPNRuleMode mode) {
+	VPNRule *rule = chipvpn_firewall_new_rule(cidr, mode);
+	if(rule) {
+		list_insert(list_end(list), rule);
 		return true;
 	}
-	if(ip_hdr->ip_p == IPPROTO_UDP) {
-		int start_offset = 4 * ip_hdr->ihl;
-		UDPHeader *udp_hdr = (UDPHeader*)(((char *)ip_hdr) + start_offset);
-		if(udp_hdr) {
-			//printf("inbound UDP traffic\n");
-		}
-		return true;
-	}
-	if(ip_hdr->ip_p == IPPROTO_ICMP) {
-		int start_offset = 4 * ip_hdr->ihl;
-		ICMPHeader *icmp_hdr = (ICMPHeader*)(((char *)ip_hdr) + start_offset);
-		if(icmp_hdr) {
-			//printf("inbound ICMP traffic\n");
-		}
-		return true;
-	}
-	warning_log("unknown inbound packet dropped");
 	return false;
 }
 
-bool validate_outbound_packet(IPPacket *ip_hdr) {
-	if(ip_hdr->ip_p == IPPROTO_TCP) {
-		int start_offset = 4 * ip_hdr->ihl;
-		TCPHeader *tcp_hdr = (TCPHeader*)(((char *)ip_hdr) + start_offset);
-		if(tcp_hdr) {
-			//printf("outbound TCP traffic\n");
+bool chipvpn_firewall_match_rule(List *list, uint32_t ip) {
+	bool result = false;
+	for(ListNode *i = list_begin(list); i != list_end(list); i = list_next(i)) {
+		VPNRule *rule = (VPNRule*)i;
+		uint32_t start = rule->ip & rule->mask;
+		uint32_t end   = rule->ip | ~rule->mask;
+		if(ip >= start && ip <= end) {
+			if(rule->mode == RULE_ALLOW) {
+				result = true;
+			} else {
+				result = false;
+			}
 		}
-		return true;
 	}
-	if(ip_hdr->ip_p == IPPROTO_UDP) {
-		int start_offset = 4 * ip_hdr->ihl;
-		UDPHeader *udp_hdr = (UDPHeader*)(((char *)ip_hdr) + start_offset);
-		if(udp_hdr) {
-			//printf("outbound UDP traffic\n");
-		}
-		return true;
-	}
-	if(ip_hdr->ip_p == IPPROTO_ICMP) {
-		int start_offset = 4 * ip_hdr->ihl;
-		ICMPHeader *icmp_hdr = (ICMPHeader*)(((char *)ip_hdr) + start_offset);
-		if(icmp_hdr) {
-			//printf("outbound ICMP traffic\n");
-		}
-		return true;
-	}
-	warning_log("unknown outbound packet dropped");
-	return false;
+	return result;
+}
+
+void chipvpn_firewall_free_rule(VPNRule *rule) {
+	free(rule);
 }

@@ -20,7 +20,7 @@
 #include <stdbool.h>
 #include <string.h>
 
-bool chipvpn_load_config(ChipVPNConfig *config, char *config_file) {
+bool chipvpn_load_config(ChipVPNConfig *config, const char *config_file) {
 	char *buf = read_file_into_buffer(config_file);
 	if(!buf) {
 		return false;

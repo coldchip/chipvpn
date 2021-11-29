@@ -25,12 +25,6 @@
 #include <netinet/in.h>
 #include <netinet/ip.h>
 
-typedef struct _VPNPeerRule {
-	ListNode node;
-	uint32_t ip;
-	uint32_t mask;
-} VPNPeerRule;
-
 typedef struct _VPNPeer {
 	ListNode node;
 	int fd;
@@ -60,7 +54,7 @@ typedef struct _VPNPeer {
 VPNPeer           *chipvpn_peer_new(int fd);
 void               chipvpn_peer_free(VPNPeer *peer);
 void               chipvpn_peer_disconnect(VPNPeer *peer);
-void               chipvpn_peer_set_key(VPNPeer *peer, char *key);
+void               chipvpn_peer_set_key(VPNPeer *peer, unsigned char *key);
 bool               chipvpn_peer_readable(VPNPeer *peer);
 bool               chipvpn_peer_writeable(VPNPeer *peer);
 VPNPacketError     chipvpn_peer_dispatch_inbound(VPNPeer *peer);
@@ -74,12 +68,5 @@ VPNPeer           *chipvpn_peer_get_by_ip(List *peers, struct in_addr ip);
 bool               chipvpn_peer_is_authed(VPNPeer *peer);
 void               chipvpn_peer_login(VPNPeer *peer);
 void               chipvpn_peer_logout(VPNPeer *peer);
-
-VPNPeerRule       *chipvpn_peer_new_rule(const char *cidr);
-bool               chipvpn_peer_add_inbound_rule(VPNPeer *peer, const char *cidr);
-bool               chipvpn_peer_add_outbound_rule(VPNPeer *peer, const char *cidr);
-bool               chipvpn_peer_match_inbound_rule(VPNPeer *peer, uint32_t ip);
-bool               chipvpn_peer_match_outbound_rule(VPNPeer *peer, uint32_t ip);
-void               chipvpn_peer_free_rule(VPNPeerRule *rule);
 
 #endif

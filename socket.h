@@ -12,8 +12,8 @@ typedef struct _VPNSocket {
 
 VPNSocket         *chipvpn_socket_create();
 int                chipvpn_socket_set_non_block(int fd);
-bool               chipvpn_socket_bind(VPNSocket *host, char *ip, int port);
-VPNPeer           *chipvpn_socket_connect(VPNSocket *host, char *ip, int port);
+bool               chipvpn_socket_bind(VPNSocket *host, const char *ip, int port);
+VPNPeer           *chipvpn_socket_connect(VPNSocket *host, const char *ip, int port);
 VPNPeer           *chipvpn_socket_accept(VPNSocket *host);
 bool               chipvpn_socket_has_peer(VPNSocket *host, VPNPeer *peer);
 void               chipvpn_socket_free(VPNSocket *host);
