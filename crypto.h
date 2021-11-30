@@ -9,7 +9,7 @@ typedef struct _Crypto {
 } Crypto;
 
 Crypto *crypto_new();
-bool crypto_set_key(Crypto *crypto, unsigned char *key, unsigned char *iv);
+bool crypto_set_key(Crypto *crypto, uint8_t *key, uint8_t *iv);
 bool crypto_encrypt(Crypto *crypto, void *dst, void *src, int length);
 bool crypto_decrypt(Crypto *crypto, void *dst, void *src, int length);
 void crypto_free(Crypto *crypto);

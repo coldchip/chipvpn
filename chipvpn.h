@@ -34,7 +34,7 @@ void               error(const char *format, ...);
 void               console_log(const char *format, ...);
 uint16_t           chipvpn_checksum16(void *data, unsigned int bytes);
 char              *chipvpn_resolve_hostname(const char *ip);
-void               chipvpn_generate_random(unsigned char *buf, int len);
+void               chipvpn_generate_random(uint8_t *buf, int len);
 char              *chipvpn_format_bytes(uint64_t bytes);
 bool               cidr_to_ip_and_mask(const char *cidr, uint32_t *ip, uint32_t *mask);
 uint32_t           chipvpn_get_time();

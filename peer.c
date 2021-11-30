@@ -42,8 +42,12 @@ VPNPeer *chipvpn_peer_new(int fd) {
 	list_clear(&peer->outbound_firewall);
 
 	// Allow all inbound/outbound traffic on peer
-	chipvpn_firewall_add_rule(&peer->outbound_firewall, "0.0.0.0/0", RULE_ALLOW);
-	chipvpn_firewall_add_rule(&peer->inbound_firewall, "0.0.0.0/0", RULE_ALLOW);
+	if(!chipvpn_firewall_add_rule(&peer->outbound_firewall, "0.0.0.0/0", RULE_ALLOW)) {
+		error("unable to add firewall rule");
+	}
+	if(!chipvpn_firewall_add_rule(&peer->inbound_firewall, "0.0.0.0/0", RULE_ALLOW)) {
+		error("unable to add firewall rule");
+	}
 
 	chipvpn_peer_logout(peer);
 
@@ -88,8 +92,8 @@ void chipvpn_peer_disconnect(VPNPeer *peer) {
 	chipvpn_peer_free(peer);
 }
 
-void chipvpn_peer_set_key(VPNPeer *peer, unsigned char *key) {
-	unsigned char iv[] = { 
+void chipvpn_peer_set_key(VPNPeer *peer, uint8_t *key) {
+	uint8_t iv[] = { 
 		0x8e, 0xa2, 0x98, 0x96, 0xc2, 0x37, 0xe8, 0x6e, 
 		0x40, 0x7a, 0x74, 0x57, 0x68, 0x72, 0x1b, 0xa9 
 	};

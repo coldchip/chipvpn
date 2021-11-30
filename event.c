@@ -42,11 +42,11 @@ bool terminate = false;
 ChipVPNConfig *config = NULL;
 
 void *handle = NULL;
-void (*chipvpn_plugin_oninit)(CHIPVPN_PLUGIN_CALLBACK callback) = NULL;
-void (*chipvpn_plugin_onconnect)(VPNPeer *peer)                 = NULL;
-void (*chipvpn_plugin_onlogin)(VPNPeer *peer, char *token)      = NULL;
-void (*chipvpn_plugin_ondisconnect)(VPNPeer *peer)              = NULL;
-void (*chipvpn_plugin_ontick)()                                 = NULL;
+void (*chipvpn_plugin_oninit)(CHIPVPN_PLUGIN_CALLBACK callback)  = NULL;
+void (*chipvpn_plugin_onconnect)(VPNPeer *peer)                  = NULL;
+void (*chipvpn_plugin_onlogin)(VPNPeer *peer, const char *token) = NULL;
+void (*chipvpn_plugin_ondisconnect)(VPNPeer *peer)               = NULL;
+void (*chipvpn_plugin_ontick)()                                  = NULL;
 
 VPNTun    *tun  = NULL;
 VPNSocket *host = NULL;
@@ -250,7 +250,7 @@ void chipvpn_loop() {
 			*/
 			if(FD_ISSET(tun->fd, &rdset)) {
 				VPNDataPacket packet;
-				int r = read(tun->fd, (char*)&packet, sizeof(packet));
+				int r = read(tun->fd, packet.data, sizeof(packet));
 				if(r > 0) {
 					IPPacket *ip_hdr = (IPPacket*)(packet.data);
 					VPNPeer *peer = chipvpn_peer_get_by_ip(&host->peers, config->mode == MODE_SERVER ? ip_hdr->dst_addr : ip_hdr->src_addr);
@@ -437,7 +437,7 @@ VPNPacketError chipvpn_recv_key(VPNPeer *peer, VPNKeyPacket *packet, int size) {
 
 VPNPacketError chipvpn_send_auth(VPNPeer *peer) {
 	VPNAuthPacket auth, p_auth;
-	strcpy(auth.token, config->token);
+	strcpy((char*)auth.token, config->token);
 
 	if(!crypto_encrypt(peer->outbound_aes, &p_auth, &auth, sizeof(auth))) {
 		msg_log(VPN_MSG_ENCRYPTION_ERROR);
@@ -467,7 +467,8 @@ VPNPacketError chipvpn_recv_auth(VPNPeer *peer, VPNAuthPacket *packet, int size)
 	}
 
 	if(chipvpn_plugin_onlogin) {
-		chipvpn_plugin_onlogin(peer, auth.token);
+		auth.token[sizeof(auth.token) - 1] = '\0';
+		chipvpn_plugin_onlogin(peer, (const char*)&auth.token);
 		return VPN_HAS_DATA;
 	}
 
@@ -650,7 +651,7 @@ VPNPacketError chipvpn_recv_data(VPNPeer *peer, VPNDataPacket *packet, int size)
 
 		peer->rx += size;
 
-		if(write(tun->fd, (char*)&p_data, size) != size) {
+		if(write(tun->fd, p_data.data, size) != size) {
 			error("unable to write to tun adapter");
 		}
 		return VPN_HAS_DATA;

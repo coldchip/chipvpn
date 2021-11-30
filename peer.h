@@ -54,7 +54,7 @@ typedef struct _VPNPeer {
 VPNPeer           *chipvpn_peer_new(int fd);
 void               chipvpn_peer_free(VPNPeer *peer);
 void               chipvpn_peer_disconnect(VPNPeer *peer);
-void               chipvpn_peer_set_key(VPNPeer *peer, unsigned char *key);
+void               chipvpn_peer_set_key(VPNPeer *peer, uint8_t *key);
 bool               chipvpn_peer_readable(VPNPeer *peer);
 bool               chipvpn_peer_writeable(VPNPeer *peer);
 VPNPacketError     chipvpn_peer_dispatch_inbound(VPNPeer *peer);

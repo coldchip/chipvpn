@@ -13,7 +13,7 @@ Crypto *crypto_new() {
 	return crypto;
 }
 
-bool crypto_set_key(Crypto *crypto, unsigned char *key, unsigned char *iv) {
+bool crypto_set_key(Crypto *crypto, uint8_t *key, uint8_t *iv) {
 	return EVP_CipherInit(crypto->ctx, EVP_aes_256_ctr(), key, iv, 0);
 }
 

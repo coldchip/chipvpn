@@ -102,11 +102,11 @@ typedef enum {
 } VPNPacketType;
 
 typedef struct PACKED _VPNKeyPacket {
-	unsigned char key[32];
+	uint8_t key[32];
 } VPNKeyPacket;
 
 typedef struct PACKED _VPNAuthPacket {
-	char token[512];
+	uint8_t token[512];
 } VPNAuthPacket;
 
 typedef struct PACKED _VPNAssignPacket {
@@ -117,7 +117,7 @@ typedef struct PACKED _VPNAssignPacket {
 } VPNAssignPacket;
 
 typedef struct PACKED _VPNDataPacket {
-	unsigned char data[CHIPVPN_MAX_PACKET_SIZE];
+	uint8_t data[CHIPVPN_MAX_PACKET_SIZE];
 } VPNDataPacket;
 
 typedef struct PACKED _VPNPacketHeader {
