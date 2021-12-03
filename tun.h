@@ -26,9 +26,9 @@ typedef struct _VPNTun {
 	int fd;
 } VPNTun;
 
-VPNTun *chipvpn_tun_open(const char *dev);
-bool chipvpn_tun_setip(VPNTun *tun, struct in_addr ip, struct in_addr mask, int mtu);
-bool chipvpn_tun_ifup(VPNTun *tun);
-void chipvpn_tun_free(VPNTun *tun);
+VPNTun       *chipvpn_tun_open(const char *dev);
+bool          chipvpn_tun_setip(VPNTun *tun, struct in_addr ip, struct in_addr mask, int mtu);
+bool          chipvpn_tun_ifup(VPNTun *tun);
+void          chipvpn_tun_free(VPNTun *tun);
 
 #endif

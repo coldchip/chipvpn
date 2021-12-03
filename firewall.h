@@ -32,9 +32,9 @@ typedef struct _VPNRule {
 	VPNRuleMode mode;
 } VPNRule;
 
-VPNRule *chipvpn_firewall_new_rule(const char *cidr, VPNRuleMode mode);
-bool chipvpn_firewall_add_rule(List *list, const char *cidr, VPNRuleMode mode);
-bool chipvpn_firewall_match_rule(List *list, uint32_t ip);
-void chipvpn_firewall_free_rule(VPNRule *rule);
+VPNRule           *chipvpn_firewall_new_rule(const char *cidr, VPNRuleMode mode);
+bool               chipvpn_firewall_add_rule(List *list, const char *cidr, VPNRuleMode mode);
+bool               chipvpn_firewall_match_rule(List *list, uint32_t ip);
+void               chipvpn_firewall_free_rule(VPNRule *rule);
 
 #endif

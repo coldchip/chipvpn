@@ -4,12 +4,9 @@ BIN     := bin
 SRCS    := $(wildcard *.c)
 EXE     := $(BIN)/chipvpn
 BUILDROOT := /home/ryan/openwrt-19.07.7
-CFLAGS  := -Wall -Wall -Ofast
+CFLAGS  := -Wall -Wall -Ofast -s
 #CFLAGS  := -Wall -Ofast -I$(BUILDROOT)/staging_dir/target-mipsel_24kc_musl/usr/include -L$(BUILDROOT)/staging_dir/target-mipsel_24kc_musl/usr/lib -Wl,-rpath-link=$(BUILDROOT)/staging_dir/target-mipsel_24kc_musl/usr/lib 
 LIBS    := -lssl -lcrypto -ldl -lpthread
-ifeq ($(OS),Windows_NT)
-	LIBS := $(LIBS) -lws2_32
-endif
 
 .PHONY: clean install
 

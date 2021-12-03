@@ -41,15 +41,15 @@ bool terminate = false;
 
 ChipVPNConfig *config = NULL;
 
+VPNSocket *host = NULL;
+VPNTun    *tun  = NULL;
+
 void *handle = NULL;
 void (*chipvpn_plugin_oninit)(CHIPVPN_PLUGIN_CALLBACK callback)  = NULL;
 void (*chipvpn_plugin_onconnect)(VPNPeer *peer)                  = NULL;
 void (*chipvpn_plugin_onlogin)(VPNPeer *peer, const char *token) = NULL;
 void (*chipvpn_plugin_ondisconnect)(VPNPeer *peer)               = NULL;
 void (*chipvpn_plugin_ontick)()                                  = NULL;
-
-VPNTun    *tun  = NULL;
-VPNSocket *host = NULL;
 
 void chipvpn_init(ChipVPNConfig *c) {
 	signal(SIGINT, chipvpn_exit);
@@ -79,8 +79,8 @@ void chipvpn_init(ChipVPNConfig *c) {
 	while(1) {
 		chipvpn_setup();
 		chipvpn_loop();
-		sleep(1);
 		chipvpn_cleanup();
+		sleep(1);
 	}
 }
 
@@ -268,10 +268,17 @@ void chipvpn_loop() {
 }
 
 void chipvpn_cleanup() {
-	chipvpn_socket_free(host);
-	chipvpn_tun_free(tun);
+	if(host) {
+		chipvpn_socket_free(host);
+		host = NULL;
+	}
+	if(tun) {
+		chipvpn_tun_free(tun);
+		tun = NULL;
+	}
 	if(handle) {
 		dlclose(handle);
+		handle = NULL;
 	}
 }
 
@@ -285,7 +292,7 @@ void chipvpn_ticker() {
 	while(i != list_end(&host->peers)) {
 		VPNPeer *peer = (VPNPeer*)i;
 		i = list_next(i);
-		if(chipvpn_get_time() - peer->last_ping < 15) {
+		if(chipvpn_get_time() - peer->last_ping < 20) {
 			if(chipvpn_peer_is_authed(peer)) {
 				if(!chipvpn_send_ping(peer)) {
 					chipvpn_peer_disconnect(peer);
@@ -406,6 +413,7 @@ VPNPacketError chipvpn_socket_event(VPNPeer *peer, VPNPacket *packet) {
 		case VPN_MSG_PEER_TIMEOUT:
 		case VPN_MSG_QUOTA_EXCEEDED: {
 			msg_log(type);
+			return VPN_HAS_DATA;
 		}
 		break;
 		default: {

@@ -107,7 +107,7 @@ bool chipvpn_tun_ifup(VPNTun* tun) {
 
 void chipvpn_tun_free(VPNTun *tun) {
 	if(tun) {
-		if(tun->dev) {
+		if(*tun->dev != '\0') {
 			struct ifreq ifr;
 			ifr.ifr_addr.sa_family = AF_INET;
 
