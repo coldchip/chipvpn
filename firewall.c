@@ -46,7 +46,8 @@ bool chipvpn_firewall_match_rule(List *list, uint32_t ip) {
 		VPNRule *rule = (VPNRule*)i;
 		uint32_t start = rule->ip & rule->mask;
 		uint32_t end   = rule->ip | ~rule->mask;
-		if(ip >= start && ip <= end) {
+
+		if(ntohl(ip) >= ntohl(start) && ntohl(ip) <= ntohl(end)) {
 			if(rule->mode == RULE_ALLOW) {
 				result = true;
 			} else {

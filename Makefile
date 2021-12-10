@@ -4,7 +4,7 @@ BIN     := bin
 SRCS    := $(wildcard *.c)
 EXE     := $(BIN)/chipvpn
 BUILDROOT := /home/ryan/openwrt-19.07.7
-CFLAGS  := -Wall -Wall -Ofast -s
+CFLAGS  := -Wall -Ofast -s
 #CFLAGS  := -Wall -Ofast -I$(BUILDROOT)/staging_dir/target-mipsel_24kc_musl/usr/include -L$(BUILDROOT)/staging_dir/target-mipsel_24kc_musl/usr/lib -Wl,-rpath-link=$(BUILDROOT)/staging_dir/target-mipsel_24kc_musl/usr/lib 
 LIBS    := -lssl -lcrypto -ldl -lpthread
 
