@@ -2,6 +2,7 @@ CC      := gcc
 SRC     := $(wildcard *.c)
 OUTPUT  := chipvpn
 CFLAGS  := -Wall -Ofast -s
+LDFLAGS := 
 LIBS    := -lssl -lcrypto -ldl -lpthread
 
 .PHONY: clean install
@@ -9,7 +10,7 @@ LIBS    := -lssl -lcrypto -ldl -lpthread
 all: $(OUTPUT)
 
 $(OUTPUT): $(SRC)
-	$(CC) $(CFLAGS) $(SRC) -o $@ $(LIBS)
+	$(CC) $(CFLAGS) $(SRC) -o $@ $(LIBS) $(LDFLAGS)
 run:
 	$(OUTPUT)
 clean:
