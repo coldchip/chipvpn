@@ -6,16 +6,20 @@ There are hundreds of VPN software and protocols out there, and each one are des
 
 # ChipVPN features
 - Token/passphrase authentication. 
-- It uses Linux TUN adapter and operates at layer 3. 
-- It allows multiple clients to connect and routes the packets to the client based on the IP 
-- It uses non-blocking socket with socket select. 
-- The protocol uses TCP instead of UDP to bypass most firewalls. 
-- Plugin loader (in progress)
+- AES-256 packet encryption (OpenSSL)
+- Layer 3
+- Uses TCP
+- Non blocking
+- Undetectable packets
+- Multiple peers on server
+- Custom plugins (in progress)
 
 # Prerequisites
 - A machine running Linux, preferably Ubuntu 21.04
 - C compiler (gcc)
 - TUN/TAP kernel module
+- OpenSSL dev library
+- pthread
 
 # Building from source
 - `$ make`
