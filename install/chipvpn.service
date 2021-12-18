@@ -3,7 +3,7 @@ Description=ColdChip ChipVPN
 After=network-online.target
 
 [Service]
-ExecStart=/usr/local/sbin/chipvpn /etc/chipvpn/chipvpn.json
+ExecStart=chipvpn /etc/chipvpn/chipvpn.json
 StandardOutput=null
 StandardError=null
 Restart=on-failure
