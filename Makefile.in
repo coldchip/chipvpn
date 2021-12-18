@@ -101,13 +101,18 @@ CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
 am__installdirs = "$(DESTDIR)$(bindir)"
 PROGRAMS = $(bin_PROGRAMS)
-am_chipvpn_OBJECTS = chipvpn.$(OBJEXT) cJSON_Utils.$(OBJEXT) \
-	crypto.$(OBJEXT) firewall.$(OBJEXT) main.$(OBJEXT) \
-	peer.$(OBJEXT) socket.$(OBJEXT) cJSON.$(OBJEXT) \
-	config.$(OBJEXT) event.$(OBJEXT) list.$(OBJEXT) \
-	packet.$(OBJEXT) plugin.$(OBJEXT) tun.$(OBJEXT)
+am_chipvpn_OBJECTS = chipvpn-chipvpn.$(OBJEXT) \
+	chipvpn-cJSON_Utils.$(OBJEXT) chipvpn-crypto.$(OBJEXT) \
+	chipvpn-firewall.$(OBJEXT) chipvpn-main.$(OBJEXT) \
+	chipvpn-peer.$(OBJEXT) chipvpn-socket.$(OBJEXT) \
+	chipvpn-cJSON.$(OBJEXT) chipvpn-config.$(OBJEXT) \
+	chipvpn-event.$(OBJEXT) chipvpn-list.$(OBJEXT) \
+	chipvpn-packet.$(OBJEXT) chipvpn-plugin.$(OBJEXT) \
+	chipvpn-tun.$(OBJEXT)
 chipvpn_OBJECTS = $(am_chipvpn_OBJECTS)
 chipvpn_DEPENDENCIES =
+chipvpn_LINK = $(CCLD) $(chipvpn_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) \
+	$(LDFLAGS) -o $@
 AM_V_P = $(am__v_P_@AM_V@)
 am__v_P_ = $(am__v_P_@AM_DEFAULT_V@)
 am__v_P_0 = false
@@ -123,13 +128,19 @@ am__v_at_1 =
 DEFAULT_INCLUDES = -I.@am__isrc@
 depcomp = $(SHELL) $(top_srcdir)/build-aux/depcomp
 am__maybe_remake_depfiles = depfiles
-am__depfiles_remade = ./$(DEPDIR)/cJSON.Po ./$(DEPDIR)/cJSON_Utils.Po \
-	./$(DEPDIR)/chipvpn.Po ./$(DEPDIR)/config.Po \
-	./$(DEPDIR)/crypto.Po ./$(DEPDIR)/event.Po \
-	./$(DEPDIR)/firewall.Po ./$(DEPDIR)/list.Po \
-	./$(DEPDIR)/main.Po ./$(DEPDIR)/packet.Po ./$(DEPDIR)/peer.Po \
-	./$(DEPDIR)/plugin.Po ./$(DEPDIR)/socket.Po ./$(DEPDIR)/tun.Po
+am__depfiles_remade = ./$(DEPDIR)/chipvpn-cJSON.Po \
+	./$(DEPDIR)/chipvpn-cJSON_Utils.Po \
+	./$(DEPDIR)/chipvpn-chipvpn.Po ./$(DEPDIR)/chipvpn-config.Po \
+	./$(DEPDIR)/chipvpn-crypto.Po ./$(DEPDIR)/chipvpn-event.Po \
+	./$(DEPDIR)/chipvpn-firewall.Po ./$(DEPDIR)/chipvpn-list.Po \
+	./$(DEPDIR)/chipvpn-main.Po ./$(DEPDIR)/chipvpn-packet.Po \
+	./$(DEPDIR)/chipvpn-peer.Po ./$(DEPDIR)/chipvpn-plugin.Po \
+	./$(DEPDIR)/chipvpn-socket.Po ./$(DEPDIR)/chipvpn-tun.Po
 am__mv = mv -f
+AM_V_lt = $(am__v_lt_@AM_V@)
+am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
+am__v_lt_0 = --silent
+am__v_lt_1 = 
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
 AM_V_CC = $(am__v_CC_@AM_V@)
@@ -297,6 +308,7 @@ chipvpn_SOURCES = chipvpn.c \
 				plugin.c \
 				tun.c
 
+chipvpn_CFLAGS = -Ofast -s
 chipvpn_LDADD = -lcrypto -lssl -ldl -lpthread
 all: all-am
 
@@ -380,7 +392,7 @@ clean-binPROGRAMS:
 
 chipvpn$(EXEEXT): $(chipvpn_OBJECTS) $(chipvpn_DEPENDENCIES) $(EXTRA_chipvpn_DEPENDENCIES) 
 	@rm -f chipvpn$(EXEEXT)
-	$(AM_V_CCLD)$(LINK) $(chipvpn_OBJECTS) $(chipvpn_LDADD) $(LIBS)
+	$(AM_V_CCLD)$(chipvpn_LINK) $(chipvpn_OBJECTS) $(chipvpn_LDADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -388,20 +400,20 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/cJSON.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/cJSON_Utils.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/chipvpn.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/config.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/crypto.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/event.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/firewall.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/list.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/main.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/packet.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/peer.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/plugin.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/socket.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/tun.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/chipvpn-cJSON.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/chipvpn-cJSON_Utils.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/chipvpn-chipvpn.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/chipvpn-config.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/chipvpn-crypto.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/chipvpn-event.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/chipvpn-firewall.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/chipvpn-list.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/chipvpn-main.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/chipvpn-packet.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/chipvpn-peer.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/chipvpn-plugin.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/chipvpn-socket.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/chipvpn-tun.Po@am__quote@ # am--include-marker
 
 $(am__depfiles_remade):
 	@$(MKDIR_P) $(@D)
@@ -422,6 +434,202 @@ am--depfiles: $(am__depfiles_remade)
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='$<' object='$@' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(COMPILE) -c -o $@ `$(CYGPATH_W) '$<'`
+
+chipvpn-chipvpn.o: chipvpn.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(chipvpn_CFLAGS) $(CFLAGS) -MT chipvpn-chipvpn.o -MD -MP -MF $(DEPDIR)/chipvpn-chipvpn.Tpo -c -o chipvpn-chipvpn.o `test -f 'chipvpn.c' || echo '$(srcdir)/'`chipvpn.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/chipvpn-chipvpn.Tpo $(DEPDIR)/chipvpn-chipvpn.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='chipvpn.c' object='chipvpn-chipvpn.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(chipvpn_CFLAGS) $(CFLAGS) -c -o chipvpn-chipvpn.o `test -f 'chipvpn.c' || echo '$(srcdir)/'`chipvpn.c
+
+chipvpn-chipvpn.obj: chipvpn.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(chipvpn_CFLAGS) $(CFLAGS) -MT chipvpn-chipvpn.obj -MD -MP -MF $(DEPDIR)/chipvpn-chipvpn.Tpo -c -o chipvpn-chipvpn.obj `if test -f 'chipvpn.c'; then $(CYGPATH_W) 'chipvpn.c'; else $(CYGPATH_W) '$(srcdir)/chipvpn.c'; fi`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/chipvpn-chipvpn.Tpo $(DEPDIR)/chipvpn-chipvpn.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='chipvpn.c' object='chipvpn-chipvpn.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(chipvpn_CFLAGS) $(CFLAGS) -c -o chipvpn-chipvpn.obj `if test -f 'chipvpn.c'; then $(CYGPATH_W) 'chipvpn.c'; else $(CYGPATH_W) '$(srcdir)/chipvpn.c'; fi`
+
+chipvpn-cJSON_Utils.o: cJSON_Utils.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(chipvpn_CFLAGS) $(CFLAGS) -MT chipvpn-cJSON_Utils.o -MD -MP -MF $(DEPDIR)/chipvpn-cJSON_Utils.Tpo -c -o chipvpn-cJSON_Utils.o `test -f 'cJSON_Utils.c' || echo '$(srcdir)/'`cJSON_Utils.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/chipvpn-cJSON_Utils.Tpo $(DEPDIR)/chipvpn-cJSON_Utils.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='cJSON_Utils.c' object='chipvpn-cJSON_Utils.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(chipvpn_CFLAGS) $(CFLAGS) -c -o chipvpn-cJSON_Utils.o `test -f 'cJSON_Utils.c' || echo '$(srcdir)/'`cJSON_Utils.c
+
+chipvpn-cJSON_Utils.obj: cJSON_Utils.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(chipvpn_CFLAGS) $(CFLAGS) -MT chipvpn-cJSON_Utils.obj -MD -MP -MF $(DEPDIR)/chipvpn-cJSON_Utils.Tpo -c -o chipvpn-cJSON_Utils.obj `if test -f 'cJSON_Utils.c'; then $(CYGPATH_W) 'cJSON_Utils.c'; else $(CYGPATH_W) '$(srcdir)/cJSON_Utils.c'; fi`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/chipvpn-cJSON_Utils.Tpo $(DEPDIR)/chipvpn-cJSON_Utils.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='cJSON_Utils.c' object='chipvpn-cJSON_Utils.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(chipvpn_CFLAGS) $(CFLAGS) -c -o chipvpn-cJSON_Utils.obj `if test -f 'cJSON_Utils.c'; then $(CYGPATH_W) 'cJSON_Utils.c'; else $(CYGPATH_W) '$(srcdir)/cJSON_Utils.c'; fi`
+
+chipvpn-crypto.o: crypto.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(chipvpn_CFLAGS) $(CFLAGS) -MT chipvpn-crypto.o -MD -MP -MF $(DEPDIR)/chipvpn-crypto.Tpo -c -o chipvpn-crypto.o `test -f 'crypto.c' || echo '$(srcdir)/'`crypto.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/chipvpn-crypto.Tpo $(DEPDIR)/chipvpn-crypto.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='crypto.c' object='chipvpn-crypto.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(chipvpn_CFLAGS) $(CFLAGS) -c -o chipvpn-crypto.o `test -f 'crypto.c' || echo '$(srcdir)/'`crypto.c
+
+chipvpn-crypto.obj: crypto.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(chipvpn_CFLAGS) $(CFLAGS) -MT chipvpn-crypto.obj -MD -MP -MF $(DEPDIR)/chipvpn-crypto.Tpo -c -o chipvpn-crypto.obj `if test -f 'crypto.c'; then $(CYGPATH_W) 'crypto.c'; else $(CYGPATH_W) '$(srcdir)/crypto.c'; fi`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/chipvpn-crypto.Tpo $(DEPDIR)/chipvpn-crypto.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='crypto.c' object='chipvpn-crypto.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(chipvpn_CFLAGS) $(CFLAGS) -c -o chipvpn-crypto.obj `if test -f 'crypto.c'; then $(CYGPATH_W) 'crypto.c'; else $(CYGPATH_W) '$(srcdir)/crypto.c'; fi`
+
+chipvpn-firewall.o: firewall.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(chipvpn_CFLAGS) $(CFLAGS) -MT chipvpn-firewall.o -MD -MP -MF $(DEPDIR)/chipvpn-firewall.Tpo -c -o chipvpn-firewall.o `test -f 'firewall.c' || echo '$(srcdir)/'`firewall.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/chipvpn-firewall.Tpo $(DEPDIR)/chipvpn-firewall.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='firewall.c' object='chipvpn-firewall.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(chipvpn_CFLAGS) $(CFLAGS) -c -o chipvpn-firewall.o `test -f 'firewall.c' || echo '$(srcdir)/'`firewall.c
+
+chipvpn-firewall.obj: firewall.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(chipvpn_CFLAGS) $(CFLAGS) -MT chipvpn-firewall.obj -MD -MP -MF $(DEPDIR)/chipvpn-firewall.Tpo -c -o chipvpn-firewall.obj `if test -f 'firewall.c'; then $(CYGPATH_W) 'firewall.c'; else $(CYGPATH_W) '$(srcdir)/firewall.c'; fi`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/chipvpn-firewall.Tpo $(DEPDIR)/chipvpn-firewall.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='firewall.c' object='chipvpn-firewall.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(chipvpn_CFLAGS) $(CFLAGS) -c -o chipvpn-firewall.obj `if test -f 'firewall.c'; then $(CYGPATH_W) 'firewall.c'; else $(CYGPATH_W) '$(srcdir)/firewall.c'; fi`
+
+chipvpn-main.o: main.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(chipvpn_CFLAGS) $(CFLAGS) -MT chipvpn-main.o -MD -MP -MF $(DEPDIR)/chipvpn-main.Tpo -c -o chipvpn-main.o `test -f 'main.c' || echo '$(srcdir)/'`main.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/chipvpn-main.Tpo $(DEPDIR)/chipvpn-main.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='main.c' object='chipvpn-main.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(chipvpn_CFLAGS) $(CFLAGS) -c -o chipvpn-main.o `test -f 'main.c' || echo '$(srcdir)/'`main.c
+
+chipvpn-main.obj: main.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(chipvpn_CFLAGS) $(CFLAGS) -MT chipvpn-main.obj -MD -MP -MF $(DEPDIR)/chipvpn-main.Tpo -c -o chipvpn-main.obj `if test -f 'main.c'; then $(CYGPATH_W) 'main.c'; else $(CYGPATH_W) '$(srcdir)/main.c'; fi`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/chipvpn-main.Tpo $(DEPDIR)/chipvpn-main.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='main.c' object='chipvpn-main.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(chipvpn_CFLAGS) $(CFLAGS) -c -o chipvpn-main.obj `if test -f 'main.c'; then $(CYGPATH_W) 'main.c'; else $(CYGPATH_W) '$(srcdir)/main.c'; fi`
+
+chipvpn-peer.o: peer.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(chipvpn_CFLAGS) $(CFLAGS) -MT chipvpn-peer.o -MD -MP -MF $(DEPDIR)/chipvpn-peer.Tpo -c -o chipvpn-peer.o `test -f 'peer.c' || echo '$(srcdir)/'`peer.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/chipvpn-peer.Tpo $(DEPDIR)/chipvpn-peer.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='peer.c' object='chipvpn-peer.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(chipvpn_CFLAGS) $(CFLAGS) -c -o chipvpn-peer.o `test -f 'peer.c' || echo '$(srcdir)/'`peer.c
+
+chipvpn-peer.obj: peer.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(chipvpn_CFLAGS) $(CFLAGS) -MT chipvpn-peer.obj -MD -MP -MF $(DEPDIR)/chipvpn-peer.Tpo -c -o chipvpn-peer.obj `if test -f 'peer.c'; then $(CYGPATH_W) 'peer.c'; else $(CYGPATH_W) '$(srcdir)/peer.c'; fi`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/chipvpn-peer.Tpo $(DEPDIR)/chipvpn-peer.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='peer.c' object='chipvpn-peer.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(chipvpn_CFLAGS) $(CFLAGS) -c -o chipvpn-peer.obj `if test -f 'peer.c'; then $(CYGPATH_W) 'peer.c'; else $(CYGPATH_W) '$(srcdir)/peer.c'; fi`
+
+chipvpn-socket.o: socket.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(chipvpn_CFLAGS) $(CFLAGS) -MT chipvpn-socket.o -MD -MP -MF $(DEPDIR)/chipvpn-socket.Tpo -c -o chipvpn-socket.o `test -f 'socket.c' || echo '$(srcdir)/'`socket.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/chipvpn-socket.Tpo $(DEPDIR)/chipvpn-socket.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='socket.c' object='chipvpn-socket.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(chipvpn_CFLAGS) $(CFLAGS) -c -o chipvpn-socket.o `test -f 'socket.c' || echo '$(srcdir)/'`socket.c
+
+chipvpn-socket.obj: socket.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(chipvpn_CFLAGS) $(CFLAGS) -MT chipvpn-socket.obj -MD -MP -MF $(DEPDIR)/chipvpn-socket.Tpo -c -o chipvpn-socket.obj `if test -f 'socket.c'; then $(CYGPATH_W) 'socket.c'; else $(CYGPATH_W) '$(srcdir)/socket.c'; fi`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/chipvpn-socket.Tpo $(DEPDIR)/chipvpn-socket.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='socket.c' object='chipvpn-socket.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(chipvpn_CFLAGS) $(CFLAGS) -c -o chipvpn-socket.obj `if test -f 'socket.c'; then $(CYGPATH_W) 'socket.c'; else $(CYGPATH_W) '$(srcdir)/socket.c'; fi`
+
+chipvpn-cJSON.o: cJSON.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(chipvpn_CFLAGS) $(CFLAGS) -MT chipvpn-cJSON.o -MD -MP -MF $(DEPDIR)/chipvpn-cJSON.Tpo -c -o chipvpn-cJSON.o `test -f 'cJSON.c' || echo '$(srcdir)/'`cJSON.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/chipvpn-cJSON.Tpo $(DEPDIR)/chipvpn-cJSON.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='cJSON.c' object='chipvpn-cJSON.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(chipvpn_CFLAGS) $(CFLAGS) -c -o chipvpn-cJSON.o `test -f 'cJSON.c' || echo '$(srcdir)/'`cJSON.c
+
+chipvpn-cJSON.obj: cJSON.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(chipvpn_CFLAGS) $(CFLAGS) -MT chipvpn-cJSON.obj -MD -MP -MF $(DEPDIR)/chipvpn-cJSON.Tpo -c -o chipvpn-cJSON.obj `if test -f 'cJSON.c'; then $(CYGPATH_W) 'cJSON.c'; else $(CYGPATH_W) '$(srcdir)/cJSON.c'; fi`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/chipvpn-cJSON.Tpo $(DEPDIR)/chipvpn-cJSON.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='cJSON.c' object='chipvpn-cJSON.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(chipvpn_CFLAGS) $(CFLAGS) -c -o chipvpn-cJSON.obj `if test -f 'cJSON.c'; then $(CYGPATH_W) 'cJSON.c'; else $(CYGPATH_W) '$(srcdir)/cJSON.c'; fi`
+
+chipvpn-config.o: config.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(chipvpn_CFLAGS) $(CFLAGS) -MT chipvpn-config.o -MD -MP -MF $(DEPDIR)/chipvpn-config.Tpo -c -o chipvpn-config.o `test -f 'config.c' || echo '$(srcdir)/'`config.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/chipvpn-config.Tpo $(DEPDIR)/chipvpn-config.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='config.c' object='chipvpn-config.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(chipvpn_CFLAGS) $(CFLAGS) -c -o chipvpn-config.o `test -f 'config.c' || echo '$(srcdir)/'`config.c
+
+chipvpn-config.obj: config.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(chipvpn_CFLAGS) $(CFLAGS) -MT chipvpn-config.obj -MD -MP -MF $(DEPDIR)/chipvpn-config.Tpo -c -o chipvpn-config.obj `if test -f 'config.c'; then $(CYGPATH_W) 'config.c'; else $(CYGPATH_W) '$(srcdir)/config.c'; fi`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/chipvpn-config.Tpo $(DEPDIR)/chipvpn-config.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='config.c' object='chipvpn-config.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(chipvpn_CFLAGS) $(CFLAGS) -c -o chipvpn-config.obj `if test -f 'config.c'; then $(CYGPATH_W) 'config.c'; else $(CYGPATH_W) '$(srcdir)/config.c'; fi`
+
+chipvpn-event.o: event.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(chipvpn_CFLAGS) $(CFLAGS) -MT chipvpn-event.o -MD -MP -MF $(DEPDIR)/chipvpn-event.Tpo -c -o chipvpn-event.o `test -f 'event.c' || echo '$(srcdir)/'`event.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/chipvpn-event.Tpo $(DEPDIR)/chipvpn-event.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='event.c' object='chipvpn-event.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(chipvpn_CFLAGS) $(CFLAGS) -c -o chipvpn-event.o `test -f 'event.c' || echo '$(srcdir)/'`event.c
+
+chipvpn-event.obj: event.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(chipvpn_CFLAGS) $(CFLAGS) -MT chipvpn-event.obj -MD -MP -MF $(DEPDIR)/chipvpn-event.Tpo -c -o chipvpn-event.obj `if test -f 'event.c'; then $(CYGPATH_W) 'event.c'; else $(CYGPATH_W) '$(srcdir)/event.c'; fi`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/chipvpn-event.Tpo $(DEPDIR)/chipvpn-event.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='event.c' object='chipvpn-event.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(chipvpn_CFLAGS) $(CFLAGS) -c -o chipvpn-event.obj `if test -f 'event.c'; then $(CYGPATH_W) 'event.c'; else $(CYGPATH_W) '$(srcdir)/event.c'; fi`
+
+chipvpn-list.o: list.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(chipvpn_CFLAGS) $(CFLAGS) -MT chipvpn-list.o -MD -MP -MF $(DEPDIR)/chipvpn-list.Tpo -c -o chipvpn-list.o `test -f 'list.c' || echo '$(srcdir)/'`list.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/chipvpn-list.Tpo $(DEPDIR)/chipvpn-list.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='list.c' object='chipvpn-list.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(chipvpn_CFLAGS) $(CFLAGS) -c -o chipvpn-list.o `test -f 'list.c' || echo '$(srcdir)/'`list.c
+
+chipvpn-list.obj: list.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(chipvpn_CFLAGS) $(CFLAGS) -MT chipvpn-list.obj -MD -MP -MF $(DEPDIR)/chipvpn-list.Tpo -c -o chipvpn-list.obj `if test -f 'list.c'; then $(CYGPATH_W) 'list.c'; else $(CYGPATH_W) '$(srcdir)/list.c'; fi`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/chipvpn-list.Tpo $(DEPDIR)/chipvpn-list.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='list.c' object='chipvpn-list.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(chipvpn_CFLAGS) $(CFLAGS) -c -o chipvpn-list.obj `if test -f 'list.c'; then $(CYGPATH_W) 'list.c'; else $(CYGPATH_W) '$(srcdir)/list.c'; fi`
+
+chipvpn-packet.o: packet.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(chipvpn_CFLAGS) $(CFLAGS) -MT chipvpn-packet.o -MD -MP -MF $(DEPDIR)/chipvpn-packet.Tpo -c -o chipvpn-packet.o `test -f 'packet.c' || echo '$(srcdir)/'`packet.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/chipvpn-packet.Tpo $(DEPDIR)/chipvpn-packet.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='packet.c' object='chipvpn-packet.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(chipvpn_CFLAGS) $(CFLAGS) -c -o chipvpn-packet.o `test -f 'packet.c' || echo '$(srcdir)/'`packet.c
+
+chipvpn-packet.obj: packet.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(chipvpn_CFLAGS) $(CFLAGS) -MT chipvpn-packet.obj -MD -MP -MF $(DEPDIR)/chipvpn-packet.Tpo -c -o chipvpn-packet.obj `if test -f 'packet.c'; then $(CYGPATH_W) 'packet.c'; else $(CYGPATH_W) '$(srcdir)/packet.c'; fi`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/chipvpn-packet.Tpo $(DEPDIR)/chipvpn-packet.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='packet.c' object='chipvpn-packet.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(chipvpn_CFLAGS) $(CFLAGS) -c -o chipvpn-packet.obj `if test -f 'packet.c'; then $(CYGPATH_W) 'packet.c'; else $(CYGPATH_W) '$(srcdir)/packet.c'; fi`
+
+chipvpn-plugin.o: plugin.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(chipvpn_CFLAGS) $(CFLAGS) -MT chipvpn-plugin.o -MD -MP -MF $(DEPDIR)/chipvpn-plugin.Tpo -c -o chipvpn-plugin.o `test -f 'plugin.c' || echo '$(srcdir)/'`plugin.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/chipvpn-plugin.Tpo $(DEPDIR)/chipvpn-plugin.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='plugin.c' object='chipvpn-plugin.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(chipvpn_CFLAGS) $(CFLAGS) -c -o chipvpn-plugin.o `test -f 'plugin.c' || echo '$(srcdir)/'`plugin.c
+
+chipvpn-plugin.obj: plugin.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(chipvpn_CFLAGS) $(CFLAGS) -MT chipvpn-plugin.obj -MD -MP -MF $(DEPDIR)/chipvpn-plugin.Tpo -c -o chipvpn-plugin.obj `if test -f 'plugin.c'; then $(CYGPATH_W) 'plugin.c'; else $(CYGPATH_W) '$(srcdir)/plugin.c'; fi`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/chipvpn-plugin.Tpo $(DEPDIR)/chipvpn-plugin.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='plugin.c' object='chipvpn-plugin.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(chipvpn_CFLAGS) $(CFLAGS) -c -o chipvpn-plugin.obj `if test -f 'plugin.c'; then $(CYGPATH_W) 'plugin.c'; else $(CYGPATH_W) '$(srcdir)/plugin.c'; fi`
+
+chipvpn-tun.o: tun.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(chipvpn_CFLAGS) $(CFLAGS) -MT chipvpn-tun.o -MD -MP -MF $(DEPDIR)/chipvpn-tun.Tpo -c -o chipvpn-tun.o `test -f 'tun.c' || echo '$(srcdir)/'`tun.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/chipvpn-tun.Tpo $(DEPDIR)/chipvpn-tun.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='tun.c' object='chipvpn-tun.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(chipvpn_CFLAGS) $(CFLAGS) -c -o chipvpn-tun.o `test -f 'tun.c' || echo '$(srcdir)/'`tun.c
+
+chipvpn-tun.obj: tun.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(chipvpn_CFLAGS) $(CFLAGS) -MT chipvpn-tun.obj -MD -MP -MF $(DEPDIR)/chipvpn-tun.Tpo -c -o chipvpn-tun.obj `if test -f 'tun.c'; then $(CYGPATH_W) 'tun.c'; else $(CYGPATH_W) '$(srcdir)/tun.c'; fi`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/chipvpn-tun.Tpo $(DEPDIR)/chipvpn-tun.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='tun.c' object='chipvpn-tun.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(chipvpn_CFLAGS) $(CFLAGS) -c -o chipvpn-tun.obj `if test -f 'tun.c'; then $(CYGPATH_W) 'tun.c'; else $(CYGPATH_W) '$(srcdir)/tun.c'; fi`
 
 ID: $(am__tagged_files)
 	$(am__define_uniq_tagged_files); mkid -fID $$unique
@@ -691,20 +899,20 @@ clean-am: clean-binPROGRAMS clean-generic mostlyclean-am
 
 distclean: distclean-am
 	-rm -f $(am__CONFIG_DISTCLEAN_FILES)
-		-rm -f ./$(DEPDIR)/cJSON.Po
-	-rm -f ./$(DEPDIR)/cJSON_Utils.Po
-	-rm -f ./$(DEPDIR)/chipvpn.Po
-	-rm -f ./$(DEPDIR)/config.Po
-	-rm -f ./$(DEPDIR)/crypto.Po
-	-rm -f ./$(DEPDIR)/event.Po
-	-rm -f ./$(DEPDIR)/firewall.Po
-	-rm -f ./$(DEPDIR)/list.Po
-	-rm -f ./$(DEPDIR)/main.Po
-	-rm -f ./$(DEPDIR)/packet.Po
-	-rm -f ./$(DEPDIR)/peer.Po
-	-rm -f ./$(DEPDIR)/plugin.Po
-	-rm -f ./$(DEPDIR)/socket.Po
-	-rm -f ./$(DEPDIR)/tun.Po
+		-rm -f ./$(DEPDIR)/chipvpn-cJSON.Po
+	-rm -f ./$(DEPDIR)/chipvpn-cJSON_Utils.Po
+	-rm -f ./$(DEPDIR)/chipvpn-chipvpn.Po
+	-rm -f ./$(DEPDIR)/chipvpn-config.Po
+	-rm -f ./$(DEPDIR)/chipvpn-crypto.Po
+	-rm -f ./$(DEPDIR)/chipvpn-event.Po
+	-rm -f ./$(DEPDIR)/chipvpn-firewall.Po
+	-rm -f ./$(DEPDIR)/chipvpn-list.Po
+	-rm -f ./$(DEPDIR)/chipvpn-main.Po
+	-rm -f ./$(DEPDIR)/chipvpn-packet.Po
+	-rm -f ./$(DEPDIR)/chipvpn-peer.Po
+	-rm -f ./$(DEPDIR)/chipvpn-plugin.Po
+	-rm -f ./$(DEPDIR)/chipvpn-socket.Po
+	-rm -f ./$(DEPDIR)/chipvpn-tun.Po
 	-rm -f Makefile
 distclean-am: clean-am distclean-compile distclean-generic \
 	distclean-tags
@@ -752,20 +960,20 @@ installcheck-am:
 maintainer-clean: maintainer-clean-am
 	-rm -f $(am__CONFIG_DISTCLEAN_FILES)
 	-rm -rf $(top_srcdir)/autom4te.cache
-		-rm -f ./$(DEPDIR)/cJSON.Po
-	-rm -f ./$(DEPDIR)/cJSON_Utils.Po
-	-rm -f ./$(DEPDIR)/chipvpn.Po
-	-rm -f ./$(DEPDIR)/config.Po
-	-rm -f ./$(DEPDIR)/crypto.Po
-	-rm -f ./$(DEPDIR)/event.Po
-	-rm -f ./$(DEPDIR)/firewall.Po
-	-rm -f ./$(DEPDIR)/list.Po
-	-rm -f ./$(DEPDIR)/main.Po
-	-rm -f ./$(DEPDIR)/packet.Po
-	-rm -f ./$(DEPDIR)/peer.Po
-	-rm -f ./$(DEPDIR)/plugin.Po
-	-rm -f ./$(DEPDIR)/socket.Po
-	-rm -f ./$(DEPDIR)/tun.Po
+		-rm -f ./$(DEPDIR)/chipvpn-cJSON.Po
+	-rm -f ./$(DEPDIR)/chipvpn-cJSON_Utils.Po
+	-rm -f ./$(DEPDIR)/chipvpn-chipvpn.Po
+	-rm -f ./$(DEPDIR)/chipvpn-config.Po
+	-rm -f ./$(DEPDIR)/chipvpn-crypto.Po
+	-rm -f ./$(DEPDIR)/chipvpn-event.Po
+	-rm -f ./$(DEPDIR)/chipvpn-firewall.Po
+	-rm -f ./$(DEPDIR)/chipvpn-list.Po
+	-rm -f ./$(DEPDIR)/chipvpn-main.Po
+	-rm -f ./$(DEPDIR)/chipvpn-packet.Po
+	-rm -f ./$(DEPDIR)/chipvpn-peer.Po
+	-rm -f ./$(DEPDIR)/chipvpn-plugin.Po
+	-rm -f ./$(DEPDIR)/chipvpn-socket.Po
+	-rm -f ./$(DEPDIR)/chipvpn-tun.Po
 	-rm -f Makefile
 maintainer-clean-am: distclean-am maintainer-clean-generic
 

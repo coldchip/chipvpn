@@ -15,4 +15,5 @@ chipvpn_SOURCES = chipvpn.c \
 				plugin.c \
 				tun.c
 
+chipvpn_CFLAGS = -Ofast -s
 chipvpn_LDADD = -lcrypto -lssl -ldl -lpthread
