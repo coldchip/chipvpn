@@ -15,7 +15,7 @@ There are hundreds of VPN software and protocols out there, and each one are des
 # Prerequisites
 - A machine running Linux, preferably Ubuntu 21.04
 - C compiler (gcc)
-- TUN/TAP kernel module loaded
+- TUN/TAP kernel module
 
 # Building from source
 - `$ make`

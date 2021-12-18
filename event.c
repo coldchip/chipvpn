@@ -589,9 +589,15 @@ VPNPacketError chipvpn_recv_assign(VPNPeer *peer, VPNAssignPacket *packet, int s
 		char default_gateway_c[24];
 		strcpy(default_gateway_c, inet_ntoa(get_default_gateway()));
 
-		if(exec_sprintf("ip route add %s via %s", config->ip, default_gateway_c)) { }
-		if(exec_sprintf("ip route add 0.0.0.0/1 via %s", peer_gateway_c)) { }
-		if(exec_sprintf("ip route add 128.0.0.0/1 via %s", peer_gateway_c)) { }
+		if(!exec_sprintf("ip route add %s via %s", config->ip, default_gateway_c)) {
+
+		}
+		if(!exec_sprintf("ip route add 0.0.0.0/1 via %s", peer_gateway_c)) {
+
+		}
+		if(!exec_sprintf("ip route add 128.0.0.0/1 via %s", peer_gateway_c)) {
+			
+		}
 	}
 
 	peer->internal_ip = peer_ip;
