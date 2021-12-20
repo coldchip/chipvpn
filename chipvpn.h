@@ -22,7 +22,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define CHIPVPN_VERSION 10000056L
+#define CHIPVPN_VERSION 10000060L
 #define CHIPVPN_MAX_MTU 1500
 
 char              *read_file_into_buffer(const char *file);
