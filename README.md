@@ -9,10 +9,10 @@ There are hundreds of VPN software and protocols out there, and each one are des
 - AES-256 packet encryption (OpenSSL)
 - Layer 3
 - Uses TCP
-- Non blocking
-- Undetectable packets
-- Multiple peers on server
-- Custom plugins (in progress)
+- Non blocking sockets
+- Unidentifiable packets
+- Multiple peers on a single server
+- Create custom plugins (in progress)
 
 # Prerequisites
 - A machine running Linux, preferably Ubuntu 21.04
