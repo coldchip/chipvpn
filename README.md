@@ -22,8 +22,11 @@ There are hundreds of VPN software and protocols out there, and each one are des
 - pthread
 
 # Building from source
+- `$ autoreconf -vfi`
 - `$ ./configure`
 - `$ make`
+
+# Installing it
 - `$ sudo make install`
 
 # Running it
