@@ -45,7 +45,7 @@ char *read_file_into_buffer(const char *file) {
 	return p;
 }
 
-struct in_addr get_default_gateway() {
+bool get_default_gateway(struct in_addr *addr) {
 	char ip_addr[16];
 	char cmd[] = "ip route show default | awk '/default/ {print $3}' |  tr -cd '[a-zA-Z0-9]._-'";
 	FILE* fp = popen(cmd, "r");
@@ -56,9 +56,8 @@ struct in_addr get_default_gateway() {
 	pclose(fp);
 	ip_addr[15] = '\0';
 
-	struct in_addr in_gw;
-	inet_aton(ip_addr, &in_gw);
-	return in_gw;
+	inet_aton(ip_addr, addr);
+	return true;
 }
 
 int exec_sprintf(const char *format, ...) {

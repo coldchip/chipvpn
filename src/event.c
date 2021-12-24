@@ -586,8 +586,13 @@ VPNPacketError chipvpn_recv_assign(VPNPeer *peer, VPNAssignPacket *packet, int s
 	if(config->pull_routes) {
 		console_log("setting routes");
 
+		struct in_addr default_gateway;
+		if(!get_default_gateway(&default_gateway)) {
+			error("unable to retrieve default gateway from system");
+		}
+
 		char default_gateway_c[24];
-		strcpy(default_gateway_c, inet_ntoa(get_default_gateway()));
+		strcpy(default_gateway_c, inet_ntoa(default_gateway));
 
 		if(!exec_sprintf("ip route add %s via %s", config->ip, default_gateway_c)) {
 

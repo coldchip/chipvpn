@@ -22,11 +22,11 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define CHIPVPN_VERSION 10000060L
+#define CHIPVPN_VERSION 10000061L
 #define CHIPVPN_MAX_MTU 1500
 
 char              *read_file_into_buffer(const char *file);
-struct in_addr     get_default_gateway();
+bool               get_default_gateway(struct in_addr *addr);
 int                exec_sprintf(const char *format, ...);
 void               msg_log(VPNPacketType type);
 void               warning_log(const char *format, ...);

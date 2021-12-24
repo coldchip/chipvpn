@@ -17,7 +17,7 @@ chipvpn_SOURCES = src/chipvpn.c \
 				src/plugin.c \
 				src/tun.c
 
-chipvpn_CFLAGS = -Ofast -s
+chipvpn_CFLAGS = -Ofast -s -std=gnu99 -Wall
 chipvpn_LDADD = -lcrypto -lssl -ldl -lpthread
 
 MAINTAINERCLEANFILES =                                  \
