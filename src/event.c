@@ -191,7 +191,7 @@ void chipvpn_loop() {
 			/* 
 				ChipVPN's ticker
 			*/
-			if(chipvpn_get_time() - chipvpn_last_update >= 1) {
+			if(chipvpn_get_time() - chipvpn_last_update >= 2) {
 				chipvpn_ticker();
 				chipvpn_last_update = chipvpn_get_time();
 			}
