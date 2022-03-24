@@ -528,12 +528,13 @@ VPNPacketError chipvpn_send_assign(VPNPeer *peer) {
 		return VPN_CONNECTION_END;
 	}
 
-	VPNAssignPacket assign, p_assign;
-	assign.ip      = peer->internal_ip.s_addr;
-	assign.subnet  = inet_addr(config->subnet);
-	assign.gateway = inet_addr(config->gateway);
-	assign.mtu     = htonl(CHIPVPN_MAX_MTU);
+	VPNAssignPacket assign = {
+		.ip = peer->internal_ip.s_addr,
+		.subnet = inet_addr(config->subnet),
+		.gateway = inet_addr(config->gateway)
+	};
 
+	VPNAssignPacket p_assign;
 	if(!crypto_encrypt(peer->outbound_aes, &p_assign, &assign, sizeof(assign))) {
 		msg_log(VPN_MSG_ENCRYPTION_ERROR);
 		chipvpn_peer_send(peer, VPN_MSG_ENCRYPTION_ERROR, NULL, 0);
