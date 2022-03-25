@@ -14,7 +14,6 @@ chipvpn_SOURCES = src/chipvpn.c \
 				src/event.c \
 				src/list.c \
 				src/packet.c \
-				src/plugin.c \
 				src/tun.c
 
 chipvpn_CFLAGS = -Ofast -s -std=gnu99 -Wall

@@ -21,7 +21,6 @@
 #include "firewall.h"
 #include "socket.h"
 #include "config.h"
-#include "plugin.h"
 #include "list.h"
 #include <unistd.h>
 #include <sys/types.h>
@@ -44,35 +43,10 @@ ChipVPNConfig *config = NULL;
 VPNSocket *host = NULL;
 VPNTun    *tun  = NULL;
 
-void *handle = NULL;
-void (*chipvpn_plugin_oninit)(CHIPVPN_PLUGIN_CALLBACK callback)  = NULL;
-void (*chipvpn_plugin_onconnect)(VPNPeer *peer)                  = NULL;
-void (*chipvpn_plugin_onlogin)(VPNPeer *peer, const char *token) = NULL;
-void (*chipvpn_plugin_ondisconnect)(VPNPeer *peer)               = NULL;
-void (*chipvpn_plugin_ontick)()                                  = NULL;
+static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 void chipvpn_init(ChipVPNConfig *c) {
 	signal(SIGINT, chipvpn_exit);
-
-	list_clear(&plugin_queue);
-
-	if(strlen(c->plugin) > 0) {
-		handle = dlopen(c->plugin, RTLD_NOW);
-		if(!handle) {
-			error("unable to load plugin %s", c->plugin);
-		}
-
-		console_log("loaded ChipVPN plugin %s", c->plugin);
-		chipvpn_plugin_oninit       = dlsym(handle, "chipvpn_oninit");
-		chipvpn_plugin_onconnect    = dlsym(handle, "chipvpn_onconnect");
-		chipvpn_plugin_onlogin      = dlsym(handle, "chipvpn_onlogin");
-		chipvpn_plugin_ondisconnect = dlsym(handle, "chipvpn_ondisconnect");
-		chipvpn_plugin_ontick       = dlsym(handle, "chipvpn_ontick");
-	}
-
-	if(chipvpn_plugin_oninit) {
-		chipvpn_plugin_oninit(chipvpn_plugin_callback);
-	}
 
 	config = c;
 
@@ -136,10 +110,6 @@ void chipvpn_setup() {
 			console_log("unable to connect, reconnecting");
 		}
 		
-		if(chipvpn_plugin_onconnect) {
-			chipvpn_plugin_onconnect(peer);
-		}
-		
 		if(!chipvpn_send_key(peer)) {
 			chipvpn_peer_disconnect(peer);
 			return;
@@ -200,10 +170,7 @@ void chipvpn_loop() {
 				Triggered when someone connects
 			*/
 			if(config->mode == MODE_SERVER && FD_ISSET(host->fd, &rdset)) {
-				VPNPeer *peer = chipvpn_socket_accept(host);
-				if(chipvpn_plugin_onconnect) {
-					chipvpn_plugin_onconnect(peer);
-				}
+				chipvpn_socket_accept(host);
 				console_log("connected");
 			}
 
@@ -258,7 +225,6 @@ void chipvpn_loop() {
 						if(chipvpn_send_data(peer, &packet, r) == VPN_CONNECTION_END) {
 							// event disconnection
 							chipvpn_peer_disconnect(peer);
-							continue; // peer removed from list so skip the loop
 						}
 					}
 				}
@@ -275,10 +241,6 @@ void chipvpn_cleanup() {
 	if(tun) {
 		chipvpn_tun_free(tun);
 		tun = NULL;
-	}
-	if(handle) {
-		dlclose(handle);
-		handle = NULL;
 	}
 }
 
@@ -307,42 +269,10 @@ void chipvpn_ticker() {
 
 	pthread_mutex_lock(&mutex);
 
-	while(!list_empty(&plugin_queue)) {
-		PluginQueue *queue = (PluginQueue*)list_remove(list_begin(&plugin_queue));
-		if(chipvpn_socket_has_peer(host, queue->peer)) {
-			if(queue->type == QUEUE_LOGIN) {
-				msg_log(VPN_MSG_AUTH_SUCCESS);
-				chipvpn_peer_login(queue->peer);
-
-				if(!chipvpn_peer_send(queue->peer, VPN_MSG_AUTH_SUCCESS, NULL, 0)) {
-					chipvpn_peer_disconnect(queue->peer);
-				}
-
-				if(!chipvpn_send_auth_reply(queue->peer)) {
-					chipvpn_peer_disconnect(queue->peer);
-				}
-
-				if(!chipvpn_send_assign(queue->peer)) {
-					chipvpn_peer_disconnect(queue->peer);
-				}
-			} else {
-				msg_log(VPN_MSG_AUTH_ERROR);
-				chipvpn_peer_logout(queue->peer);
-
-				chipvpn_peer_send(queue->peer, VPN_MSG_AUTH_ERROR, NULL, 0);
-				chipvpn_peer_disconnect(queue->peer);
-			}
-		}
-
-		list_remove(&queue->node);
-		free(queue);
-	}
+	
 
 	pthread_mutex_unlock(&mutex);
 
-	if(chipvpn_plugin_ontick) {
-		chipvpn_plugin_ontick();
-	}
 }
 
 VPNPacketError chipvpn_socket_event(VPNPeer *peer, VPNPacket *packet) {
@@ -472,12 +402,6 @@ VPNPacketError chipvpn_recv_auth(VPNPeer *peer, VPNAuthPacket *packet, int size)
 		msg_log(VPN_MSG_DECRYPTION_ERROR);
 		chipvpn_peer_send(peer, VPN_MSG_DECRYPTION_ERROR, NULL, 0);
 		return VPN_CONNECTION_END;
-	}
-
-	if(chipvpn_plugin_onlogin) {
-		auth.token[sizeof(auth.token) - 1] = '\0';
-		chipvpn_plugin_onlogin(peer, (const char*)&auth.token);
-		return VPN_HAS_DATA;
 	}
 
 	if(memcmp(auth.token, config->token, strlen(config->token)) == 0) {
