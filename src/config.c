@@ -52,7 +52,7 @@ bool chipvpn_load_config(ChipVPNConfig *config, const char *config_file) {
 		strcpy(config->ip, cjson_bind->valuestring);
 	}
 	if((cjson_port && cJSON_IsNumber(cjson_port))) {
-		config->port  = cjson_port->valueint;
+		config->port = cjson_port->valueint;
 	}
 	if((cjson_token && cJSON_IsString(cjson_token))) {
 		strcpy(config->token, cjson_token->valuestring);

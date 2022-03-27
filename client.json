@@ -1,6 +1,6 @@
 {
-	"connect": "coldchip.aws",
+	"connect": "localhost",
 	"port": 443,
-	"token": "c65c4804b93c066ea473e997b7c2ac8c",
-	"pull_routes": true
+	"token": "123456",
+	"pull_routes": false
 }

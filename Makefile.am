@@ -17,7 +17,7 @@ chipvpn_SOURCES = src/chipvpn.c \
 				src/tun.c
 
 chipvpn_CFLAGS = -Ofast -s -std=gnu99 -Wall
-chipvpn_LDADD = -lcrypto -lssl -ldl -lpthread
+chipvpn_LDADD = -lcrypto -lssl -ldl -lpthread -lcurl
 
 MAINTAINERCLEANFILES =                                  \
         aclocal.m4 config.guess config.xml              \

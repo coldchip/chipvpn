@@ -29,6 +29,7 @@
 VPNPeer *chipvpn_peer_new(int fd) {
 	VPNPeer *peer             = malloc(sizeof(VPNPeer));
 	peer->fd                  = fd;
+	peer->id                  = rand();
 	peer->is_authed           = false;
 	peer->tx                  = 0;
 	peer->rx                  = 0;
@@ -192,7 +193,20 @@ bool chipvpn_peer_send(VPNPeer *peer, VPNPacketType type, void *data, int size) 
 		packet->header.size = htonl(size);
 		packet->header.type = (uint8_t)(type);
 		if(data && size > 0) {
-			memcpy(&packet->data, data, size);
+			if(
+				(type == VPN_TYPE_AUTH) || 
+				(type == VPN_TYPE_AUTH_REPLY) || 
+				(type == VPN_TYPE_ASSIGN) || 
+				(type == VPN_TYPE_DATA) || 
+				(type == VPN_TYPE_PING) || 
+				(type == VPN_TYPE_PONG)
+			) {
+				if(!crypto_encrypt(peer->outbound_aes, &packet->data, data, size)) {
+					return false;
+				}
+			} else {
+				memcpy(&packet->data, data, size);
+			}
 		}
 
 		peer->outbound_buffer_pos = sizeof(VPNPacketHeader) + size;

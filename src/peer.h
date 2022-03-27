@@ -28,6 +28,7 @@
 typedef struct _VPNPeer {
 	ListNode node;
 	int fd;
+	int id;
 	struct sockaddr_in addr;
 	bool is_authed;
 	uint32_t last_ping;
