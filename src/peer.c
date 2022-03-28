@@ -30,6 +30,7 @@ VPNPeer *chipvpn_peer_new(int fd) {
 	VPNPeer *peer             = malloc(sizeof(VPNPeer));
 	peer->fd                  = fd;
 	peer->id                  = rand();
+	peer->encrypted           = false;
 	peer->is_authed           = false;
 	peer->tx                  = 0;
 	peer->rx                  = 0;
@@ -50,7 +51,7 @@ VPNPeer *chipvpn_peer_new(int fd) {
 		error("unable to add firewall rule");
 	}
 
-	chipvpn_peer_logout(peer);
+	chipvpn_peer_set_login(peer, false);
 
 	peer->inbound_aes = crypto_new();
 	if(!peer->inbound_aes) {
@@ -67,7 +68,7 @@ VPNPeer *chipvpn_peer_new(int fd) {
 }
 
 void chipvpn_peer_free(VPNPeer *peer) {
-	chipvpn_peer_logout(peer);
+	chipvpn_peer_set_login(peer, false);
 
 	// firewall rules cleanup
 	while(!list_empty(&peer->inbound_firewall)) {
@@ -103,6 +104,22 @@ void chipvpn_peer_set_key(VPNPeer *peer, uint8_t *key) {
 	crypto_set_key(peer->outbound_aes, key, iv);
 }
 
+void chipvpn_peer_set_encryption(VPNPeer *peer, bool encrypted) {
+	peer->encrypted = encrypted;
+}
+
+bool chipvpn_peer_get_encryption(VPNPeer *peer) {
+	return peer->encrypted;
+}
+
+void chipvpn_peer_set_login(VPNPeer *peer, bool login) {
+	peer->is_authed = login;
+}
+
+bool chipvpn_peer_get_login(VPNPeer *peer) {
+	return peer->is_authed;
+}
+
 bool chipvpn_peer_readable(VPNPeer *peer) {
 	// Able to receive a fully constructed VPNPacket datagram
 	VPNPacket *packet = (VPNPacket*)&peer->inbound_buffer;
@@ -134,7 +151,7 @@ int chipvpn_peer_dispatch_inbound(VPNPeer *peer) {
 		}
 
 		int err = EWOULDBLOCK;
-		int r = chipvpn_peer_raw_recv(peer, &peer->inbound_buffer[peer->inbound_buffer_pos], left, &err);
+		int r = chipvpn_peer_raw_recv(peer, (((char*)&peer->inbound_buffer) + peer->inbound_buffer_pos), left, &err);
 		if(r <= 0) {
 			if(err == EWOULDBLOCK || err == EAGAIN) {
 				return VPN_EAGAIN;
@@ -153,7 +170,7 @@ int chipvpn_peer_dispatch_outbound(VPNPeer *peer) {
 		VPNPacket *packet = (VPNPacket*)&peer->outbound_buffer;
 
 		int err = EWOULDBLOCK;
-		int sent = chipvpn_peer_raw_send(peer, &peer->outbound_buffer[(sizeof(VPNPacketHeader) + PLEN(packet)) - peer->outbound_buffer_pos], peer->outbound_buffer_pos, &err);
+		int sent = chipvpn_peer_raw_send(peer, (((char*)&peer->outbound_buffer) + (sizeof(VPNPacketHeader) + PLEN(packet)) - peer->outbound_buffer_pos), peer->outbound_buffer_pos, &err);
 		if(sent <= 0) {
 			if(err == EWOULDBLOCK || err == EAGAIN) {
 				return VPN_EAGAIN;
@@ -189,18 +206,11 @@ bool chipvpn_peer_send(VPNPeer *peer, VPNPacketType type, void *data, int size) 
 	}
 
 	if(chipvpn_peer_writeable(peer)) {
-		VPNPacket *packet   = (VPNPacket*)peer->outbound_buffer;
+		VPNPacket *packet   = (VPNPacket*)&peer->outbound_buffer;
 		packet->header.size = htonl(size);
 		packet->header.type = (uint8_t)(type);
 		if(data && size > 0) {
-			if(
-				(type == VPN_TYPE_AUTH) || 
-				(type == VPN_TYPE_AUTH_REPLY) || 
-				(type == VPN_TYPE_ASSIGN) || 
-				(type == VPN_TYPE_DATA) || 
-				(type == VPN_TYPE_PING) || 
-				(type == VPN_TYPE_PONG)
-			) {
+			if(chipvpn_peer_get_encryption(peer)) {
 				if(!crypto_encrypt(peer->outbound_aes, &packet->data, data, size)) {
 					return false;
 				}
@@ -280,16 +290,4 @@ VPNPeer *chipvpn_peer_get_by_ip(List *peers, struct in_addr ip) {
 		}
 	}
 	return NULL;
-}
-
-bool chipvpn_peer_is_authed(VPNPeer *peer) {
-	return peer->is_authed;
-}
-
-void chipvpn_peer_login(VPNPeer *peer) {
-	peer->is_authed = true;
-}
-
-void chipvpn_peer_logout(VPNPeer *peer) {
-	peer->is_authed = false;
 }

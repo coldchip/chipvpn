@@ -28,7 +28,6 @@
 char              *read_file_into_buffer(const char *file);
 bool               get_default_gateway(struct in_addr *addr);
 int                exec_sprintf(const char *format, ...);
-void               msg_log(VPNPacketType type);
 void               warning_log(const char *format, ...);
 void               error(const char *format, ...);
 void               console_log(const char *format, ...);

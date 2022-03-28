@@ -75,55 +75,6 @@ int exec_sprintf(const char *format, ...) {
 	return res;
 }
 
-void msg_log(VPNPacketType type) {
-	switch(type) {
-		case VPN_MSG_AUTH_ERROR: {
-			warning_log("authentication error, invalid credentials [ERR_CODE::%i]", chipvpn_checksum16(&(int) { VPN_MSG_AUTH_ERROR }, sizeof(int)));
-		}
-		break;
-		case VPN_MSG_AUTH_SUCCESS: {
-			console_log("\033[0;34mauthentication success [CODE::%i]\033[0m", chipvpn_checksum16(&(int) { VPN_MSG_AUTH_SUCCESS }, sizeof(int)));
-		}
-		break;
-		case VPN_MSG_UNAUTHORIZED: {
-			warning_log("packet rejected, zone not authorized [ERR_CODE::%i]", chipvpn_checksum16(&(int) { VPN_MSG_UNAUTHORIZED }, sizeof(int)));
-		}
-		break;
-		case VPN_MSG_DECRYPTION_ERROR: {
-			warning_log("packet rejected, unable to decrypt packet [ERR_CODE::%i]", chipvpn_checksum16(&(int) { VPN_MSG_DECRYPTION_ERROR }, sizeof(int)));
-		}
-		break;
-		case VPN_MSG_ENCRYPTION_ERROR: {
-			warning_log("packet rejected, unable to encrypt packet [ERR_CODE::%i]", chipvpn_checksum16(&(int) { VPN_MSG_ENCRYPTION_ERROR }, sizeof(int)));
-		}
-		break;
-		case VPN_MSG_PACKET_OVERSIZE: {
-			warning_log("packet rejected, invalid packet size [ERR_CODE::%i]", chipvpn_checksum16(&(int) { VPN_MSG_PACKET_OVERSIZE }, sizeof(int)));
-		}
-		break;
-		case VPN_MSG_PACKET_UNKNOWN: {
-			warning_log("packet rejected, invalid packet received [ERR_CODE::%i]", chipvpn_checksum16(&(int) { VPN_MSG_PACKET_UNKNOWN }, sizeof(int)));
-		}
-		break;
-		case VPN_MSG_ASSIGN_EXHAUSTED: {
-			warning_log("unable to allocate ip address [ERR_CODE::%i]", chipvpn_checksum16(&(int) { VPN_MSG_ASSIGN_EXHAUSTED }, sizeof(int)));
-		}
-		break;
-		case VPN_MSG_PEER_TIMEOUT: {
-			warning_log("peer timeout [ERR_CODE::%i]", chipvpn_checksum16(&(int) { VPN_MSG_PEER_TIMEOUT }, sizeof(int)));
-		}
-		break;
-		case VPN_MSG_QUOTA_EXCEEDED: {
-			warning_log("peer quota exceeded, contact the server administrator [ERR_CODE::%i]", chipvpn_checksum16(&(int) { VPN_MSG_QUOTA_EXCEEDED }, sizeof(int)));
-		}
-		break;
-		default: {
-			warning_log("unknown error [ERR_CODE::%i]", chipvpn_checksum16(&type, sizeof(int)));
-		}
-		break;
-	}
-}
-
 void warning_log(const char *format, ...) {
 	va_list args;
 	va_start(args, format);

@@ -29,6 +29,7 @@ typedef struct _VPNPeer {
 	ListNode node;
 	int fd;
 	int id;
+	bool encrypted;
 	struct sockaddr_in addr;
 	bool is_authed;
 	uint32_t last_ping;
@@ -43,10 +44,10 @@ typedef struct _VPNPeer {
 	List outbound_firewall;
 
 	uint32_t inbound_buffer_pos;
-	char inbound_buffer[sizeof(VPNPacket)];
-
 	uint32_t outbound_buffer_pos;
-	char outbound_buffer[sizeof(VPNPacket)];
+	
+	VPNPacket inbound_buffer;
+	VPNPacket outbound_buffer;
 
 	Crypto *inbound_aes;
 	Crypto *outbound_aes;
@@ -56,6 +57,10 @@ VPNPeer           *chipvpn_peer_new(int fd);
 void               chipvpn_peer_free(VPNPeer *peer);
 void               chipvpn_peer_disconnect(VPNPeer *peer);
 void               chipvpn_peer_set_key(VPNPeer *peer, uint8_t *key);
+void               chipvpn_peer_set_encryption(VPNPeer *peer, bool encrypted);
+bool               chipvpn_peer_get_encryption(VPNPeer *peer);
+bool               chipvpn_peer_get_login(VPNPeer *peer);
+void               chipvpn_peer_set_login(VPNPeer *peer, bool login);
 bool               chipvpn_peer_readable(VPNPeer *peer);
 bool               chipvpn_peer_writeable(VPNPeer *peer);
 VPNPacketError     chipvpn_peer_dispatch_inbound(VPNPeer *peer);
@@ -66,8 +71,5 @@ int                chipvpn_peer_raw_recv(VPNPeer *peer, void *buf, int size, int
 int                chipvpn_peer_raw_send(VPNPeer *peer, void *buf, int size, int *err);
 bool               chipvpn_peer_get_free_ip(List *peers, struct in_addr gateway, struct in_addr *assign);
 VPNPeer           *chipvpn_peer_get_by_ip(List *peers, struct in_addr ip);
-bool               chipvpn_peer_is_authed(VPNPeer *peer);
-void               chipvpn_peer_login(VPNPeer *peer);
-void               chipvpn_peer_logout(VPNPeer *peer);
 
 #endif
