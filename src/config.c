@@ -39,7 +39,7 @@ bool chipvpn_load_config(ChipVPNConfig *config, const char *config_file) {
 	cJSON *cjson_max_peers       = cJSON_GetObjectItem(json, "max_peers");
 	cJSON *cjson_gateway         = cJSON_GetObjectItem(json, "gateway");
 	cJSON *cjson_subnet          = cJSON_GetObjectItem(json, "subnet");
-	cJSON *cjson_plugin          = cJSON_GetObjectItem(json, "plugin");
+	cJSON *cjson_controller      = cJSON_GetObjectItem(json, "controller");
 
 	chipvpn_load_default_config(config);
 
@@ -72,8 +72,8 @@ bool chipvpn_load_config(ChipVPNConfig *config, const char *config_file) {
 	if((cjson_subnet && cJSON_IsString(cjson_subnet))) {
 		strcpy(config->subnet, cjson_subnet->valuestring);
 	}
-	if((cjson_plugin && cJSON_IsString(cjson_plugin))) {
-		strcpy(config->plugin, cjson_plugin->valuestring);
+	if((cjson_controller && cJSON_IsString(cjson_controller))) {
+		strcpy(config->controller, cjson_controller->valuestring);
 	}
 
 	free(buf);
@@ -92,5 +92,5 @@ void chipvpn_load_default_config(ChipVPNConfig *config) {
 	config->max_peers = 8;
 	strcpy(config->gateway, "10.9.8.1");
 	strcpy(config->subnet, "255.255.255.0");
-	strcpy(config->plugin, "");
+	strcpy(config->controller, "");
 }

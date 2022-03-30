@@ -42,7 +42,8 @@ VPNPacketError        chipvpn_socket_event(VPNPeer *peer, VPNPacket *packet);
 VPNPacketError        chipvpn_recv_key(VPNPeer *peer, VPNKeyPacket *packet, int size);
 VPNPacketError        chipvpn_recv_login(VPNPeer *peer, VPNAuthPacket *packet, int size);
 VPNPacketError        chipvpn_recv_login_reply(VPNPeer *peer);
-VPNPacketError        chipvpn_recv_assign(VPNPeer *peer, VPNAssignPacket *packet, int size);
+VPNPacketError        chipvpn_recv_assign(VPNPeer *peer);
+VPNPacketError        chipvpn_recv_assign_reply(VPNPeer *peer, VPNAssignPacket *packet, int size);
 VPNPacketError        chipvpn_recv_data(VPNPeer *peer, VPNDataPacket *packet, int size);
 VPNPacketError        chipvpn_recv_ping(VPNPeer *peer);
 

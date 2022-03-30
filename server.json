@@ -4,5 +4,6 @@
 	"max_peers": 8,
 	"gateway": "10.64.32.1",
 	"subnet": "255.255.255.0",
-	"token": "c65c4804b93c066ea473e997b7c2ac8c"
+	"token": "123456",
+	"controller": "/home/ryan/chipvpn-proxy/chipvpn-auth.sock"
 }

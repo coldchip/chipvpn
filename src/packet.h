@@ -85,9 +85,10 @@ typedef enum {
 	VPN_TYPE_LOGIN = 1,
 	VPN_TYPE_LOGIN_REPLY = 2,
 	VPN_TYPE_ASSIGN = 3,
-	VPN_TYPE_DATA = 4,
-	VPN_TYPE_PING = 5,
-	VPN_TYPE_PONG = 6
+	VPN_TYPE_ASSIGN_REPLY = 4,
+	VPN_TYPE_DATA = 5,
+	VPN_TYPE_PING = 6,
+	VPN_TYPE_PONG = 7
 } VPNPacketType;
 
 typedef struct PACKED _VPNKeyPacket {
