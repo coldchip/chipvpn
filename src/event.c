@@ -264,12 +264,11 @@ void chipvpn_loop() {
 			*/
 			if(FD_ISSET(tun->fd, &rdset)) {
 				VPNDataPacket packet;
-				int r = read(tun->fd, packet.data, sizeof(packet));
+				int r = read(tun->fd, (char*)&packet.data, sizeof(packet));
 				if(r > 0) {
-					IPPacket *ip_hdr = (IPPacket*)(packet.data);
+					IPPacket *ip_hdr = (IPPacket*)&packet.data;
 					VPNPeer *peer = chipvpn_peer_get_by_ip(&host->peers, config->mode == MODE_SERVER ? ip_hdr->dst_addr : ip_hdr->src_addr);
 					if(peer) {
-						IPPacket *ip_hdr = (IPPacket*)(&packet.data);
 						if(
 							(chipvpn_peer_get_login(peer)) &&
 							(chipvpn_firewall_match_rule(&peer->outbound_firewall, ip_hdr->dst_addr.s_addr))
@@ -280,9 +279,7 @@ void chipvpn_loop() {
 
 							peer->tx += r;
 
-							if(!chipvpn_peer_send(peer, VPN_TYPE_DATA, &packet, r)) {
-								chipvpn_peer_disconnect(peer);
-							}
+							chipvpn_peer_send(peer, VPN_TYPE_DATA, &packet.data, r);
 						}
 					}
 				}
@@ -306,7 +303,7 @@ void chipvpn_cleanup() {
 }
 
 void chipvpn_ticker() {
-	if(list_size(&host->peers) == 0 && config->mode == MODE_CLIENT) {
+	if(config->mode == MODE_CLIENT && list_size(&host->peers) == 0) {
 		console_log("reconnecting...");
 		terminate = true;
 	}
@@ -399,24 +396,13 @@ VPNPacketError chipvpn_socket_event(VPNPeer *peer, VPNPacket *packet) {
 		return VPN_CONNECTION_END;
 	}
 
-	VPNPacketBody d_data;
-
-	if(chipvpn_peer_get_encryption(peer)) {
-		// zones that require decryption
-		if(!crypto_decrypt(peer->outbound_aes, &d_data, &data, PLEN(packet))) {
-			return VPN_CONNECTION_END;
-		}
-	} else {
-		memcpy(&d_data, &data, PLEN(packet));
-	}
-
 	switch(type) {
 		case VPN_TYPE_SET_KEY: {
-			return chipvpn_recv_key(peer, &d_data.key_packet, PLEN(packet));
+			return chipvpn_recv_key(peer, &data.key_packet, PLEN(packet));
 		}
 		break;
 		case VPN_TYPE_LOGIN: {
-			return chipvpn_recv_login(peer, &d_data.auth_packet, PLEN(packet));
+			return chipvpn_recv_login(peer, &data.auth_packet, PLEN(packet));
 		}
 		break;
 		case VPN_TYPE_LOGIN_REPLY: {
@@ -428,11 +414,11 @@ VPNPacketError chipvpn_socket_event(VPNPeer *peer, VPNPacket *packet) {
 		}
 		break;
 		case VPN_TYPE_ASSIGN_REPLY: {
-			return chipvpn_recv_assign_reply(peer, &d_data.dhcp_packet, PLEN(packet));
+			return chipvpn_recv_assign_reply(peer, &data.dhcp_packet, PLEN(packet));
 		}
 		break;
 		case VPN_TYPE_DATA: {
-			return chipvpn_recv_data(peer, &d_data.data_packet, PLEN(packet));
+			return chipvpn_recv_data(peer, &data.data_packet, PLEN(packet));
 		}
 		break;
 		case VPN_TYPE_PING: {
