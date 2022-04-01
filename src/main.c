@@ -36,8 +36,8 @@ int main(int argc, const char *argv[]) {
 				}
 				printf("\n");
 			} else {
-				ChipVPNConfig config;
-				if(!chipvpn_load_config(&config, (char*)argv[1])) {
+				VPNConfig config;
+				if(!chipvpn_config_load(&config, (char*)argv[1])) {
 					error("unable to read config");
 				}
 				chipvpn_init(&config);

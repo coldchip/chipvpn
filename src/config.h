@@ -23,7 +23,7 @@ typedef enum {
 	MODE_CLIENT
 } VPNMode;
 
-typedef struct _ChipVPNConfig {
+typedef struct _VPNConfig {
 	VPNMode  mode;
 	char     ip[1024];
 	int      port;
@@ -34,9 +34,9 @@ typedef struct _ChipVPNConfig {
 	char     gateway[32];
 	char     subnet[32];
 	char     controller[1024];
-} ChipVPNConfig;
+} VPNConfig;
 
-bool     chipvpn_load_config(ChipVPNConfig *config, const char *config_file);
-void     chipvpn_load_default_config(ChipVPNConfig *config);
+bool     chipvpn_config_load(VPNConfig *config, const char *config_file);
+void     chipvpn_config_reset(VPNConfig *config);
 
 #endif

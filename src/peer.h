@@ -49,8 +49,8 @@ typedef struct _VPNPeer {
 	VPNPacket inbound_buffer;
 	VPNPacket outbound_buffer;
 
-	Crypto *inbound_aes;
-	Crypto *outbound_aes;
+	VPNCrypto *inbound_aes;
+	VPNCrypto *outbound_aes;
 } VPNPeer;
 
 VPNPeer           *chipvpn_peer_new(int fd);

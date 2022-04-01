@@ -4,14 +4,14 @@
 #include <openssl/evp.h>
 #include <stdbool.h>
 
-typedef struct _Crypto {
+typedef struct _VPNCrypto {
 	EVP_CIPHER_CTX *ctx;
-} Crypto;
+} VPNCrypto;
 
-Crypto        *crypto_new();
-bool           crypto_set_key(Crypto *crypto, uint8_t *key, uint8_t *iv);
-bool           crypto_encrypt(Crypto *crypto, void *dst, void *src, int length);
-bool           crypto_decrypt(Crypto *crypto, void *dst, void *src, int length);
-void           crypto_free(Crypto *crypto);
+VPNCrypto        *chipvpn_crypto_new();
+bool           chipvpn_crypto_set_key(VPNCrypto *crypto, uint8_t *key, uint8_t *iv);
+bool           chipvpn_crypto_encrypt(VPNCrypto *crypto, void *dst, void *src, int length);
+bool           chipvpn_crypto_decrypt(VPNCrypto *crypto, void *dst, void *src, int length);
+void           chipvpn_crypto_free(VPNCrypto *crypto);
 
 #endif

@@ -3,21 +3,21 @@
 #include <stdbool.h>
 #include "crypto.h"
 
-Crypto *crypto_new() {
+VPNCrypto *chipvpn_crypto_new() {
 	EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
 	if(!ctx) {
 		return NULL;
 	}
-	Crypto *crypto = malloc(sizeof(Crypto));
+	VPNCrypto *crypto = malloc(sizeof(VPNCrypto));
 	crypto->ctx = ctx;
 	return crypto;
 }
 
-bool crypto_set_key(Crypto *crypto, uint8_t *key, uint8_t *iv) {
+bool chipvpn_crypto_set_key(VPNCrypto *crypto, uint8_t *key, uint8_t *iv) {
 	return EVP_CipherInit(crypto->ctx, EVP_aes_256_ctr(), key, iv, 0);
 }
 
-bool crypto_encrypt(Crypto *crypto, void *dst, void *src, int length) {
+bool chipvpn_crypto_encrypt(VPNCrypto *crypto, void *dst, void *src, int length) {
 	int i;
 	if(!EVP_CipherUpdate(crypto->ctx, (unsigned char*)dst, &i, (unsigned char*)src, length)) {
 		return false;
@@ -28,7 +28,7 @@ bool crypto_encrypt(Crypto *crypto, void *dst, void *src, int length) {
 	return true;
 }
 
-bool crypto_decrypt(Crypto *crypto, void *dst, void *src, int length) {
+bool chipvpn_crypto_decrypt(VPNCrypto *crypto, void *dst, void *src, int length) {
 	int i;
 	if(!EVP_CipherUpdate(crypto->ctx, (unsigned char*)dst, &i, (unsigned char*)src, length)) {
 		return false;
@@ -39,7 +39,7 @@ bool crypto_decrypt(Crypto *crypto, void *dst, void *src, int length) {
 	return true;
 }
 
-void crypto_free(Crypto *crypto) {
+void chipvpn_crypto_free(VPNCrypto *crypto) {
 	EVP_CIPHER_CTX_free(crypto->ctx);
 	free(crypto);
 }

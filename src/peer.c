@@ -53,12 +53,12 @@ VPNPeer *chipvpn_peer_new(int fd) {
 
 	chipvpn_peer_set_login(peer, false);
 
-	peer->inbound_aes = crypto_new();
+	peer->inbound_aes = chipvpn_crypto_new();
 	if(!peer->inbound_aes) {
 		error("unable to set aes ctx for peer");
 	}
 
-	peer->outbound_aes = crypto_new();
+	peer->outbound_aes = chipvpn_crypto_new();
 	if(!peer->outbound_aes) {
 		error("unable to set aes ctx for peer");
 	}
@@ -82,8 +82,8 @@ void chipvpn_peer_free(VPNPeer *peer) {
 		chipvpn_firewall_free_rule(rule);
 	}
 
-	crypto_free(peer->inbound_aes);
-	crypto_free(peer->outbound_aes);
+	chipvpn_crypto_free(peer->inbound_aes);
+	chipvpn_crypto_free(peer->outbound_aes);
 	free(peer);
 }
 
@@ -100,8 +100,8 @@ void chipvpn_peer_set_key(VPNPeer *peer, uint8_t *key) {
 		0x40, 0x7a, 0x74, 0x57, 0x68, 0x72, 0x1b, 0xa9 
 	};
 
-	crypto_set_key(peer->inbound_aes, key, iv);
-	crypto_set_key(peer->outbound_aes, key, iv);
+	chipvpn_crypto_set_key(peer->inbound_aes, key, iv);
+	chipvpn_crypto_set_key(peer->outbound_aes, key, iv);
 }
 
 void chipvpn_peer_set_encryption(VPNPeer *peer, bool encrypted) {
@@ -197,7 +197,7 @@ bool chipvpn_peer_recv(VPNPeer *peer, VPNPacket *dst) {
 		memcpy(&dst->header, &packet->header, sizeof(VPNPacketHeader));
 
 		if(chipvpn_peer_get_encryption(peer)) {
-			if(!crypto_decrypt(peer->inbound_aes, &dst->data, &packet->data, PLEN(packet))) {
+			if(!chipvpn_crypto_decrypt(peer->inbound_aes, &dst->data, &packet->data, PLEN(packet))) {
 				return false;
 			}
 		} else {
@@ -222,7 +222,7 @@ bool chipvpn_peer_send(VPNPeer *peer, VPNPacketType type, void *data, int size) 
 		packet->header.type = (uint8_t)type;
 		if(data && size > 0) {
 			if(chipvpn_peer_get_encryption(peer)) {
-				if(!crypto_encrypt(peer->outbound_aes, &packet->data, data, size)) {
+				if(!chipvpn_crypto_encrypt(peer->outbound_aes, &packet->data, data, size)) {
 					return false;
 				}
 			} else {

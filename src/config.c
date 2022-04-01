@@ -20,7 +20,7 @@
 #include <stdbool.h>
 #include <string.h>
 
-bool chipvpn_load_config(ChipVPNConfig *config, const char *config_file) {
+bool chipvpn_config_load(VPNConfig *config, const char *config_file) {
 	char *buf = read_file_into_buffer(config_file);
 	if(!buf) {
 		return false;
@@ -41,7 +41,7 @@ bool chipvpn_load_config(ChipVPNConfig *config, const char *config_file) {
 	cJSON *cjson_subnet          = cJSON_GetObjectItem(json, "subnet");
 	cJSON *cjson_controller      = cJSON_GetObjectItem(json, "controller");
 
-	chipvpn_load_default_config(config);
+	chipvpn_config_reset(config);
 
 	if(cjson_connect && cJSON_IsString(cjson_connect)) {
 		config->mode = MODE_CLIENT;
@@ -82,7 +82,7 @@ bool chipvpn_load_config(ChipVPNConfig *config, const char *config_file) {
 	return true;
 }
 
-void chipvpn_load_default_config(ChipVPNConfig *config) {
+void chipvpn_config_reset(VPNConfig *config) {
 	config->mode = MODE_SERVER;
 	strcpy(config->ip, "0.0.0.0");
 	config->port = 443;

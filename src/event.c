@@ -37,13 +37,14 @@
 
 bool terminate = false;
 
-ChipVPNConfig *config = NULL;
+VPNConfig *config = NULL;
 
 int        ipc  = -1;
 VPNSocket *host = NULL;
 VPNTun    *tun  = NULL;
 
-void chipvpn_init(ChipVPNConfig *c) {
+void chipvpn_init(VPNConfig *c) {
+	signal(SIGPIPE, SIG_IGN);
 	signal(SIGINT, chipvpn_exit);
 
 	config = c;
@@ -306,6 +307,27 @@ void chipvpn_ticker() {
 	if(config->mode == MODE_CLIENT && list_size(&host->peers) == 0) {
 		console_log("reconnecting...");
 		terminate = true;
+	}
+
+	if(strlen(config->controller) > 0) {
+		cJSON *payload = cJSON_CreateObject();
+
+		cJSON_AddStringToObject(payload, "type", "sync");
+		cJSON *peers = cJSON_AddArrayToObject(payload, "peers");
+
+		for(ListNode *i = list_begin(&host->peers); i != list_end(&host->peers); i = list_next(i)) {
+			VPNPeer *peer = (VPNPeer*)i;
+			cJSON_AddItemToArray(peers, cJSON_CreateNumber(peer->id));
+		}
+
+		char *buf = cJSON_Print(payload);
+
+		if(write(ipc, buf, strlen(buf)) < 0) {
+			// return VPN_CONNECTION_END;
+		}
+
+		free(buf);
+		cJSON_Delete(payload);
 	}
 
 	ListNode *i = list_begin(&host->peers);

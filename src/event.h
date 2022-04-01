@@ -28,7 +28,7 @@ __typeof__ (b) _b = (b); \
 _a > _b ? _a : _b; })
 #endif
 
-void                  chipvpn_init(ChipVPNConfig *config);
+void                  chipvpn_init(VPNConfig *config);
 void                  chipvpn_setup();
 void                  chipvpn_loop();
 void                  chipvpn_cleanup();
