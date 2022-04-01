@@ -217,8 +217,8 @@ void chipvpn_loop() {
 				Triggered when someone connects
 			*/
 			if(config->mode == MODE_SERVER && FD_ISSET(host->fd, &rdset)) {
-				chipvpn_socket_accept(host);
-				console_log("connected");
+				VPNPeer *peer = chipvpn_socket_accept(host);
+				console_log("peer [%i] connected", peer->id);
 			}
 
 			/* 
@@ -264,7 +264,7 @@ void chipvpn_loop() {
 			*/
 			if(FD_ISSET(tun->fd, &rdset)) {
 				VPNDataPacket packet;
-				int r = read(tun->fd, (char*)&packet.data, sizeof(packet));
+				int r = read(tun->fd, packet.data, sizeof(packet));
 				if(r > 0) {
 					IPPacket *ip_hdr = (IPPacket*)&packet.data;
 					VPNPeer *peer = chipvpn_peer_get_by_ip(&host->peers, config->mode == MODE_SERVER ? ip_hdr->dst_addr : ip_hdr->src_addr);
@@ -366,7 +366,7 @@ VPNPacketError chipvpn_ipc_login(VPNPeer *peer) {
 }
 
 VPNPacketError chipvpn_socket_event(VPNPeer *peer, VPNPacket *packet) {
-	VPNPacketType type = (VPNPacketType)(packet->header.type);
+	VPNPacketType type = (VPNPacketType)packet->header.type;
 	VPNPacketBody data = packet->data;
 
 	if(
