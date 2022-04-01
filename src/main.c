@@ -34,7 +34,7 @@ int main(int argc, const char *argv[]) {
 				for(int i = 0; i < (int)sizeof(key); i++) {
 					printf("%02x", key[i] & 0xFF);
 				}
-				printf("\n");
+				printf("\n"); 
 			} else {
 				VPNConfig config;
 				if(!chipvpn_config_load(&config, (char*)argv[1])) {
