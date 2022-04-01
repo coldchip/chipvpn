@@ -22,7 +22,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 
-int main(int argc, char const *argv[]) {
+int main(int argc, const char *argv[]) {
 	console_log("ColdChip ChipVPN v%i", CHIPVPN_VERSION);
 	if(argc > 0) {
 		setbuf(stdout, NULL);
