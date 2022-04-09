@@ -60,7 +60,7 @@ void chipvpn_init(VPNConfig *c) {
 void chipvpn_setup() {
 	terminate = false;
 
-	if(strlen(config->controller) > 0) {
+	if(strlen(config->ipc) > 0) {
 		ipc = socket(AF_UNIX, SOCK_STREAM, 0);
 		if(ipc < 0) {
 			error("IPC socket creation failed");
@@ -77,10 +77,10 @@ void chipvpn_setup() {
 		error("unable to create socket");
 	}
 
-	if(strlen(config->controller) > 0) {
+	if(strlen(config->ipc) > 0) {
 		struct sockaddr_un ipc_addr;
 		ipc_addr.sun_family = AF_UNIX;        
-		strcpy(ipc_addr.sun_path, config->controller);
+		strcpy(ipc_addr.sun_path, config->ipc);
 
 		while(true) {
 			int success = connect(ipc, (struct sockaddr *)&ipc_addr, sizeof(ipc_addr));
@@ -165,13 +165,13 @@ void chipvpn_loop() {
 		FD_ZERO(&rdset);
 		FD_ZERO(&wdset);
 
-		if(strlen(config->controller) > 0) {
+		if(strlen(config->ipc) > 0) {
 			FD_SET(ipc, &rdset);
 		}
 		FD_SET(tun->fd, &rdset);
 		
 		int max = 0;
-		if(strlen(config->controller) > 0) {
+		if(strlen(config->ipc) > 0) {
 			max = MAX(max, ipc);
 		}
 		max = MAX(max, tun->fd);
@@ -205,7 +205,7 @@ void chipvpn_loop() {
 			/* 
 				Triggered when IPC has data
 			*/
-			if(strlen(config->controller) > 0 && FD_ISSET(ipc, &rdset)) {
+			if(strlen(config->ipc) > 0 && FD_ISSET(ipc, &rdset)) {
 				printf("IPC has data\n");
 				char buf[8192];
 				int r = read(ipc, buf, sizeof(buf));
@@ -290,7 +290,7 @@ void chipvpn_loop() {
 }
 
 void chipvpn_cleanup() {
-	if(strlen(config->controller) > 0) {
+	if(strlen(config->ipc) > 0) {
 		close(ipc);
 	}
 	if(host) {
@@ -309,7 +309,7 @@ void chipvpn_ticker() {
 		terminate = true;
 	}
 
-	if(strlen(config->controller) > 0) {
+	if(strlen(config->ipc) > 0) {
 		cJSON *payload = cJSON_CreateObject();
 
 		cJSON_AddStringToObject(payload, "type", "sync");
@@ -322,7 +322,7 @@ void chipvpn_ticker() {
 
 		char *buf = cJSON_Print(payload);
 
-		if(write(ipc, buf, strlen(buf)) < 0) {
+		if(write(ipc, buf, strlen(buf) + 1) < 0) {
 			// return VPN_CONNECTION_END;
 		}
 
@@ -463,7 +463,7 @@ VPNPacketError chipvpn_recv_key(VPNPeer *peer, VPNKeyPacket *packet, int size) {
 }
 
 VPNPacketError chipvpn_recv_login(VPNPeer *peer, VPNAuthPacket *packet, int size) {
-	if(strlen(config->controller) > 0) {
+	if(strlen(config->ipc) > 0) {
 		cJSON *payload = cJSON_CreateObject();
 		cJSON_AddStringToObject(payload, "type", "login");
 		cJSON_AddStringToObject(payload, "token", (const char*)packet->token);
@@ -471,7 +471,7 @@ VPNPacketError chipvpn_recv_login(VPNPeer *peer, VPNAuthPacket *packet, int size
 
 		char *buf = cJSON_Print(payload);
 
-		if(write(ipc, buf, strlen(buf)) < 0) {
+		if(write(ipc, buf, strlen(buf) + 1) < 0) {
 			return VPN_CONNECTION_END;
 		}
 

@@ -30,16 +30,16 @@ bool chipvpn_config_load(VPNConfig *config, const char *config_file) {
 	if(!json) {
 		return false;
 	}
-	cJSON *cjson_connect         = cJSON_GetObjectItem(json, "connect");
-	cJSON *cjson_bind            = cJSON_GetObjectItem(json, "bind");
-	cJSON *cjson_port            = cJSON_GetObjectItem(json, "port");
-	cJSON *cjson_token           = cJSON_GetObjectItem(json, "token");
-	cJSON *cjson_pull_routes     = cJSON_GetObjectItem(json, "pull_routes");
-	cJSON *cjson_push_routes     = cJSON_GetObjectItem(json, "push_routes");
-	cJSON *cjson_max_peers       = cJSON_GetObjectItem(json, "max_peers");
-	cJSON *cjson_gateway         = cJSON_GetObjectItem(json, "gateway");
-	cJSON *cjson_subnet          = cJSON_GetObjectItem(json, "subnet");
-	cJSON *cjson_controller      = cJSON_GetObjectItem(json, "controller");
+	cJSON *cjson_connect     = cJSON_GetObjectItem(json, "connect");
+	cJSON *cjson_bind        = cJSON_GetObjectItem(json, "bind");
+	cJSON *cjson_port        = cJSON_GetObjectItem(json, "port");
+	cJSON *cjson_token       = cJSON_GetObjectItem(json, "token");
+	cJSON *cjson_pull_routes = cJSON_GetObjectItem(json, "pull_routes");
+	cJSON *cjson_push_routes = cJSON_GetObjectItem(json, "push_routes");
+	cJSON *cjson_max_peers   = cJSON_GetObjectItem(json, "max_peers");
+	cJSON *cjson_gateway     = cJSON_GetObjectItem(json, "gateway");
+	cJSON *cjson_subnet      = cJSON_GetObjectItem(json, "subnet");
+	cJSON *cjson_ipc         = cJSON_GetObjectItem(json, "ipc");
 
 	chipvpn_config_reset(config);
 
@@ -72,8 +72,8 @@ bool chipvpn_config_load(VPNConfig *config, const char *config_file) {
 	if((cjson_subnet && cJSON_IsString(cjson_subnet))) {
 		strcpy(config->subnet, cjson_subnet->valuestring);
 	}
-	if((cjson_controller && cJSON_IsString(cjson_controller))) {
-		strcpy(config->controller, cjson_controller->valuestring);
+	if((cjson_ipc && cJSON_IsString(cjson_ipc))) {
+		strcpy(config->ipc, cjson_ipc->valuestring);
 	}
 
 	free(buf);
@@ -92,5 +92,5 @@ void chipvpn_config_reset(VPNConfig *config) {
 	config->max_peers = 8;
 	strcpy(config->gateway, "10.9.8.1");
 	strcpy(config->subnet, "255.255.255.0");
-	strcpy(config->controller, "");
+	strcpy(config->ipc, "");
 }

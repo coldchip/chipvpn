@@ -80,11 +80,7 @@ void warning_log(const char *format, ...) {
 	va_start(args, format);
 
 	char fmt[1000];
-	#ifdef __linux
-		snprintf(fmt, sizeof(fmt), "\033[0;31m[ChipVPN] %s\033[0m\n", format);
-	#else
-		snprintf(fmt, sizeof(fmt), "[ChipVPN] %s\n", format);
-	#endif
+	snprintf(fmt, sizeof(fmt), "\033[0;31m[ChipVPN] %s\033[0m\n", format);
 	vprintf(fmt, args);
 	
 	va_end(args);
@@ -95,11 +91,7 @@ void error(const char *format, ...) {
 	va_start(args, format);
 
 	char fmt[1000];
-	#ifdef __linux
-		snprintf(fmt, sizeof(fmt), "\033[0;31m[ChipVPN] %s\033[0m\n", format);
-	#else
-		snprintf(fmt, sizeof(fmt), "[ChipVPN] %s\n", format);
-	#endif
+	snprintf(fmt, sizeof(fmt), "\033[0;31m[ChipVPN] %s\033[0m\n", format);
 	vprintf(fmt, args);
 	
 	va_end(args);
@@ -112,11 +104,7 @@ void console_log(const char *format, ...) {
 	va_start(args, format);
 
 	char fmt[1000];
-	#ifdef __linux
-		snprintf(fmt, sizeof(fmt), "\033[0;32m[ChipVPN] %s\033[0m\n", format);
-	#else
-		snprintf(fmt, sizeof(fmt), "[ChipVPN] %s\n", format);
-	#endif
+	snprintf(fmt, sizeof(fmt), "\033[0;32m[ChipVPN] %s\033[0m\n", format);
 	vprintf(fmt, args);
 	
 	va_end(args);

@@ -33,7 +33,7 @@ typedef struct _VPNConfig {
 	int      max_peers;
 	char     gateway[32];
 	char     subnet[32];
-	char     controller[1024];
+	char     ipc[1024];
 } VPNConfig;
 
 bool     chipvpn_config_load(VPNConfig *config, const char *config_file);

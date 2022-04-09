@@ -5,5 +5,5 @@
 	"gateway": "10.64.32.1",
 	"subnet": "255.255.255.0",
 	"token": "123456",
-	"controller": "/home/ryan/chipvpn-proxy/chipvpn-auth.sock"
+	"ipc": "/home/ryan/chipvpn-proxy/chipvpn-auth.sock"
 }
