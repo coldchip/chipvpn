@@ -529,10 +529,10 @@ VPNPacketError chipvpn_recv_assign(VPNPeer *peer) {
 VPNPacketError chipvpn_recv_assign_reply(VPNPeer *peer, VPNAssignPacket *packet, int size) {
 	struct in_addr peer_ip, peer_subnet, peer_gateway;
 
-	peer_ip.s_addr        = packet->ip;
-	peer_subnet.s_addr    = packet->subnet;
-	peer_gateway.s_addr   = packet->gateway;
-	uint32_t peer_mtu     = ntohl(packet->mtu);
+	peer_ip.s_addr      = packet->ip;
+	peer_subnet.s_addr  = packet->subnet;
+	peer_gateway.s_addr = packet->gateway;
+	uint32_t peer_mtu   = ntohl(packet->mtu);
 
 	if(!chipvpn_tun_setip(tun, peer_ip, peer_subnet, peer_mtu)) {
 		chipvpn_error("unable to assign ip to tunnel adapter");
@@ -547,7 +547,7 @@ VPNPacketError chipvpn_recv_assign_reply(VPNPeer *peer, VPNAssignPacket *packet,
 	strcpy(peer_ip_c, inet_ntoa(peer_ip));
 	strcpy(peer_gateway_c, inet_ntoa(peer_gateway));
 
-	chipvpn_log("assigned dhcp: ip [%s] gateway [%s]", peer_ip_c, peer_gateway_c);
+	chipvpn_log("assigned dhcp: ip [%s] gateway [%s] mtu [%i]", peer_ip_c, peer_gateway_c, peer_mtu);
 
 	if(config->pull_routes) {
 		chipvpn_log("setting routes");
