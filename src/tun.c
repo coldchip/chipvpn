@@ -42,7 +42,7 @@ VPNTun *chipvpn_tun_open(const char *dev) {
 	ifr.ifr_flags = IFF_TUN | IFF_NO_PI;
 
 	if(strlen(dev) > IFNAMSIZ) {
-		error("Interface name too long");
+		chipvpn_error("Interface name too long");
 	}
 
 	if(*dev) {

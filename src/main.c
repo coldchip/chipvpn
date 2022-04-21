@@ -23,7 +23,7 @@
 #include <stdint.h>
 
 int main(int argc, const char *argv[]) {
-	console_log("ColdChip ChipVPN v%i", CHIPVPN_VERSION);
+	chipvpn_log("ColdChip ChipVPN v%i", CHIPVPN_VERSION);
 	if(argc > 0) {
 		setbuf(stdout, NULL);
 		srand((unsigned) time(NULL));
@@ -38,12 +38,12 @@ int main(int argc, const char *argv[]) {
 			} else {
 				VPNConfig config;
 				if(!chipvpn_config_load(&config, (char*)argv[1])) {
-					error("unable to read config");
+					chipvpn_error("unable to read config");
 				}
 				chipvpn_init(&config);
 			}
 		} else {
-			console_log("Usage: $ %s config.json", argv[0]);
+			chipvpn_log("Usage: $ %s config.json", argv[0]);
 		}
 		return 0;
 	}

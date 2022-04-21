@@ -45,25 +45,25 @@ VPNPeer *chipvpn_peer_new(int fd) {
 
 	// Allow all inbound/outbound traffic on peer
 	if(!chipvpn_firewall_add_rule(&peer->outbound_firewall, "0.0.0.0/0", RULE_ALLOW)) {
-		error("unable to add firewall rule");
+		chipvpn_error("unable to add firewall rule");
 	}
 	if(!chipvpn_firewall_add_rule(&peer->inbound_firewall, "0.0.0.0/0", RULE_ALLOW)) {
-		error("unable to add firewall rule");
+		chipvpn_error("unable to add firewall rule");
 	}
 
 	chipvpn_peer_set_login(peer, false);
 
 	peer->inbound_aes = chipvpn_crypto_new();
 	if(!peer->inbound_aes) {
-		error("unable to set aes ctx for peer");
+		chipvpn_error("unable to set aes ctx for peer");
 	}
 
 	peer->outbound_aes = chipvpn_crypto_new();
 	if(!peer->outbound_aes) {
-		error("unable to set aes ctx for peer");
+		chipvpn_error("unable to set aes ctx for peer");
 	}
 
-	console_log("peer connected");
+	chipvpn_log("peer connected");
 	return peer;
 }
 
@@ -88,7 +88,7 @@ void chipvpn_peer_free(VPNPeer *peer) {
 }
 
 void chipvpn_peer_disconnect(VPNPeer *peer) {
-	console_log("peer disconnected");
+	chipvpn_log("peer disconnected");
 	list_remove(&peer->node);
 	close(peer->fd);
 	chipvpn_peer_free(peer);

@@ -60,7 +60,7 @@ bool get_default_gateway(struct in_addr *addr) {
 	return true;
 }
 
-int exec_sprintf(const char *format, ...) {
+int execf(const char *format, ...) {
 	va_list args;
 	va_start(args, format);
 
@@ -75,39 +75,51 @@ int exec_sprintf(const char *format, ...) {
 	return res;
 }
 
-void warning_log(const char *format, ...) {
+void chipvpn_log(const char *format, ...) {
 	va_list args;
 	va_start(args, format);
 
-	char fmt[1000];
-	snprintf(fmt, sizeof(fmt), "\033[0;31m[ChipVPN] %s\033[0m\n", format);
+	char template[] = "\033[0;32m[ChipVPN] %s\033[0m\n";
+
+	int i = snprintf(NULL, 0, template, format);
+	char *fmt = malloc(i + 1);
+	sprintf(fmt, template, format);
 	vprintf(fmt, args);
+	free(fmt);
 	
 	va_end(args);
 }
 
-void error(const char *format, ...) {
+void chipvpn_warn(const char *format, ...) {
 	va_list args;
 	va_start(args, format);
 
-	char fmt[1000];
-	snprintf(fmt, sizeof(fmt), "\033[0;31m[ChipVPN] %s\033[0m\n", format);
+	char template[] = "\033[0;31m[ChipVPN] %s\033[0m\n";
+
+	int i = snprintf(NULL, 0, template, format);
+	char *fmt = malloc(i + 1);
+	sprintf(fmt, template, format);
 	vprintf(fmt, args);
+	free(fmt);
+	
+	va_end(args);
+}
+
+void chipvpn_error(const char *format, ...) {
+	va_list args;
+	va_start(args, format);
+
+	char template[] = "\033[0;31m[ChipVPN] %s\033[0m\n";
+
+	int i = snprintf(NULL, 0, template, format);
+	char *fmt = malloc(i + 1);
+	sprintf(fmt, template, format);
+	vprintf(fmt, args);
+	free(fmt);
 	
 	va_end(args);
 
 	exit(1);
-}
-
-void console_log(const char *format, ...) {
-	va_list args;
-	va_start(args, format);
-
-	char fmt[1000];
-	snprintf(fmt, sizeof(fmt), "\033[0;32m[ChipVPN] %s\033[0m\n", format);
-	vprintf(fmt, args);
-	
-	va_end(args);
 }
 
 uint16_t chipvpn_checksum16(void *data, unsigned int bytes) {
@@ -149,8 +161,8 @@ char *chipvpn_resolve_hostname(const char *ip) {
 
 void chipvpn_generate_random(unsigned char *buf, int len) {
 	int fp = open("/dev/urandom", O_RDONLY);
-	if (fp >= 0) {
-		if (read(fp, buf, len) != len) {
+	if(fp >= 0) {
+		if(read(fp, buf, len) != len) {
 			// something went wrong
 		}
 		close(fp);

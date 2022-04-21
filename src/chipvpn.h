@@ -22,15 +22,15 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define CHIPVPN_VERSION 10000062L
+#define CHIPVPN_VERSION 10000063L
 #define CHIPVPN_MAX_MTU 1500
 
 char              *read_file_into_buffer(const char *file);
 bool               get_default_gateway(struct in_addr *addr);
-int                exec_sprintf(const char *format, ...);
-void               warning_log(const char *format, ...);
-void               error(const char *format, ...);
-void               console_log(const char *format, ...);
+int                execf(const char *format, ...);
+void               chipvpn_log(const char *format, ...);
+void               chipvpn_warn(const char *format, ...);
+void               chipvpn_error(const char *format, ...);
 uint16_t           chipvpn_checksum16(void *data, unsigned int bytes);
 char              *chipvpn_resolve_hostname(const char *ip);
 void               chipvpn_generate_random(uint8_t *buf, int len);

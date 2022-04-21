@@ -63,18 +63,18 @@ void chipvpn_setup() {
 	if(strlen(config->ipc) > 0) {
 		ipc = socket(AF_UNIX, SOCK_STREAM, 0);
 		if(ipc < 0) {
-			error("IPC socket creation failed");
+			chipvpn_error("IPC socket creation failed");
 		}
 	}
 
 	tun = chipvpn_tun_open("");
 	if(tun == NULL) {
-		error("tuntap adapter creation failed, please run as sudo");
+		chipvpn_error("tuntap adapter creation failed, please run as sudo");
 	}
 
 	host = chipvpn_socket_create();
 	if(host < 0) {
-		error("unable to create socket");
+		chipvpn_error("unable to create socket");
 	}
 
 	if(strlen(config->ipc) > 0) {
@@ -87,7 +87,7 @@ void chipvpn_setup() {
 			if(success != -1) {
 				break;
 			}
-			console_log("unable to connect to unix socket, reconnecting");
+			chipvpn_log("unable to connect to unix socket, reconnecting");
 			sleep(1);
 		}
 	}
@@ -98,16 +98,16 @@ void chipvpn_setup() {
 		if(resolved) {
 			break;
 		}
-		console_log("unable to resolve hostname, reconnecting");
+		chipvpn_log("unable to resolve hostname, reconnecting");
 		sleep(1);
 	}
 	strcpy(config->ip, resolved);
 
 	if(config->mode == MODE_SERVER) {
 		if(!chipvpn_socket_bind(host, config->ip, config->port)) {
-			error("unable to bind");
+			chipvpn_error("unable to bind");
 		}
-		console_log("server started on [%s:%i]", config->ip, config->port);
+		chipvpn_log("server started on [%s:%i]", config->ip, config->port);
 
 		struct in_addr subnet, gateway;
 
@@ -115,26 +115,26 @@ void chipvpn_setup() {
 		inet_aton(config->gateway, &gateway);
 
 		if(!chipvpn_tun_setip(tun, gateway, subnet, CHIPVPN_MAX_MTU)) {
-			error("unable to assign ip to tun adapter");
+			chipvpn_error("unable to assign ip to tun adapter");
 		}
 		if(!chipvpn_tun_ifup(tun)) {
-			error("unable to bring up tun adapter");
+			chipvpn_error("unable to bring up tun adapter");
 		}
 	} else {
-		console_log("connecting to [%s:%i]", config->ip, config->port);
+		chipvpn_log("connecting to [%s:%i]", config->ip, config->port);
 		VPNPeer *peer = NULL;
 		while(true) {
 			peer = chipvpn_socket_connect(host, config->ip, config->port);
 			if(peer) {
 				break;
 			}
-			console_log("unable to connect, reconnecting");
+			chipvpn_log("unable to connect, reconnecting");
 		}
 		
 		VPNKeyPacket packet;
 		RAND_priv_bytes((unsigned char*)&packet.key, sizeof(packet.key));
 		chipvpn_peer_set_key(peer, packet.key);
-		console_log("key exchange success");
+		chipvpn_log("key exchange success");
 		if(!chipvpn_peer_send(peer, VPN_TYPE_SET_KEY, &packet, sizeof(packet))) {
 			chipvpn_peer_disconnect(peer);
 			return;
@@ -219,7 +219,7 @@ void chipvpn_loop() {
 			*/
 			if(config->mode == MODE_SERVER && FD_ISSET(host->fd, &rdset)) {
 				VPNPeer *peer = chipvpn_socket_accept(host);
-				console_log("peer [%i] connected", peer->id);
+				chipvpn_log("peer [%i] connected", peer->id);
 			}
 
 			/* 
@@ -305,7 +305,7 @@ void chipvpn_cleanup() {
 
 void chipvpn_ticker() {
 	if(config->mode == MODE_CLIENT && list_size(&host->peers) == 0) {
-		console_log("reconnecting...");
+		chipvpn_log("reconnecting...");
 		terminate = true;
 	}
 
@@ -456,7 +456,7 @@ VPNPacketError chipvpn_socket_event(VPNPeer *peer, VPNPacket *packet) {
 }
 
 VPNPacketError chipvpn_recv_key(VPNPeer *peer, VPNKeyPacket *packet, int size) {
-	console_log("key exchange success");
+	chipvpn_log("key exchange success");
 	chipvpn_peer_set_key(peer, packet->key);
 	chipvpn_peer_set_encryption(peer, true);
 	return VPN_HAS_DATA;
@@ -515,7 +515,8 @@ VPNPacketError chipvpn_recv_assign(VPNPeer *peer) {
 	VPNAssignPacket assign = {
 		.ip = peer->internal_ip.s_addr,
 		.subnet = inet_addr(config->subnet),
-		.gateway = inet_addr(config->gateway)
+		.gateway = inet_addr(config->gateway),
+		.mtu = htonl(CHIPVPN_MAX_MTU)
 	};
 
 	if(!chipvpn_peer_send(peer, VPN_TYPE_ASSIGN_REPLY, &assign, sizeof(assign))) {
@@ -534,10 +535,10 @@ VPNPacketError chipvpn_recv_assign_reply(VPNPeer *peer, VPNAssignPacket *packet,
 	uint32_t peer_mtu     = ntohl(packet->mtu);
 
 	if(!chipvpn_tun_setip(tun, peer_ip, peer_subnet, peer_mtu)) {
-		error("unable to assign ip to tunnel adapter");
+		chipvpn_error("unable to assign ip to tunnel adapter");
 	}
 	if(!chipvpn_tun_ifup(tun)) {
-		error("unable to bring up tunnel adapter");
+		chipvpn_error("unable to bring up tunnel adapter");
 	}
 
 	char peer_ip_c[24];
@@ -546,27 +547,27 @@ VPNPacketError chipvpn_recv_assign_reply(VPNPeer *peer, VPNAssignPacket *packet,
 	strcpy(peer_ip_c, inet_ntoa(peer_ip));
 	strcpy(peer_gateway_c, inet_ntoa(peer_gateway));
 
-	console_log("assigned dhcp: ip [%s] gateway [%s]", peer_ip_c, peer_gateway_c);
+	chipvpn_log("assigned dhcp: ip [%s] gateway [%s]", peer_ip_c, peer_gateway_c);
 
 	if(config->pull_routes) {
-		console_log("setting routes");
+		chipvpn_log("setting routes");
 
 		struct in_addr default_gateway;
 		if(!get_default_gateway(&default_gateway)) {
-			error("unable to retrieve default gateway from system");
+			chipvpn_error("unable to retrieve default gateway from system");
 		}
 
 		char default_gateway_c[24];
 		strcpy(default_gateway_c, inet_ntoa(default_gateway));
 
-		if(!exec_sprintf("ip route add %s via %s", config->ip, default_gateway_c)) { }
-		if(!exec_sprintf("ip route add 0.0.0.0/1 via %s", peer_gateway_c)) { }
-		if(!exec_sprintf("ip route add 128.0.0.0/1 via %s", peer_gateway_c)) { }
+		if(!execf("ip route add %s via %s", config->ip, default_gateway_c)) { }
+		if(!execf("ip route add 0.0.0.0/1 via %s", peer_gateway_c)) { }
+		if(!execf("ip route add 128.0.0.0/1 via %s", peer_gateway_c)) { }
 	}
 
 	peer->internal_ip = peer_ip;
 
-	console_log("initialization sequence complete");
+	chipvpn_log("initialization sequence complete");
 	return VPN_HAS_DATA;
 }
 
@@ -575,15 +576,14 @@ VPNPacketError chipvpn_recv_data(VPNPeer *peer, VPNDataPacket *packet, int size)
 	if(
 		(chipvpn_firewall_match_rule(&peer->inbound_firewall, ip_hdr->dst_addr.s_addr)) &&
 		((ip_hdr->dst_addr.s_addr == peer->internal_ip.s_addr && config->mode == MODE_CLIENT) || 
-		(ip_hdr->src_addr.s_addr == peer->internal_ip.s_addr && config->mode == MODE_SERVER)) && 
-		(size > 0 && size <= CHIPVPN_MAX_MTU)
+		(ip_hdr->src_addr.s_addr == peer->internal_ip.s_addr && config->mode == MODE_SERVER))
 	) {
 		if(peer->rx >= peer->rx_max) {
 			return VPN_CONNECTION_END;
 		}
 		peer->rx += size;
 		if(write(tun->fd, packet->data, size) != size) {
-			error("unable to write to tun adapter");
+			chipvpn_error("unable to write to tun adapter");
 		}
 	}
 	return VPN_HAS_DATA;
@@ -592,13 +592,9 @@ VPNPacketError chipvpn_recv_data(VPNPeer *peer, VPNDataPacket *packet, int size)
 VPNPacketError chipvpn_recv_ping(VPNPeer *peer) {
 	char tx[50];
 	char rx[50];
-	char tx_max[50];
-	char rx_max[50];
 	strcpy(tx, chipvpn_format_bytes(peer->tx));
 	strcpy(rx, chipvpn_format_bytes(peer->rx));
-	strcpy(tx_max, chipvpn_format_bytes(peer->tx_max));
-	strcpy(rx_max, chipvpn_format_bytes(peer->rx_max));
-	console_log("heartbeat from peer [%i] tx: %s/%s rx: %s/%s", peer->id, tx, tx_max, rx, rx_max);
+	chipvpn_log("heartbeat from peer [%i] tx: %s rx: %s", peer->id, tx, rx);
 
 	peer->last_ping = chipvpn_get_time();
 	return VPN_HAS_DATA; 
@@ -607,6 +603,6 @@ VPNPacketError chipvpn_recv_ping(VPNPeer *peer) {
 void chipvpn_exit(int type) {
 	if(type == 0) {}
 	chipvpn_cleanup();
-	console_log("terminating");
+	chipvpn_log("terminating");
 	exit(0);
 }

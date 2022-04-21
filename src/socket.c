@@ -18,14 +18,14 @@ VPNSocket *chipvpn_socket_create() {
 	int fd = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
 
 	if(chipvpn_socket_set_non_block(fd) < 0) {
-		error("unable to set socket to non blocking mode");
+		chipvpn_error("unable to set socket to non blocking mode");
 	}
 
 	if(setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &(char){1}, sizeof(int)) < 0){
-		error("unable to call setsockopt");
+		chipvpn_error("unable to call setsockopt");
 	}
 	if(setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &(char){1}, sizeof(int)) < 0){
-		error("unable to call setsockopt");
+		chipvpn_error("unable to call setsockopt");
 	}
 
 	host->fd = fd;
@@ -92,10 +92,10 @@ VPNPeer *chipvpn_socket_accept(VPNSocket *host) {
 	int fd = accept(host->fd, (struct sockaddr*)&addr, &(socklen_t){sizeof(addr)});
 	if(fd >= 0) {
 		if(chipvpn_socket_set_non_block(fd) < 0) {
-			error("unable to set socket to non blocking mode");
+			chipvpn_error("unable to set socket to non blocking mode");
 		}
 
-		// console_log("peer connected via ip: %s", inet_ntoa(addr.sin_addr));
+		// chipvpn_log("peer connected via ip: %s", inet_ntoa(addr.sin_addr));
 
 		VPNPeer *peer = chipvpn_peer_new(fd);
 		list_insert(list_end(&host->peers), peer);
