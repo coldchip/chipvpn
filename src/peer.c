@@ -26,7 +26,7 @@
 #include <openssl/evp.h>
 #include <openssl/aes.h>
 
-VPNPeer *chipvpn_peer_new(int fd) {
+VPNPeer *chipvpn_peer_create(int fd) {
 	VPNPeer *peer             = malloc(sizeof(VPNPeer));
 	peer->fd                  = fd;
 	peer->id                  = rand();
@@ -53,12 +53,12 @@ VPNPeer *chipvpn_peer_new(int fd) {
 
 	chipvpn_peer_set_login(peer, false);
 
-	peer->inbound_aes = chipvpn_crypto_new();
+	peer->inbound_aes = chipvpn_crypto_create();
 	if(!peer->inbound_aes) {
 		chipvpn_error("unable to set aes ctx for peer");
 	}
 
-	peer->outbound_aes = chipvpn_crypto_new();
+	peer->outbound_aes = chipvpn_crypto_create();
 	if(!peer->outbound_aes) {
 		chipvpn_error("unable to set aes ctx for peer");
 	}

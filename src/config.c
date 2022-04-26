@@ -21,7 +21,7 @@
 #include <string.h>
 
 bool chipvpn_config_load(VPNConfig *config, const char *config_file) {
-	char *buf = read_file_into_buffer(config_file);
+	char *buf = chipvpn_read_file(config_file);
 	if(!buf) {
 		return false;
 	}

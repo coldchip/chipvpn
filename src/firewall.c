@@ -21,7 +21,7 @@
 
 VPNRule *chipvpn_firewall_new_rule(const char *cidr, VPNRuleMode mode) {
 	uint32_t ip, mask;
-	if(cidr_to_ip_and_mask(cidr, &ip, &mask)) {
+	if(chipvpn_cidr_to_mask(cidr, &ip, &mask)) {
 		VPNRule *rule = malloc(sizeof(VPNRule));
 		rule->ip     = ip;
 		rule->mask   = mask;

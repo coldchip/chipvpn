@@ -3,7 +3,7 @@
 #include <stdbool.h>
 #include "crypto.h"
 
-VPNCrypto *chipvpn_crypto_new() {
+VPNCrypto *chipvpn_crypto_create() {
 	EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
 	if(!ctx) {
 		return NULL;

@@ -67,7 +67,7 @@ void chipvpn_setup() {
 		}
 	}
 
-	tun = chipvpn_tun_open("");
+	tun = chipvpn_tun_create(NULL);
 	if(tun == NULL) {
 		chipvpn_error("tuntap adapter creation failed, please run as sudo");
 	}
@@ -553,16 +553,16 @@ VPNPacketError chipvpn_recv_assign_reply(VPNPeer *peer, VPNAssignPacket *packet,
 		chipvpn_log("setting routes");
 
 		struct in_addr default_gateway;
-		if(!get_default_gateway(&default_gateway)) {
+		if(!chipvpn_get_gateway(&default_gateway)) {
 			chipvpn_error("unable to retrieve default gateway from system");
 		}
 
 		char default_gateway_c[24];
 		strcpy(default_gateway_c, inet_ntoa(default_gateway));
 
-		if(!execf("ip route add %s via %s", config->ip, default_gateway_c)) { }
-		if(!execf("ip route add 0.0.0.0/1 via %s", peer_gateway_c)) { }
-		if(!execf("ip route add 128.0.0.0/1 via %s", peer_gateway_c)) { }
+		if(!chipvpn_execf("ip route add %s via %s", config->ip, default_gateway_c)) { }
+		if(!chipvpn_execf("ip route add 0.0.0.0/1 via %s", peer_gateway_c)) { }
+		if(!chipvpn_execf("ip route add 128.0.0.0/1 via %s", peer_gateway_c)) { }
 	}
 
 	peer->internal_ip = peer_ip;

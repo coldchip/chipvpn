@@ -27,7 +27,7 @@
 #include <sys/time.h>
 #include <arpa/inet.h>
 
-char *read_file_into_buffer(const char *file) {
+char *chipvpn_read_file(const char *file) {
 	FILE *infp = fopen(file, "rb");
 	if (!infp) {
 		return NULL;
@@ -45,7 +45,7 @@ char *read_file_into_buffer(const char *file) {
 	return p;
 }
 
-bool get_default_gateway(struct in_addr *addr) {
+bool chipvpn_get_gateway(struct in_addr *addr) {
 	char ip_addr[16];
 	char cmd[] = "ip route show default | awk '/default/ {print $3}' |  tr -cd '[a-zA-Z0-9]._-'";
 	FILE* fp = popen(cmd, "r");
@@ -60,7 +60,7 @@ bool get_default_gateway(struct in_addr *addr) {
 	return true;
 }
 
-int execf(const char *format, ...) {
+int chipvpn_execf(const char *format, ...) {
 	va_list args;
 	va_start(args, format);
 
@@ -187,7 +187,7 @@ char *chipvpn_format_bytes(uint64_t bytes) {
 	return output;
 }
 
-bool cidr_to_ip_and_mask(const char *cidr, uint32_t *ip, uint32_t *mask) {
+bool chipvpn_cidr_to_mask(const char *cidr, uint32_t *ip, uint32_t *mask) {
 	uint8_t a, b, c, d, bits;
 	if (sscanf(cidr, "%hhu.%hhu.%hhu.%hhu/%hhu", &a, &b, &c, &d, &bits) < 5) {
 	    return false; /* didn't convert enough of CIDR */

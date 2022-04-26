@@ -53,7 +53,7 @@ typedef struct _VPNPeer {
 	VPNCrypto *outbound_aes;
 } VPNPeer;
 
-VPNPeer           *chipvpn_peer_new(int fd);
+VPNPeer           *chipvpn_peer_create(int fd);
 void               chipvpn_peer_free(VPNPeer *peer);
 void               chipvpn_peer_disconnect(VPNPeer *peer);
 void               chipvpn_peer_set_key(VPNPeer *peer, uint8_t *key);

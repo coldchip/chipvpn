@@ -80,7 +80,7 @@ VPNPeer *chipvpn_socket_connect(VPNSocket *host, const char *ip, int port) {
 		}
 	}
 
-	VPNPeer *peer = chipvpn_peer_new(host->fd);
+	VPNPeer *peer = chipvpn_peer_create(host->fd);
 	list_insert(list_end(&host->peers), peer);
 
 	return peer;
@@ -97,7 +97,7 @@ VPNPeer *chipvpn_socket_accept(VPNSocket *host) {
 
 		// chipvpn_log("peer connected via ip: %s", inet_ntoa(addr.sin_addr));
 
-		VPNPeer *peer = chipvpn_peer_new(fd);
+		VPNPeer *peer = chipvpn_peer_create(fd);
 		list_insert(list_end(&host->peers), peer);
 
 		return peer;

@@ -27,7 +27,7 @@
 #include <sys/ioctl.h>
 #include <netinet/in.h>
 
-VPNTun *chipvpn_tun_open(const char *dev) {
+VPNTun *chipvpn_tun_create(const char *dev) {
 	struct ifreq ifr;
 
 	char *clonedev = "/dev/net/tun";
@@ -41,12 +41,14 @@ VPNTun *chipvpn_tun_open(const char *dev) {
 
 	ifr.ifr_flags = IFF_TUN | IFF_NO_PI;
 
-	if(strlen(dev) > IFNAMSIZ) {
-		chipvpn_error("Interface name too long");
-	}
+	if(dev) {
+		if(strlen(dev) > IFNAMSIZ) {
+			chipvpn_error("Interface name too long");
+		}
 
-	if(*dev) {
-		strcpy(ifr.ifr_name, dev);
+		if(*dev) {
+			strcpy(ifr.ifr_name, dev);
+		}
 	}
 
 	if(ioctl(fd, TUNSETIFF, (void *) &ifr) < 0) {
