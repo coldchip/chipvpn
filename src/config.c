@@ -76,7 +76,7 @@ bool chipvpn_config_load(VPNConfig *config, const char *config_file) {
 	if((cjson_subnet && cJSON_IsString(cjson_subnet))) {
 		strcpy(config->subnet, cjson_subnet->valuestring);
 	}
-	if((cjson_mtu && cJSON_IsString(cjson_mtu))) {
+	if((cjson_mtu && cJSON_IsNumber(cjson_mtu))) {
 		config->mtu = cjson_mtu->valueint;
 	}
 	if((cjson_sendbuf && cJSON_IsNumber(cjson_sendbuf))) {
