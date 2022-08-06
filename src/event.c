@@ -550,7 +550,7 @@ VPNPacketError chipvpn_recv_assign_reply(VPNPeer *peer, VPNAssignPacket *packet,
 	strcpy(peer_ip_c, inet_ntoa(peer_ip));
 	strcpy(peer_gateway_c, inet_ntoa(peer_gateway));
 
-	chipvpn_log("assigned dhcp: ip [%s] gateway [%s] mtu [%i]", peer_ip_c, peer_gateway_c, peer_mtu);
+	chipvpn_log("assigned dhcp: ip [%s] gateway [%s] mtu [%i] txqueuelen [%i]", peer_ip_c, peer_gateway_c, peer_mtu, config->qlen);
 
 	if(config->pull_routes) {
 		chipvpn_log("setting routes");
