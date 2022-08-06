@@ -78,6 +78,7 @@ void chipvpn_setup() {
 	}
 
 	chipvpn_socket_setopt_buffer(host, config->sendbuf, config->recvbuf);
+	chipvpn_log("socket sndbuf [%i] rcvbuf [%i]", config->sendbuf, config->recvbuf);
 
 	if(strlen(config->ipc) > 0) {
 		struct sockaddr_un ipc_addr;
@@ -116,7 +117,7 @@ void chipvpn_setup() {
 		inet_aton(config->subnet, &subnet);
 		inet_aton(config->gateway, &gateway);
 
-		if(!chipvpn_tun_setip(tun, gateway, subnet, CHIPVPN_MAX_MTU)) {
+		if(!chipvpn_tun_setip(tun, gateway, subnet, CHIPVPN_MAX_MTU, config->qlen)) {
 			chipvpn_error("unable to assign ip to tun adapter");
 		}
 		if(!chipvpn_tun_ifup(tun)) {
@@ -536,7 +537,7 @@ VPNPacketError chipvpn_recv_assign_reply(VPNPeer *peer, VPNAssignPacket *packet,
 	peer_gateway.s_addr = packet->gateway;
 	uint32_t peer_mtu   = ntohl(packet->mtu);
 
-	if(!chipvpn_tun_setip(tun, peer_ip, peer_subnet, peer_mtu)) {
+	if(!chipvpn_tun_setip(tun, peer_ip, peer_subnet, peer_mtu, config->qlen)) {
 		chipvpn_error("unable to assign ip to tunnel adapter");
 	}
 	if(!chipvpn_tun_ifup(tun)) {

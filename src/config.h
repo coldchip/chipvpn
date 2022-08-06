@@ -35,6 +35,7 @@ typedef struct _VPNConfig {
 	char     subnet[32];
 	int      sendbuf;
 	int      recvbuf;
+	int      qlen;
 	char     ipc[1024];
 } VPNConfig;
 
