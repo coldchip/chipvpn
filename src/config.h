@@ -33,6 +33,8 @@ typedef struct _VPNConfig {
 	int      max_peers;
 	char     gateway[32];
 	char     subnet[32];
+	int      sendbuf;
+	int      recvbuf;
 	char     ipc[1024];
 } VPNConfig;
 

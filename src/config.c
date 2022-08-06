@@ -39,6 +39,8 @@ bool chipvpn_config_load(VPNConfig *config, const char *config_file) {
 	cJSON *cjson_max_peers   = cJSON_GetObjectItem(json, "max_peers");
 	cJSON *cjson_gateway     = cJSON_GetObjectItem(json, "gateway");
 	cJSON *cjson_subnet      = cJSON_GetObjectItem(json, "subnet");
+	cJSON *cjson_sendbuf     = cJSON_GetObjectItem(json, "sendbuf");
+	cJSON *cjson_recvbuf     = cJSON_GetObjectItem(json, "recvbuf");
 	cJSON *cjson_ipc         = cJSON_GetObjectItem(json, "ipc");
 
 	chipvpn_config_reset(config);
@@ -72,6 +74,12 @@ bool chipvpn_config_load(VPNConfig *config, const char *config_file) {
 	if((cjson_subnet && cJSON_IsString(cjson_subnet))) {
 		strcpy(config->subnet, cjson_subnet->valuestring);
 	}
+	if((cjson_sendbuf && cJSON_IsNumber(cjson_sendbuf))) {
+		config->sendbuf = cjson_sendbuf->valueint;
+	}
+	if((cjson_recvbuf && cJSON_IsNumber(cjson_recvbuf))) {
+		config->recvbuf = cjson_recvbuf->valueint;
+	}
 	if((cjson_ipc && cJSON_IsString(cjson_ipc))) {
 		strcpy(config->ipc, cjson_ipc->valuestring);
 	}
@@ -92,5 +100,7 @@ void chipvpn_config_reset(VPNConfig *config) {
 	config->max_peers = 8;
 	strcpy(config->gateway, "10.9.8.1");
 	strcpy(config->subnet, "255.255.255.0");
+	config->sendbuf = 256000;
+	config->recvbuf = 256000;
 	strcpy(config->ipc, "");
 }

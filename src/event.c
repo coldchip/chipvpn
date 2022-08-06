@@ -77,6 +77,8 @@ void chipvpn_setup() {
 		chipvpn_error("unable to create socket");
 	}
 
+	chipvpn_socket_setopt_buffer(host, config->sendbuf, config->recvbuf);
+
 	if(strlen(config->ipc) > 0) {
 		struct sockaddr_un ipc_addr;
 		ipc_addr.sun_family = AF_UNIX;        

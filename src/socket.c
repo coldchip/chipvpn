@@ -33,6 +33,15 @@ VPNSocket *chipvpn_socket_create() {
 	return host;
 }
 
+void chipvpn_socket_setopt_buffer(VPNSocket *socket, int send, int recv) {
+	if(setsockopt(socket->fd, SOL_SOCKET, SO_SNDBUF, (char*)&send, (int)sizeof(send)) < 0){
+		chipvpn_error("unable to call setsockopt");
+	}
+	if(setsockopt(socket->fd, SOL_SOCKET, SO_RCVBUF, (char*)&recv, (int)sizeof(recv)) < 0){
+		chipvpn_error("unable to call setsockopt");
+	}
+}
+
 int chipvpn_socket_set_non_block(int fd) {
 	int flags = fcntl(fd, F_GETFL);
 	if(flags == -1) {
