@@ -17,15 +17,15 @@ VPNSocket *chipvpn_socket_create() {
 
 	int fd = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
 
-	if(chipvpn_socket_set_non_block(fd) < 0) {
-		chipvpn_error("unable to set socket to non blocking mode");
+	if(!chipvpn_socket_set_non_block(fd)) {
+		return NULL;
 	}
 
 	if(setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &(char){1}, sizeof(int)) < 0){
-		chipvpn_error("unable to call setsockopt");
+		return NULL;
 	}
 	if(setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &(char){1}, sizeof(int)) < 0){
-		chipvpn_error("unable to call setsockopt");
+		return NULL;
 	}
 
 	host->fd = fd;
@@ -33,26 +33,27 @@ VPNSocket *chipvpn_socket_create() {
 	return host;
 }
 
-void chipvpn_socket_setopt_buffer(VPNSocket *socket, int send, int recv) {
+bool chipvpn_socket_setopt_buffer(VPNSocket *socket, int send, int recv) {
 	if(setsockopt(socket->fd, SOL_SOCKET, SO_SNDBUF, (char*)&send, (int)sizeof(send)) < 0){
-		chipvpn_error("unable to call setsockopt");
+		return false;
 	}
 	if(setsockopt(socket->fd, SOL_SOCKET, SO_RCVBUF, (char*)&recv, (int)sizeof(recv)) < 0){
-		chipvpn_error("unable to call setsockopt");
+		return false;
 	}
+	return true;
 }
 
-int chipvpn_socket_set_non_block(int fd) {
+bool chipvpn_socket_set_non_block(int fd) {
 	int flags = fcntl(fd, F_GETFL);
 	if(flags == -1) {
-		return -1;
+		return false;
 	}
 
 	if(fcntl(fd, F_SETFL, flags | O_NONBLOCK) == 0) {
-		return 0;
+		return true;
 	}
 
-	return -1;
+	return false;
 }
 
 bool chipvpn_socket_bind(VPNSocket *host, const char *ip, int port) {
@@ -100,11 +101,9 @@ VPNPeer *chipvpn_socket_accept(VPNSocket *host) {
 
 	int fd = accept(host->fd, (struct sockaddr*)&addr, &(socklen_t){sizeof(addr)});
 	if(fd >= 0) {
-		if(chipvpn_socket_set_non_block(fd) < 0) {
+		if(!chipvpn_socket_set_non_block(fd)) {
 			chipvpn_error("unable to set socket to non blocking mode");
 		}
-
-		// chipvpn_log("peer connected via ip: %s", inet_ntoa(addr.sin_addr));
 
 		VPNPeer *peer = chipvpn_peer_create(fd);
 		list_insert(list_end(&host->peers), peer);

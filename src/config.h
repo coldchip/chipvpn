@@ -33,6 +33,7 @@ typedef struct _VPNConfig {
 	int      max_peers;
 	char     gateway[32];
 	char     subnet[32];
+	int      mtu;
 	int      sendbuf;
 	int      recvbuf;
 	int      qlen;

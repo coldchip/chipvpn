@@ -39,6 +39,7 @@ bool chipvpn_config_load(VPNConfig *config, const char *config_file) {
 	cJSON *cjson_max_peers   = cJSON_GetObjectItem(json, "max_peers");
 	cJSON *cjson_gateway     = cJSON_GetObjectItem(json, "gateway");
 	cJSON *cjson_subnet      = cJSON_GetObjectItem(json, "subnet");
+	cJSON *cjson_mtu         = cJSON_GetObjectItem(json, "mtu");
 	cJSON *cjson_sendbuf     = cJSON_GetObjectItem(json, "sendbuf");
 	cJSON *cjson_recvbuf     = cJSON_GetObjectItem(json, "recvbuf");
 	cJSON *cjson_qlen        = cJSON_GetObjectItem(json, "txqueuelen");
@@ -75,6 +76,9 @@ bool chipvpn_config_load(VPNConfig *config, const char *config_file) {
 	if((cjson_subnet && cJSON_IsString(cjson_subnet))) {
 		strcpy(config->subnet, cjson_subnet->valuestring);
 	}
+	if((cjson_mtu && cJSON_IsString(cjson_mtu))) {
+		config->mtu = cjson_mtu->valueint;
+	}
 	if((cjson_sendbuf && cJSON_IsNumber(cjson_sendbuf))) {
 		config->sendbuf = cjson_sendbuf->valueint;
 	}
@@ -104,6 +108,7 @@ void chipvpn_config_reset(VPNConfig *config) {
 	config->max_peers = 8;
 	strcpy(config->gateway, "10.9.8.1");
 	strcpy(config->subnet, "255.255.255.0");
+	config->mtu = 1500;
 	config->sendbuf = 256000;
 	config->recvbuf = 256000;
 	config->qlen = 1000;

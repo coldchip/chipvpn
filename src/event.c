@@ -73,11 +73,14 @@ void chipvpn_setup() {
 	}
 
 	host = chipvpn_socket_create();
-	if(host < 0) {
+	if(!host) {
 		chipvpn_error("unable to create socket");
 	}
 
-	chipvpn_socket_setopt_buffer(host, config->sendbuf, config->recvbuf);
+	if(!chipvpn_socket_setopt_buffer(host, config->sendbuf, config->recvbuf)) {
+		chipvpn_error("unable to change socket buffer size");
+	}
+
 	chipvpn_log("socket sndbuf [%i] rcvbuf [%i]", config->sendbuf, config->recvbuf);
 
 	if(strlen(config->ipc) > 0) {
@@ -117,7 +120,7 @@ void chipvpn_setup() {
 		inet_aton(config->subnet, &subnet);
 		inet_aton(config->gateway, &gateway);
 
-		if(!chipvpn_tun_setip(tun, gateway, subnet, CHIPVPN_MAX_MTU, config->qlen)) {
+		if(!chipvpn_tun_setip(tun, gateway, subnet, config->mtu, config->qlen)) {
 			chipvpn_error("unable to assign ip to tun adapter");
 		}
 		if(!chipvpn_tun_ifup(tun)) {
@@ -519,7 +522,7 @@ VPNPacketError chipvpn_recv_assign(VPNPeer *peer) {
 		.ip = peer->internal_ip.s_addr,
 		.subnet = inet_addr(config->subnet),
 		.gateway = inet_addr(config->gateway),
-		.mtu = htonl(CHIPVPN_MAX_MTU)
+		.mtu = htonl(config->mtu)
 	};
 
 	if(!chipvpn_peer_send(peer, VPN_TYPE_ASSIGN_REPLY, &assign, sizeof(assign))) {

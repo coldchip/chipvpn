@@ -22,8 +22,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define CHIPVPN_VERSION 10000064L
-#define CHIPVPN_MAX_MTU 1500
+#define CHIPVPN_VERSION 10000065L
 
 char              *chipvpn_read_file(const char *file);
 bool               chipvpn_get_gateway(struct in_addr *addr);
