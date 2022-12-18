@@ -1,7 +1,7 @@
 /*
  * ColdChip ChipVPN
  *
- * Copyright (c) 2016-2021, Ryan Loh <ryan@coldchip.ru>
+ * Copyright (c) 2016-2021, Ryan Loh <ryan@chip.sg>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -43,7 +43,7 @@ VPNPacketError        chipvpn_recv_key(VPNPeer *peer, VPNKeyPacket *packet, int 
 VPNPacketError        chipvpn_recv_login(VPNPeer *peer, VPNAuthPacket *packet, int size);
 VPNPacketError        chipvpn_recv_login_reply(VPNPeer *peer);
 VPNPacketError        chipvpn_recv_assign(VPNPeer *peer);
-VPNPacketError        chipvpn_recv_assign_reply(VPNPeer *peer, VPNAssignPacket *packet, int size);
+VPNPacketError        chipvpn_recv_assign_reply(VPNPeer *peer, VPNDHCPPacket *packet, int size);
 VPNPacketError        chipvpn_recv_data(VPNPeer *peer, VPNDataPacket *packet, int size);
 VPNPacketError        chipvpn_recv_ping(VPNPeer *peer);
 

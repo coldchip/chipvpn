@@ -1,7 +1,7 @@
 /*
  * ColdChip ChipVPN
  *
- * Copyright (c) 2016-2021, Ryan Loh <ryan@coldchip.ru>
+ * Copyright (c) 2016-2021, Ryan Loh <ryan@chip.sg>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -28,7 +28,6 @@
 typedef struct _VPNPeer {
 	ListNode node;
 	int fd;
-	int id;
 	bool encrypted;
 	struct sockaddr_in addr;
 	bool is_authed;
@@ -49,6 +48,9 @@ typedef struct _VPNPeer {
 	VPNPacket inbound_buffer;
 	VPNPacket outbound_buffer;
 
+	List inbound_queue;
+	List outbound_queue;
+
 	VPNCrypto *inbound_aes;
 	VPNCrypto *outbound_aes;
 } VPNPeer;
@@ -61,8 +63,10 @@ void               chipvpn_peer_set_encryption(VPNPeer *peer, bool encrypted);
 bool               chipvpn_peer_get_encryption(VPNPeer *peer);
 bool               chipvpn_peer_get_login(VPNPeer *peer);
 void               chipvpn_peer_set_login(VPNPeer *peer, bool login);
-bool               chipvpn_peer_readable(VPNPeer *peer);
-bool               chipvpn_peer_writeable(VPNPeer *peer);
+bool               chipvpn_peer_buffer_readable(VPNPeer *peer);
+bool               chipvpn_peer_buffer_writeable(VPNPeer *peer);
+bool               chipvpn_peer_enqueue_service(VPNPeer *peer);
+bool               chipvpn_peer_dequeue_service(VPNPeer *peer);
 VPNPacketError     chipvpn_peer_dispatch_inbound(VPNPeer *peer);
 VPNPacketError     chipvpn_peer_dispatch_outbound(VPNPeer *peer);
 bool               chipvpn_peer_recv(VPNPeer *peer, VPNPacket *dst);

@@ -1,4 +1,4 @@
-AC_INIT([chipvpn], [10000061], [ryan@coldchip.ru])
+AC_INIT([chipvpn], [10000061], [ryan@chip.sg])
 
 AC_CONFIG_AUX_DIR(auxdir)
 AC_CONFIG_MACRO_DIR([m4])

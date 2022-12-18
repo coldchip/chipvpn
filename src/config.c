@@ -1,7 +1,7 @@
 /*
  * ColdChip ChipVPN
  *
- * Copyright (c) 2016-2021, Ryan Loh <ryan@coldchip.ru>
+ * Copyright (c) 2016-2021, Ryan Loh <ryan@chip.sg>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -43,7 +43,6 @@ bool chipvpn_config_load(VPNConfig *config, const char *config_file) {
 	cJSON *cjson_sendbuf     = cJSON_GetObjectItem(json, "sendbuf");
 	cJSON *cjson_recvbuf     = cJSON_GetObjectItem(json, "recvbuf");
 	cJSON *cjson_qlen        = cJSON_GetObjectItem(json, "txqueuelen");
-	cJSON *cjson_ipc         = cJSON_GetObjectItem(json, "ipc");
 
 	chipvpn_config_reset(config);
 
@@ -88,9 +87,6 @@ bool chipvpn_config_load(VPNConfig *config, const char *config_file) {
 	if((cjson_qlen && cJSON_IsNumber(cjson_qlen))) {
 		config->qlen = cjson_qlen->valueint;
 	}
-	if((cjson_ipc && cJSON_IsString(cjson_ipc))) {
-		strcpy(config->ipc, cjson_ipc->valuestring);
-	}
 
 	free(buf);
 	cJSON_Delete(json);
@@ -112,5 +108,4 @@ void chipvpn_config_reset(VPNConfig *config) {
 	config->sendbuf = 256000;
 	config->recvbuf = 256000;
 	config->qlen = 1000;
-	strcpy(config->ipc, "");
 }

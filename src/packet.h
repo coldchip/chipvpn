@@ -1,7 +1,7 @@
 /*
  * ColdChip ChipVPN
  *
- * Copyright (c) 2016-2021, Ryan Loh <ryan@coldchip.ru>
+ * Copyright (c) 2016-2021, Ryan Loh <ryan@chip.sg>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -18,6 +18,7 @@
 
 #include <stdint.h>
 #include <netinet/in.h>
+#include "list.h"
 
 #define CHIPVPN_MAX_PACKET_SIZE 4096
 
@@ -75,7 +76,7 @@ typedef struct _ICMPHeader {
 } ICMPHeader;
 
 typedef enum {
-	VPN_HAS_DATA = 1,
+	VPN_PACKET_OK = 1,
 	VPN_EAGAIN = 0,
 	VPN_CONNECTION_END = -1
 } VPNPacketError;
@@ -99,12 +100,12 @@ typedef struct PACKED _VPNAuthPacket {
 	uint8_t token[512];
 } VPNAuthPacket;
 
-typedef struct PACKED _VPNAssignPacket {
+typedef struct PACKED _VPNDHCPPacket {
 	uint32_t ip;
 	uint32_t subnet;
 	uint32_t gateway;
 	uint32_t mtu;
-} VPNAssignPacket;
+} VPNDHCPPacket;
 
 typedef struct PACKED _VPNDataPacket {
 	uint8_t data[CHIPVPN_MAX_PACKET_SIZE];
@@ -118,7 +119,7 @@ typedef struct PACKED _VPNPacketHeader {
 typedef union _VPNPacketBody {
 	VPNKeyPacket key_packet;
 	VPNAuthPacket auth_packet;
-	VPNAssignPacket dhcp_packet;
+	VPNDHCPPacket dhcp_packet;
 	VPNDataPacket data_packet;
 } VPNPacketBody;
 
@@ -126,6 +127,11 @@ typedef struct PACKED _VPNPacket {
 	VPNPacketHeader header;
 	VPNPacketBody data;
 } VPNPacket;
+
+typedef struct _VPNPacketQueue {
+	ListNode node;
+	VPNPacket packet;
+} VPNPacketQueue;
 
 int vpnpacket_len(VPNPacket *packet);
 

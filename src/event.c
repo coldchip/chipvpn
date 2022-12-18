@@ -1,7 +1,7 @@
 /*
  * ColdChip ChipVPN
  *
- * Copyright (c) 2016-2021, Ryan Loh <ryan@coldchip.ru>
+ * Copyright (c) 2016-2021, Ryan Loh <ryan@chip.sg>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -39,7 +39,6 @@ bool terminate = false;
 
 VPNConfig *config = NULL;
 
-int        ipc  = -1;
 VPNSocket *host = NULL;
 VPNTun    *tun  = NULL;
 
@@ -60,13 +59,6 @@ void chipvpn_init(VPNConfig *c) {
 void chipvpn_setup() {
 	terminate = false;
 
-	if(strlen(config->ipc) > 0) {
-		ipc = socket(AF_UNIX, SOCK_STREAM, 0);
-		if(ipc < 0) {
-			chipvpn_error("IPC socket creation failed");
-		}
-	}
-
 	tun = chipvpn_tun_create(NULL);
 	if(tun == NULL) {
 		chipvpn_error("tuntap adapter creation failed, please run as sudo");
@@ -82,21 +74,6 @@ void chipvpn_setup() {
 	}
 
 	chipvpn_log("socket sndbuf [%i] rcvbuf [%i]", config->sendbuf, config->recvbuf);
-
-	if(strlen(config->ipc) > 0) {
-		struct sockaddr_un ipc_addr;
-		ipc_addr.sun_family = AF_UNIX;        
-		strcpy(ipc_addr.sun_path, config->ipc);
-
-		while(true) {
-			int success = connect(ipc, (struct sockaddr *)&ipc_addr, sizeof(ipc_addr));
-			if(success != -1) {
-				break;
-			}
-			chipvpn_log("unable to connect to unix socket, reconnecting");
-			sleep(1);
-		}
-	}
 
 	char *resolved = NULL;
 	while(true) {
@@ -165,21 +142,15 @@ void chipvpn_loop() {
 	fd_set rdset, wdset;
 
 	while(!terminate) {
-		tv.tv_sec = 0;
-		tv.tv_usec = 200000;
+		tv.tv_sec = 2;
+		tv.tv_usec = 0;
 
 		FD_ZERO(&rdset);
 		FD_ZERO(&wdset);
 
-		if(strlen(config->ipc) > 0) {
-			FD_SET(ipc, &rdset);
-		}
 		FD_SET(tun->fd, &rdset);
 		
 		int max = 0;
-		if(strlen(config->ipc) > 0) {
-			max = MAX(max, ipc);
-		}
 		max = MAX(max, tun->fd);
 
 		if(config->mode == MODE_SERVER) {
@@ -188,17 +159,25 @@ void chipvpn_loop() {
 			max = MAX(max, host->fd);
 		}
 
+		/* 
+			set fd
+		*/
 		for(ListNode *i = list_begin(&host->peers); i != list_end(&host->peers); i = list_next(i)) {
 			VPNPeer *peer = (VPNPeer*)i;
-			if(!chipvpn_peer_readable(peer)) {
+
+			if(!chipvpn_peer_buffer_readable(peer) || list_size(&peer->inbound_queue) < 99) {
 				FD_SET(peer->fd, &rdset);
 			}
-			if(!chipvpn_peer_writeable(peer)) {
+			if(!chipvpn_peer_buffer_writeable(peer) || list_size(&peer->outbound_queue) > 0) {
 				FD_SET(peer->fd, &wdset);
 			}
+
 			max = MAX(max, peer->fd);
 		}
 
+		/*
+			socket select
+		*/
 		if(select(max + 1, &rdset, &wdset, NULL, &tv) >= 0) {
 			/* 
 				ChipVPN's ticker
@@ -209,23 +188,11 @@ void chipvpn_loop() {
 			}
 
 			/* 
-				Triggered when IPC has data
-			*/
-			if(strlen(config->ipc) > 0 && FD_ISSET(ipc, &rdset)) {
-				printf("IPC has data\n");
-				char buf[8192];
-				int r = read(ipc, buf, sizeof(buf));
-				if(r > 0) {
-					chipvpn_ipc_event(buf);
-				}
-			}
-
-			/* 
 				Triggered when someone connects
 			*/
-			if(config->mode == MODE_SERVER && FD_ISSET(host->fd, &rdset)) {
+			if(FD_ISSET(host->fd, &rdset) && config->mode == MODE_SERVER) {
 				VPNPeer *peer = chipvpn_socket_accept(host);
-				chipvpn_log("peer [%i] connected", peer->id);
+				chipvpn_log("peer [%p] connected", peer);
 			}
 
 			/* 
@@ -243,15 +210,6 @@ void chipvpn_loop() {
 						// peer I/O error
 						chipvpn_peer_disconnect(peer);
 						continue; // peer removed from list so skip the loop
-					}
-
-					VPNPacket packet;
-					if(chipvpn_peer_recv(peer, &packet)) {
-						if(chipvpn_socket_event(peer, &packet) == VPN_CONNECTION_END) {
-							// event disconnection
-							chipvpn_peer_disconnect(peer);
-							continue; // peer removed from list so skip the loop
-						}
 					}
 				}
 
@@ -292,13 +250,28 @@ void chipvpn_loop() {
 				}
 			}
 		}
+
+		/* 
+			Triggered when the peer's buffer has a fully constructed packet
+		*/
+		ListNode *j = list_begin(&host->peers);
+		while(j != list_end(&host->peers)) {
+			VPNPeer *peer = (VPNPeer*)j;
+			j = list_next(j);
+
+			VPNPacket packet;
+			if(chipvpn_peer_recv(peer, &packet)) {
+				if(chipvpn_socket_event(peer, &packet) == VPN_CONNECTION_END) {
+					// event disconnection
+					chipvpn_peer_disconnect(peer);
+					continue; // peer removed from list so skip the loop
+				}
+			}
+		}
 	}
 }
 
 void chipvpn_cleanup() {
-	if(strlen(config->ipc) > 0) {
-		close(ipc);
-	}
 	if(host) {
 		chipvpn_socket_free(host);
 		host = NULL;
@@ -309,31 +282,14 @@ void chipvpn_cleanup() {
 	}
 }
 
+/*
+	function to periodically perform tasks related to maintaining connections with peers.
+*/
+
 void chipvpn_ticker() {
 	if(config->mode == MODE_CLIENT && list_size(&host->peers) == 0) {
 		chipvpn_log("reconnecting...");
 		terminate = true;
-	}
-
-	if(strlen(config->ipc) > 0) {
-		cJSON *payload = cJSON_CreateObject();
-
-		cJSON_AddStringToObject(payload, "type", "sync");
-		cJSON *peers = cJSON_AddArrayToObject(payload, "peers");
-
-		for(ListNode *i = list_begin(&host->peers); i != list_end(&host->peers); i = list_next(i)) {
-			VPNPeer *peer = (VPNPeer*)i;
-			cJSON_AddItemToArray(peers, cJSON_CreateNumber(peer->id));
-		}
-
-		char *buf = cJSON_Print(payload);
-
-		if(write(ipc, buf, strlen(buf) + 1) < 0) {
-			// return VPN_CONNECTION_END;
-		}
-
-		free(buf);
-		cJSON_Delete(payload);
 	}
 
 	ListNode *i = list_begin(&host->peers);
@@ -352,47 +308,13 @@ void chipvpn_ticker() {
 	}
 }
 
-void chipvpn_ipc_event(char *buf) {
-	cJSON *json = cJSON_Parse(buf);
-	if(json) {
-		cJSON *cjson_type    = cJSON_GetObjectItem(json, "type");
-		cJSON *cjson_success = cJSON_GetObjectItem(json, "success");
-		cJSON *cjson_peerid  = cJSON_GetObjectItem(json, "peerid");
-
-		VPNPeer *peer = NULL;
-		if(cjson_peerid && cJSON_IsNumber(cjson_peerid)) {
-			int peerid = cjson_peerid->valueint;
-
-			for(ListNode *i = list_begin(&host->peers); i != list_end(&host->peers); i = list_next(i)) {
-				peer = (VPNPeer*)i;
-				if(peer->id == peerid) {
-					break;
-				}
-			}
-		}
-
-		if(cjson_type && cJSON_IsString(cjson_type)) {
-			char *type = cjson_type->valuestring;
-			if(strcmp(type, "login") == 0) {
-				if(peer && cjson_success && cJSON_IsBool(cjson_success)) {
-					chipvpn_ipc_login(peer);
-				}
-			}
-		}
-		cJSON_Delete(json);
-	}
-}
-
-VPNPacketError chipvpn_ipc_login(VPNPeer *peer) {
-	chipvpn_peer_set_login(peer, true);
-
-	if(!chipvpn_peer_send(peer, VPN_TYPE_LOGIN_REPLY, NULL, 0)) {
-		return VPN_CONNECTION_END;
-	}
-
-	return VPN_HAS_DATA;
-}
-
+/*
+	This function is a dispatcher for handling different types of packets received from a peer.
+	The handling functions called by this function to perform various tasks, 
+	such as setting keys, authenticating the peer, 
+	assigning an IP address to the peer, 
+	sending and receiving data, and responding to ping packets.
+*/
 VPNPacketError chipvpn_socket_event(VPNPeer *peer, VPNPacket *packet) {
 	VPNPacketType type = (VPNPacketType)packet->header.type;
 	VPNPacketBody data = packet->data;
@@ -465,39 +387,23 @@ VPNPacketError chipvpn_recv_key(VPNPeer *peer, VPNKeyPacket *packet, int size) {
 	chipvpn_log("key exchange success");
 	chipvpn_peer_set_key(peer, packet->key);
 	chipvpn_peer_set_encryption(peer, true);
-	return VPN_HAS_DATA;
+	return VPN_PACKET_OK;
 }
 
 VPNPacketError chipvpn_recv_login(VPNPeer *peer, VPNAuthPacket *packet, int size) {
-	if(strlen(config->ipc) > 0) {
-		cJSON *payload = cJSON_CreateObject();
-		cJSON_AddStringToObject(payload, "type", "login");
-		cJSON_AddStringToObject(payload, "token", (const char*)packet->token);
-		cJSON_AddNumberToObject(payload, "peerid", peer->id);
+	if(memcmp(packet->token, config->token, strlen(config->token)) == 0) {
+		chipvpn_peer_set_login(peer, true);
 
-		char *buf = cJSON_Print(payload);
-
-		if(write(ipc, buf, strlen(buf) + 1) < 0) {
+		if(!chipvpn_peer_send(peer, VPN_TYPE_LOGIN_REPLY, NULL, 0)) {
 			return VPN_CONNECTION_END;
 		}
 
-		free(buf);
-		cJSON_Delete(payload);
+		return VPN_PACKET_OK;
 	} else {
-		if(memcmp(packet->token, config->token, strlen(config->token)) == 0) {
-			chipvpn_peer_set_login(peer, true);
-
-			if(!chipvpn_peer_send(peer, VPN_TYPE_LOGIN_REPLY, NULL, 0)) {
-				return VPN_CONNECTION_END;
-			}
-
-			return VPN_HAS_DATA;
-		} else {
-			return VPN_CONNECTION_END;
-		}
+		return VPN_CONNECTION_END;
 	}
 
-	return VPN_HAS_DATA;
+	return VPN_PACKET_OK;
 }
 
 VPNPacketError chipvpn_recv_login_reply(VPNPeer *peer) {
@@ -507,7 +413,7 @@ VPNPacketError chipvpn_recv_login_reply(VPNPeer *peer) {
 		return VPN_CONNECTION_END;
 	}
 
-	return VPN_HAS_DATA;
+	return VPN_PACKET_OK;
 }
 
 VPNPacketError chipvpn_recv_assign(VPNPeer *peer) {
@@ -518,7 +424,7 @@ VPNPacketError chipvpn_recv_assign(VPNPeer *peer) {
 		return VPN_CONNECTION_END;
 	}
 
-	VPNAssignPacket assign = {
+	VPNDHCPPacket assign = {
 		.ip = peer->internal_ip.s_addr,
 		.subnet = inet_addr(config->subnet),
 		.gateway = inet_addr(config->gateway),
@@ -529,10 +435,10 @@ VPNPacketError chipvpn_recv_assign(VPNPeer *peer) {
 		return VPN_CONNECTION_END;
 	}
 
-	return VPN_HAS_DATA;
+	return VPN_PACKET_OK;
 }
 
-VPNPacketError chipvpn_recv_assign_reply(VPNPeer *peer, VPNAssignPacket *packet, int size) {
+VPNPacketError chipvpn_recv_assign_reply(VPNPeer *peer, VPNDHCPPacket *packet, int size) {
 	struct in_addr peer_ip, peer_subnet, peer_gateway;
 
 	peer_ip.s_addr      = packet->ip;
@@ -574,7 +480,7 @@ VPNPacketError chipvpn_recv_assign_reply(VPNPeer *peer, VPNAssignPacket *packet,
 	peer->internal_ip = peer_ip;
 
 	chipvpn_log("initialization sequence complete");
-	return VPN_HAS_DATA;
+	return VPN_PACKET_OK;
 }
 
 VPNPacketError chipvpn_recv_data(VPNPeer *peer, VPNDataPacket *packet, int size) {
@@ -592,7 +498,7 @@ VPNPacketError chipvpn_recv_data(VPNPeer *peer, VPNDataPacket *packet, int size)
 			chipvpn_error("unable to write to tun adapter");
 		}
 	}
-	return VPN_HAS_DATA;
+	return VPN_PACKET_OK;
 }
 
 VPNPacketError chipvpn_recv_ping(VPNPeer *peer) {
@@ -600,10 +506,10 @@ VPNPacketError chipvpn_recv_ping(VPNPeer *peer) {
 	char rx[50];
 	strcpy(tx, chipvpn_format_bytes(peer->tx));
 	strcpy(rx, chipvpn_format_bytes(peer->rx));
-	chipvpn_log("heartbeat from peer [%i] tx: %s rx: %s", peer->id, tx, rx);
+	chipvpn_log("heartbeat from peer [%p] tx: %s rx: %s", peer, tx, rx);
 
 	peer->last_ping = chipvpn_get_time();
-	return VPN_HAS_DATA; 
+	return VPN_PACKET_OK; 
 }
 
 void chipvpn_exit(int type) {
