@@ -303,11 +303,12 @@ void chipvpn_ticker() {
 		if(chipvpn_get_time() - peer->last_ping < 20) {
 			if(chipvpn_peer_get_login(peer)) {
 				if(!chipvpn_peer_send(peer, VPN_TYPE_PING, NULL, 0)) {
+					chipvpn_log("disconnected peer due to ping failed");
 					chipvpn_peer_disconnect(peer);
 				}
 			}
 		} else {
-			chipvpn_log("peer timeout");
+			chipvpn_log("disconnected peer due to timeout");
 			chipvpn_peer_disconnect(peer);
 		}
 	}
