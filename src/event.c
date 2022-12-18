@@ -307,6 +307,7 @@ void chipvpn_ticker() {
 				}
 			}
 		} else {
+			chipvpn_log("peer timeout");
 			chipvpn_peer_disconnect(peer);
 		}
 	}
