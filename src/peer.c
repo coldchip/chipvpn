@@ -228,8 +228,6 @@ int chipvpn_peer_dispatch_inbound(VPNPeer *peer) {
 
 		peer->inbound_buffer_pos += r;
 
-		chipvpn_peer_enqueue_service(peer);
-
 		return r;
 	}
 
@@ -237,7 +235,6 @@ int chipvpn_peer_dispatch_inbound(VPNPeer *peer) {
 }
 
 int chipvpn_peer_dispatch_outbound(VPNPeer *peer) {
-	chipvpn_peer_dequeue_service(peer);
 	if(!chipvpn_peer_buffer_writeable(peer)) {
 		VPNPacket *packet = &peer->outbound_buffer;
 

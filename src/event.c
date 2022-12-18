@@ -142,8 +142,8 @@ void chipvpn_loop() {
 	fd_set rdset, wdset;
 
 	while(!terminate) {
-		tv.tv_sec = 2;
-		tv.tv_usec = 0;
+		tv.tv_sec = 0;
+		tv.tv_usec = 200000;
 
 		FD_ZERO(&rdset);
 		FD_ZERO(&wdset);
@@ -211,10 +211,14 @@ void chipvpn_loop() {
 						chipvpn_peer_disconnect(peer);
 						continue; // peer removed from list so skip the loop
 					}
+
+					chipvpn_peer_enqueue_service(peer);
 				}
 
 				// peer is writable
 				if(FD_ISSET(peer->fd, &wdset)) {
+					chipvpn_peer_dequeue_service(peer);
+
 					int w = chipvpn_peer_dispatch_outbound(peer);
 					if(w <= 0 && w != VPN_EAGAIN) {
 						// peer I/O error
