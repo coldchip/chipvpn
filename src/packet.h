@@ -87,9 +87,10 @@ typedef enum {
 	VPN_TYPE_LOGIN_REPLY = 2,
 	VPN_TYPE_ASSIGN = 3,
 	VPN_TYPE_ASSIGN_REPLY = 4,
-	VPN_TYPE_DATA = 5,
-	VPN_TYPE_PING = 6,
-	VPN_TYPE_PONG = 7
+	VPN_TYPE_ROUTE = 5,
+	VPN_TYPE_ROUTE_REPLY = 6,
+	VPN_TYPE_DATA = 7,
+	VPN_TYPE_PING = 8
 } VPNPacketType;
 
 typedef struct PACKED _VPNKeyPacket {
@@ -107,6 +108,12 @@ typedef struct PACKED _VPNDHCPPacket {
 	uint32_t mtu;
 } VPNDHCPPacket;
 
+typedef struct PACKED _VPNRoutePacket {
+	uint32_t src;
+	uint8_t mask;
+	uint32_t dst;
+} VPNRoutePacket;
+
 typedef struct PACKED _VPNDataPacket {
 	uint8_t data[CHIPVPN_MAX_PACKET_SIZE];
 } VPNDataPacket;
@@ -120,6 +127,7 @@ typedef union _VPNPacketBody {
 	VPNKeyPacket key_packet;
 	VPNAuthPacket auth_packet;
 	VPNDHCPPacket dhcp_packet;
+	VPNRoutePacket route_packet;
 	VPNDataPacket data_packet;
 } VPNPacketBody;
 

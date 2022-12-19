@@ -25,8 +25,8 @@
 #include <netinet/in.h>
 #include <netinet/ip.h>
 
-#define CHIPVPN_QUEUE_SIZE 100
-#define CHIPVPN_PRIORITY_QUEUE_SIZE 1000
+#define CHIPVPN_QUEUE_SIZE 500
+#define CHIPVPN_PRIORITY_QUEUE_SIZE 500
 
 typedef struct _VPNPeer {
 	ListNode node;
@@ -35,6 +35,7 @@ typedef struct _VPNPeer {
 	struct sockaddr_in addr;
 	bool is_authed;
 	uint32_t last_ping;
+	bool has_route_set;
 	struct in_addr internal_ip;
 
 	uint64_t tx;

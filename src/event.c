@@ -212,12 +212,12 @@ void chipvpn_loop() {
 						continue; // peer removed from list so skip the loop
 					}
 
-					chipvpn_peer_enqueue_service(peer);
+					chipvpn_peer_enqueue_service(peer); // queues ready packets from buffer into queue
 				}
 
 				// peer is writable
 				if(FD_ISSET(peer->fd, &wdset)) {
-					chipvpn_peer_dequeue_service(peer);
+					chipvpn_peer_dequeue_service(peer); // dequeues packets from queue into buffer
 
 					int w = chipvpn_peer_dispatch_outbound(peer);
 					if(w <= 0 && w != VPN_EAGAIN) {
@@ -292,7 +292,7 @@ void chipvpn_cleanup() {
 
 void chipvpn_ticker() {
 	if(config->mode == MODE_CLIENT && list_size(&host->peers) == 0) {
-		chipvpn_log("reconnecting...");
+		chipvpn_log("attempting to reconnect...");
 		terminate = true;
 	}
 
@@ -300,7 +300,7 @@ void chipvpn_ticker() {
 	while(i != list_end(&host->peers)) {
 		VPNPeer *peer = (VPNPeer*)i;
 		i = list_next(i);
-		if(chipvpn_get_time() - peer->last_ping < 20) {
+		if(chipvpn_get_time() - peer->last_ping < 30) {
 			if(chipvpn_peer_get_login(peer)) {
 				if(!chipvpn_peer_send(peer, VPN_TYPE_PING, NULL, 0)) {
 					chipvpn_peer_disconnect(peer);
@@ -325,7 +325,9 @@ VPNPacketError chipvpn_socket_event(VPNPeer *peer, VPNPacket *packet) {
 
 	if(
 		((type == VPN_TYPE_ASSIGN) ||
-		(type == VPN_TYPE_ASSIGN_REPLY) || 
+		(type == VPN_TYPE_ASSIGN_REPLY) ||
+		(type == VPN_TYPE_ROUTE) ||
+		(type == VPN_TYPE_ROUTE_REPLY) || 
 		(type == VPN_TYPE_DATA) || 
 		(type == VPN_TYPE_PING)) && 
 		(!chipvpn_peer_get_login(peer))
@@ -344,6 +346,10 @@ VPNPacketError chipvpn_socket_event(VPNPeer *peer, VPNPacket *packet) {
 		((type == VPN_TYPE_ASSIGN)       && 
 		(config->mode != MODE_SERVER))   ||
 		((type == VPN_TYPE_ASSIGN_REPLY) && 
+		(config->mode != MODE_CLIENT))   ||
+		((type == VPN_TYPE_ROUTE)       && 
+		(config->mode != MODE_SERVER))   ||
+		((type == VPN_TYPE_ROUTE_REPLY) && 
 		(config->mode != MODE_CLIENT))
 	) {
 		// mode specific zones
@@ -369,6 +375,14 @@ VPNPacketError chipvpn_socket_event(VPNPeer *peer, VPNPacket *packet) {
 		break;
 		case VPN_TYPE_ASSIGN_REPLY: {
 			return chipvpn_recv_assign_reply(peer, &data.dhcp_packet, PLEN(packet));
+		}
+		break;
+		case VPN_TYPE_ROUTE: {
+			return chipvpn_recv_route(peer);
+		}
+		break;
+		case VPN_TYPE_ROUTE_REPLY: {
+			return chipvpn_recv_route_reply(peer, &data.route_packet, PLEN(packet));
 		}
 		break;
 		case VPN_TYPE_DATA: {
@@ -443,12 +457,13 @@ VPNPacketError chipvpn_recv_assign(VPNPeer *peer) {
 }
 
 VPNPacketError chipvpn_recv_assign_reply(VPNPeer *peer, VPNDHCPPacket *packet, int size) {
-	struct in_addr peer_ip, peer_subnet, peer_gateway;
+	struct in_addr peer_ip, peer_subnet;
 
 	peer_ip.s_addr      = packet->ip;
 	peer_subnet.s_addr  = packet->subnet;
-	peer_gateway.s_addr = packet->gateway;
 	uint32_t peer_mtu   = ntohl(packet->mtu);
+
+	peer->internal_ip = peer_ip;
 
 	if(!chipvpn_tun_setip(tun, peer_ip, peer_subnet, peer_mtu, config->qlen)) {
 		chipvpn_error("unable to assign ip to tunnel adapter");
@@ -457,33 +472,71 @@ VPNPacketError chipvpn_recv_assign_reply(VPNPeer *peer, VPNDHCPPacket *packet, i
 		chipvpn_error("unable to bring up tunnel adapter");
 	}
 
-	char peer_ip_c[24];
-	char peer_gateway_c[24];
-
-	strcpy(peer_ip_c, inet_ntoa(peer_ip));
-	strcpy(peer_gateway_c, inet_ntoa(peer_gateway));
-
-	chipvpn_log("assigned dhcp: ip [%s] gateway [%s] mtu [%i] txqueuelen [%i]", peer_ip_c, peer_gateway_c, peer_mtu, config->qlen);
-
-	if(config->pull_routes) {
-		chipvpn_log("setting routes");
-
-		struct in_addr default_gateway;
-		if(!chipvpn_get_gateway(&default_gateway)) {
-			chipvpn_error("unable to retrieve default gateway from system");
-		}
-
-		char default_gateway_c[24];
-		strcpy(default_gateway_c, inet_ntoa(default_gateway));
-
-		if(!chipvpn_execf("ip route add %s via %s", config->ip, default_gateway_c)) { }
-		if(!chipvpn_execf("ip route add 0.0.0.0/1 via %s", peer_gateway_c)) { }
-		if(!chipvpn_execf("ip route add 128.0.0.0/1 via %s", peer_gateway_c)) { }
+	if(!chipvpn_peer_send(peer, VPN_TYPE_ROUTE, NULL, 0)) {
+		return VPN_CONNECTION_END;
 	}
 
-	peer->internal_ip = peer_ip;
+	return VPN_PACKET_OK;
+}
 
-	chipvpn_log("initialization sequence complete");
+VPNPacketError chipvpn_recv_route(VPNPeer *peer) {
+	VPNRoutePacket route = {
+		.src = inet_addr("0.0.0.0"),
+		.mask = 1,
+		.dst = inet_addr(config->gateway)
+	};
+
+	VPNRoutePacket route1 = {
+		.src = inet_addr("128.0.0.0"),
+		.mask = 1,
+		.dst = inet_addr(config->gateway)
+	};
+
+	if(!chipvpn_peer_send(peer, VPN_TYPE_ROUTE_REPLY, &route, sizeof(route))) {
+		return VPN_CONNECTION_END;
+	}
+
+	if(!chipvpn_peer_send(peer, VPN_TYPE_ROUTE_REPLY, &route1, sizeof(route1))) {
+		return VPN_CONNECTION_END;
+	}
+
+	return VPN_PACKET_OK;
+}
+
+VPNPacketError chipvpn_recv_route_reply(VPNPeer *peer, VPNRoutePacket *packet, int size) {
+	if(config->pull_routes) {
+		if(!peer->has_route_set) {
+			struct in_addr default_gateway;
+			if(!chipvpn_get_gateway(&default_gateway)) {
+				chipvpn_error("unable to retrieve default gateway from system");
+			}
+
+			char default_gateway_c[24];
+			strcpy(default_gateway_c, inet_ntoa(default_gateway));
+
+			chipvpn_log("route add: [%s/32] via [%s]", config->ip, default_gateway_c);
+			if(chipvpn_execf("ip route add %s via %s", config->ip, default_gateway_c) != 0) { }
+			
+			peer->has_route_set = true;
+		}
+
+		struct in_addr src, dst;
+
+		src.s_addr   = packet->src;
+		dst.s_addr   = packet->dst;
+		uint8_t mask = packet->mask; 
+
+		char src_c[24];
+		char dst_c[24];
+		strcpy(src_c, inet_ntoa(src));
+		strcpy(dst_c, inet_ntoa(dst));
+
+		chipvpn_log("route add: [%s/%i] via [%s]", src_c, mask, dst_c);
+		if(chipvpn_execf("ip route add %s/%i via %s", src_c, mask, dst_c) != 0) { }
+	}
+
+	// chipvpn_log("initialization sequence complete");
+
 	return VPN_PACKET_OK;
 }
 

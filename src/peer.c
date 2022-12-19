@@ -36,6 +36,7 @@ VPNPeer *chipvpn_peer_create(int fd) {
 	peer->tx_max              = 0xFFFFFFFFFFFFFFFF;
 	peer->rx_max              = 0xFFFFFFFFFFFFFFFF;
 	peer->last_ping           = chipvpn_get_time();
+	peer->has_route_set       = false;
 	peer->inbound_buffer_pos  = 0;
 	peer->outbound_buffer_pos = 0;
 
@@ -289,15 +290,16 @@ bool chipvpn_peer_send(VPNPeer *peer, VPNPacketType type, void *data, int size) 
 		) 
 		||
 		(
-			list_size(&peer->outbound_queue) < CHIPVPN_PRIORITY_QUEUE_SIZE &&
+			list_size(&peer->outbound_queue) < CHIPVPN_QUEUE_SIZE + CHIPVPN_PRIORITY_QUEUE_SIZE &&
 			(
 				type == VPN_TYPE_SET_KEY      ||
 				type == VPN_TYPE_LOGIN        ||
 				type == VPN_TYPE_LOGIN_REPLY  ||
 				type == VPN_TYPE_ASSIGN       ||
 				type == VPN_TYPE_ASSIGN_REPLY ||
-				type == VPN_TYPE_PING         ||
-				type == VPN_TYPE_PONG
+				type == VPN_TYPE_ROUTE        ||
+				type == VPN_TYPE_ROUTE_REPLY  ||
+				type == VPN_TYPE_PING
 			)
 		)
 	) {
