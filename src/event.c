@@ -135,6 +135,9 @@ void chipvpn_setup() {
 	}
 }
 
+/*
+	chipvpn event loop. 
+*/
 void chipvpn_loop() {
 	int chipvpn_last_update = 0;
 	struct timeval tv;
@@ -275,6 +278,9 @@ void chipvpn_loop() {
 	}
 }
 
+/*
+	called before the program terminates
+*/
 void chipvpn_cleanup() {
 	if(host) {
 		chipvpn_socket_free(host);
@@ -505,6 +511,11 @@ VPNPacketError chipvpn_recv_route(VPNPeer *peer) {
 
 VPNPacketError chipvpn_recv_route_reply(VPNPeer *peer, VPNRoutePacket *packet, int size) {
 	if(config->pull_routes) {
+
+		/*
+			route the server's IP address using the default gateway IF any routes are to be set.
+			This is to prevent connection lost to the server if a new route were to override the route to the server
+		*/
 		if(!peer->has_route_set) {
 			struct in_addr default_gateway;
 			if(!chipvpn_get_gateway(&default_gateway)) {
@@ -558,6 +569,9 @@ VPNPacketError chipvpn_recv_data(VPNPeer *peer, VPNDataPacket *packet, int size)
 	return VPN_PACKET_OK;
 }
 
+/*
+	receives ping packet
+*/
 VPNPacketError chipvpn_recv_ping(VPNPeer *peer) {
 	char tx[50];
 	char rx[50];

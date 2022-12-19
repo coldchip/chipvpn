@@ -41,5 +41,4 @@ extern size_t list_size (List *);
 #define list_front(list) ((void *) (list) -> sentinel.next)
 #define list_back(list) ((void *) (list) -> sentinel.previous)
 
-
 #endif
