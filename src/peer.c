@@ -150,7 +150,7 @@ bool chipvpn_peer_buffer_writeable(VPNPeer *peer) {
 
 /*
 	The chipvpn_peer_enqueue_service function is called when the input buffer 
-	of the VPNPeer object is readable and the inbound queue has fewer than 99 elements. 
+	of the VPNPeer object is readable and the inbound queue has fewer than CHIPVPN_QUEUE_SIZE. 
 	In this case, the function allocates a new VPNPacketQueue object and initializes 
 	it with the current contents of the VPNPeer's inbound buffer. It then inserts the 
 	VPNPacketQueue object into the end of the inbound queue and resets the position of 
@@ -159,14 +159,13 @@ bool chipvpn_peer_buffer_writeable(VPNPeer *peer) {
 */
 
 bool chipvpn_peer_enqueue_service(VPNPeer *peer) {
-	if(chipvpn_peer_buffer_readable(peer) && list_size(&peer->inbound_queue) < 99) {
+	if(chipvpn_peer_buffer_readable(peer) && list_size(&peer->inbound_queue) < CHIPVPN_QUEUE_SIZE) {
 		VPNPacketQueue *queue = malloc(sizeof(VPNPacketQueue));
 		
 		peer->inbound_buffer_pos = 0;
 		queue->packet = peer->inbound_buffer;
 
 		list_insert(list_end(&peer->inbound_queue), queue);
-
 		return true;
 	}
 
@@ -265,6 +264,7 @@ bool chipvpn_peer_recv(VPNPeer *peer, VPNPacket *dst) {
 
 		if(chipvpn_peer_get_encryption(peer)) {
 			if(!chipvpn_crypto_decrypt(peer->inbound_aes, &dst->data, &packet->data, PLEN(packet))) {
+				free(queue);
 				return false;
 			}
 		} else {
@@ -280,16 +280,38 @@ bool chipvpn_peer_recv(VPNPeer *peer, VPNPacket *dst) {
 }
 
 bool chipvpn_peer_send(VPNPeer *peer, VPNPacketType type, void *data, int size) {
-	if(list_size(&peer->outbound_queue) < 99) {
+	if(
+		(
+			list_size(&peer->outbound_queue) < CHIPVPN_QUEUE_SIZE &&
+			(
+				type == VPN_TYPE_DATA
+			)
+		) 
+		||
+		(
+			list_size(&peer->outbound_queue) < CHIPVPN_PRIORITY_QUEUE_SIZE &&
+			(
+				type == VPN_TYPE_SET_KEY      ||
+				type == VPN_TYPE_LOGIN        ||
+				type == VPN_TYPE_LOGIN_REPLY  ||
+				type == VPN_TYPE_ASSIGN       ||
+				type == VPN_TYPE_ASSIGN_REPLY ||
+				type == VPN_TYPE_PING         ||
+				type == VPN_TYPE_PONG
+			)
+		)
+	) {
 		VPNPacketQueue *queue = malloc(sizeof(VPNPacketQueue));
 		list_insert(list_end(&peer->outbound_queue), queue);
 
 		VPNPacket *packet   = &queue->packet;
 		packet->header.size = htonl(size);
-		packet->header.type = (uint8_t)type;
+		packet->header.type = (uint8_t)(type & 0xff);
 		if(data && size > 0) {
 			if(chipvpn_peer_get_encryption(peer)) {
 				if(!chipvpn_crypto_encrypt(peer->outbound_aes, &packet->data, data, size)) {
+					list_remove(&queue->node);
+					free(queue);
 					return false;
 				}
 			} else {

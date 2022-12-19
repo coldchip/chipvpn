@@ -32,7 +32,6 @@ void               chipvpn_warn(const char *format, ...);
 void               chipvpn_error(const char *format, ...);
 uint16_t           chipvpn_checksum16(void *data, unsigned int bytes);
 char              *chipvpn_resolve_hostname(const char *ip);
-void               chipvpn_generate_random(uint8_t *buf, int len);
 char              *chipvpn_format_bytes(uint64_t bytes);
 bool               chipvpn_cidr_to_mask(const char *cidr, uint32_t *ip, uint32_t *mask);
 uint32_t           chipvpn_get_time();

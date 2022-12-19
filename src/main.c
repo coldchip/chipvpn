@@ -21,6 +21,7 @@
 #include <time.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <openssl/rand.h>
 
 int main(int argc, const char *argv[]) {
 	chipvpn_log("ColdChip ChipVPN v%i", CHIPVPN_VERSION);
@@ -30,7 +31,7 @@ int main(int argc, const char *argv[]) {
 		if(argv[1] != NULL) {
 			if(strcmp(argv[1], "genkey") == 0) {
 				unsigned char key[16];
-				chipvpn_generate_random(key, sizeof(key));
+				RAND_priv_bytes(key, sizeof(key));
 				for(int i = 0; i < (int)sizeof(key); i++) {
 					printf("%02x", key[i] & 0xFF);
 				}

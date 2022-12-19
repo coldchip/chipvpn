@@ -165,7 +165,7 @@ void chipvpn_loop() {
 		for(ListNode *i = list_begin(&host->peers); i != list_end(&host->peers); i = list_next(i)) {
 			VPNPeer *peer = (VPNPeer*)i;
 
-			if(!chipvpn_peer_buffer_readable(peer) || list_size(&peer->inbound_queue) < 99) {
+			if(!chipvpn_peer_buffer_readable(peer) || list_size(&peer->inbound_queue) < CHIPVPN_QUEUE_SIZE) {
 				FD_SET(peer->fd, &rdset);
 			}
 			if(!chipvpn_peer_buffer_writeable(peer) || list_size(&peer->outbound_queue) > 0) {
@@ -303,12 +303,10 @@ void chipvpn_ticker() {
 		if(chipvpn_get_time() - peer->last_ping < 20) {
 			if(chipvpn_peer_get_login(peer)) {
 				if(!chipvpn_peer_send(peer, VPN_TYPE_PING, NULL, 0)) {
-					chipvpn_log("disconnected peer due to ping failed");
 					chipvpn_peer_disconnect(peer);
 				}
 			}
 		} else {
-			chipvpn_log("disconnected peer due to timeout");
 			chipvpn_peer_disconnect(peer);
 		}
 	}

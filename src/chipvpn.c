@@ -159,16 +159,6 @@ char *chipvpn_resolve_hostname(const char *ip) {
 	return inet_ntoa(*domain);
 }
 
-void chipvpn_generate_random(unsigned char *buf, int len) {
-	int fp = open("/dev/urandom", O_RDONLY);
-	if(fp >= 0) {
-		if(read(fp, buf, len) != len) {
-			// something went wrong
-		}
-		close(fp);
-	}
-}
-
 char *chipvpn_format_bytes(uint64_t bytes) {
 	char *suffix[] = {"B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB"};
 	char length = sizeof(suffix) / sizeof(suffix[0]);
