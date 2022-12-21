@@ -14,7 +14,6 @@
  */
 
 #include "event.h"
-#include "config.h"
 #include "chipvpn.h"
 #include <stdio.h>
 #include <string.h>
@@ -37,11 +36,7 @@ int main(int argc, const char *argv[]) {
 				}
 				printf("\n"); 
 			} else {
-				VPNConfig config;
-				if(!chipvpn_config_load(&config, (char*)argv[1])) {
-					chipvpn_error("unable to read config");
-				}
-				chipvpn_init(&config);
+				chipvpn_init((char*)argv[1]);
 			}
 		} else {
 			chipvpn_log("Usage: $ %s config.json", argv[0]);

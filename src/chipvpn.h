@@ -25,7 +25,6 @@
 #define CHIPVPN_VERSION 10000071L
 
 char              *chipvpn_read_file(const char *file);
-bool               chipvpn_get_gateway(struct in_addr *addr);
 int                chipvpn_execf(const char *format, ...);
 void               chipvpn_log(const char *format, ...);
 void               chipvpn_warn(const char *format, ...);
@@ -35,5 +34,7 @@ char              *chipvpn_resolve_hostname(const char *ip);
 char              *chipvpn_format_bytes(uint64_t bytes);
 bool               chipvpn_cidr_to_mask(const char *cidr, uint32_t *ip, uint32_t *mask);
 uint32_t           chipvpn_get_time();
+
+bool               chipvpn_get_gateway(struct in_addr *gateway, char *dev);
 
 #endif

@@ -17,6 +17,7 @@
 #include "tun.h"
 #include "chipvpn.h"
 #include "peer.h"
+#include "route.h"
 #include "packet.h"
 #include "firewall.h"
 #include "socket.h"
@@ -31,6 +32,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <signal.h>
+#include <net/if.h>
 #include <arpa/inet.h> 
 #include <netinet/in.h>
 #include <openssl/rand.h>
@@ -42,22 +44,25 @@ VPNConfig *config = NULL;
 VPNSocket *host = NULL;
 VPNTun    *tun  = NULL;
 
-void chipvpn_init(VPNConfig *c) {
+void chipvpn_init(char *config_file) {
 	signal(SIGPIPE, SIG_IGN);
 	signal(SIGINT, chipvpn_exit);
 
-	config = c;
-
 	while(1) {
-		chipvpn_setup();
+		chipvpn_setup(config_file);
 		chipvpn_loop();
 		chipvpn_cleanup();
 		sleep(1);
 	}
 }
 
-void chipvpn_setup() {
+void chipvpn_setup(char *config_file) {
 	terminate = false;
+
+	config = chipvpn_config_create();
+	if(!chipvpn_config_load(config, config_file)) {
+		chipvpn_error("unable to read config");
+	}
 
 	tun = chipvpn_tun_create(NULL);
 	if(tun == NULL) {
@@ -290,6 +295,10 @@ void chipvpn_cleanup() {
 		chipvpn_tun_free(tun);
 		tun = NULL;
 	}
+	if(config) {
+		chipvpn_config_free(config);
+		config = NULL;
+	}
 }
 
 /*
@@ -451,7 +460,6 @@ VPNPacketError chipvpn_recv_assign(VPNPeer *peer) {
 	VPNDHCPPacket assign = {
 		.ip = peer->internal_ip.s_addr,
 		.subnet = inet_addr(config->subnet),
-		.gateway = inet_addr(config->gateway),
 		.mtu = htonl(config->mtu)
 	};
 
@@ -486,24 +494,18 @@ VPNPacketError chipvpn_recv_assign_reply(VPNPeer *peer, VPNDHCPPacket *packet, i
 }
 
 VPNPacketError chipvpn_recv_route(VPNPeer *peer) {
-	VPNRoutePacket route = {
-		.src = inet_addr("0.0.0.0"),
-		.mask = 1,
-		.dst = inet_addr(config->gateway)
-	};
+	for(ListNode *i = list_begin(&config->push_routes); i != list_end(&config->push_routes); i = list_next(i)) {
+		VPNConfigRoute *entry = (VPNConfigRoute*)i;
 
-	VPNRoutePacket route1 = {
-		.src = inet_addr("128.0.0.0"),
-		.mask = 1,
-		.dst = inet_addr(config->gateway)
-	};
+		VPNRoutePacket route = {
+			.src = entry->src.s_addr,
+			.mask = entry->mask.s_addr,
+			.dst = inet_addr(config->gateway)
+		};
 
-	if(!chipvpn_peer_send(peer, VPN_TYPE_ROUTE_REPLY, &route, sizeof(route))) {
-		return VPN_CONNECTION_END;
-	}
-
-	if(!chipvpn_peer_send(peer, VPN_TYPE_ROUTE_REPLY, &route1, sizeof(route1))) {
-		return VPN_CONNECTION_END;
+		if(!chipvpn_peer_send(peer, VPN_TYPE_ROUTE_REPLY, &route, sizeof(route))) {
+			return VPN_CONNECTION_END;
+		}
 	}
 
 	return VPN_PACKET_OK;
@@ -511,42 +513,33 @@ VPNPacketError chipvpn_recv_route(VPNPeer *peer) {
 
 VPNPacketError chipvpn_recv_route_reply(VPNPeer *peer, VPNRoutePacket *packet, int size) {
 	if(config->pull_routes) {
-
 		/*
 			route the server's IP address using the default gateway IF any routes are to be set.
 			This is to prevent connection lost to the server if a new route were to override the route to the server
 		*/
 		if(!peer->has_route_set) {
-			struct in_addr default_gateway;
-			if(!chipvpn_get_gateway(&default_gateway)) {
+			struct in_addr src, mask, dst; 
+			src.s_addr  = inet_addr(config->ip);
+			mask.s_addr = inet_addr("255.255.255.255");
+
+			char dev[IF_NAMESIZE];
+			if(!chipvpn_get_gateway(&dst, dev)) {
 				chipvpn_error("unable to retrieve default gateway from system");
 			}
 
-			char default_gateway_c[24];
-			strcpy(default_gateway_c, inet_ntoa(default_gateway));
+			chipvpn_route_add(src, mask, dst, dev);
 
-			chipvpn_log("route add: [%s/32] via [%s]", config->ip, default_gateway_c);
-			if(chipvpn_execf("ip route add %s via %s", config->ip, default_gateway_c) != 0) { }
-			
 			peer->has_route_set = true;
 		}
 
-		struct in_addr src, dst;
+		struct in_addr src, mask, dst;
 
-		src.s_addr   = packet->src;
-		dst.s_addr   = packet->dst;
-		uint8_t mask = packet->mask; 
+		src.s_addr  = packet->src;
+		mask.s_addr = packet->mask;
+		dst.s_addr  = packet->dst;
 
-		char src_c[24];
-		char dst_c[24];
-		strcpy(src_c, inet_ntoa(src));
-		strcpy(dst_c, inet_ntoa(dst));
-
-		chipvpn_log("route add: [%s/%i] via [%s]", src_c, mask, dst_c);
-		if(chipvpn_execf("ip route add %s/%i via %s", src_c, mask, dst_c) != 0) { }
+		chipvpn_route_add(src, mask, dst, tun->dev);
 	}
-
-	// chipvpn_log("initialization sequence complete");
 
 	return VPN_PACKET_OK;
 }

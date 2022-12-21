@@ -17,11 +17,19 @@
 #define CONFIG_H
 
 #include <stdbool.h>
+#include <netinet/in.h>
+#include "list.h"
 
 typedef enum {
 	MODE_SERVER,
 	MODE_CLIENT
 } VPNMode;
+
+typedef struct _VPNConfigRoute {
+	ListNode node;
+	struct in_addr src;
+	struct in_addr mask;
+} VPNConfigRoute;
 
 typedef struct _VPNConfig {
 	VPNMode  mode;
@@ -29,7 +37,7 @@ typedef struct _VPNConfig {
 	int      port;
 	char     token[1024];
 	bool     pull_routes;
-	bool     push_routes;
+	List     push_routes;
 	int      max_peers;
 	char     gateway[32];
 	char     subnet[32];
@@ -39,7 +47,9 @@ typedef struct _VPNConfig {
 	int      qlen;
 } VPNConfig;
 
-bool     chipvpn_config_load(VPNConfig *config, const char *config_file);
-void     chipvpn_config_reset(VPNConfig *config);
+VPNConfig          *chipvpn_config_create();
+bool                chipvpn_config_load(VPNConfig *config, const char *config_file);
+void                chipvpn_config_reset(VPNConfig *config);
+void                chipvpn_config_free(VPNConfig *config);
 
 #endif

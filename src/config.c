@@ -15,12 +15,21 @@
 
 #include "config.h"
 #include "chipvpn.h"
+#include "list.h"
 #include "cJSON.h"
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
+#include <arpa/inet.h>
+
+VPNConfig *chipvpn_config_create() {
+	VPNConfig *config = malloc(sizeof(VPNConfig));
+	return config;
+}
 
 bool chipvpn_config_load(VPNConfig *config, const char *config_file) {
+	list_clear(&config->push_routes);
+
 	char *buf = chipvpn_read_file(config_file);
 	if(!buf) {
 		return false;
@@ -63,8 +72,27 @@ bool chipvpn_config_load(VPNConfig *config, const char *config_file) {
 	if(cjson_pull_routes && cJSON_IsBool(cjson_pull_routes) && cJSON_IsTrue(cjson_pull_routes)) {
 		config->pull_routes = true;
 	}
-	if(cjson_push_routes && cJSON_IsBool(cjson_push_routes) && cJSON_IsTrue(cjson_push_routes)) {
-		config->push_routes = true;
+	if(cjson_push_routes && cJSON_IsArray(cjson_push_routes)) {
+		cJSON *cjson_route;
+		cJSON_ArrayForEach(cjson_route, cjson_push_routes) {
+    		cJSON *cjson_route_src  = cJSON_GetObjectItem(cjson_route, "src");
+			cJSON *cjson_route_mask = cJSON_GetObjectItem(cjson_route, "mask");
+
+			if(
+				(cjson_route_src && cJSON_IsString(cjson_route_src)) && 
+				(cjson_route_mask && cJSON_IsString(cjson_route_mask))
+			) {
+				struct in_addr src, mask;
+				src.s_addr = inet_addr(cjson_route_src->valuestring);
+				mask.s_addr = inet_addr(cjson_route_mask->valuestring);
+
+				VPNConfigRoute *route = malloc(sizeof(VPNConfigRoute));
+				route->src  = src;
+				route->mask = mask;
+
+				list_insert(list_end(&config->push_routes), route);
+			}
+    	}
 	}
 	if(cjson_max_peers && cJSON_IsNumber(cjson_max_peers) && cjson_max_peers->valueint > 0) {
 		config->max_peers = cjson_max_peers->valueint;
@@ -100,7 +128,7 @@ void chipvpn_config_reset(VPNConfig *config) {
 	config->port = 443;
 	strcpy(config->token, "abcdef");
 	config->pull_routes = false;
-	config->push_routes = false;
+	list_clear(&config->push_routes);
 	config->max_peers = 8;
 	strcpy(config->gateway, "10.9.8.1");
 	strcpy(config->subnet, "255.255.255.0");
@@ -108,4 +136,12 @@ void chipvpn_config_reset(VPNConfig *config) {
 	config->sendbuf = 256000;
 	config->recvbuf = 256000;
 	config->qlen = 1000;
+}
+
+void chipvpn_config_free(VPNConfig *config) {
+	while(!list_empty(&config->push_routes)) {
+		VPNConfigRoute *route = (VPNConfigRoute*)list_remove(list_begin(&config->push_routes));
+		free(route);
+	}
+	free(config);
 }

@@ -27,9 +27,19 @@
 #include <sys/time.h>
 #include <arpa/inet.h>
 
+#include <sys/ioctl.h>
+#include <netinet/in.h>
+#include <errno.h>
+#include <net/route.h>
+
+#include <sys/socket.h>
+#include <linux/netlink.h>
+#include <linux/rtnetlink.h>
+#include <net/if.h>
+
 char *chipvpn_read_file(const char *file) {
 	FILE *infp = fopen(file, "rb");
-	if (!infp) {
+	if(!infp) {
 		return NULL;
 	}
 	fseek(infp, 0, SEEK_END);
@@ -43,21 +53,6 @@ char *chipvpn_read_file(const char *file) {
 	*(p + fsize) = '\0';
 
 	return p;
-}
-
-bool chipvpn_get_gateway(struct in_addr *addr) {
-	char ip_addr[16];
-	char cmd[] = "ip route show default | awk '/default/ {print $3}' |  tr -cd '[a-zA-Z0-9]._-'";
-	FILE* fp = popen(cmd, "r");
-
-	if(fgets(ip_addr, 16, fp) != NULL){
-		//printf("%s\n", line);
-	}
-	pclose(fp);
-	ip_addr[15] = '\0';
-
-	inet_aton(ip_addr, addr);
-	return true;
 }
 
 int chipvpn_execf(const char *format, ...) {
@@ -207,4 +202,119 @@ uint32_t chipvpn_get_time() {
 	struct timeval tv;
 	gettimeofday(&tv, NULL);
 	return (tv.tv_sec * 1000 + tv.tv_usec / 1000) / 1000;
+}
+
+#define BUFFER_SIZE 4096
+
+bool chipvpn_get_gateway(struct in_addr *gateway, char *dev) {
+    int     received_bytes = 0, msg_len = 0, route_attribute_len = 0;
+    int     sock = -1, msgseq = 0;
+    struct  nlmsghdr *nlh, *nlmsg;
+    struct  rtmsg *route_entry;
+    // This struct contain route attributes (route type)
+    struct  rtattr *route_attribute;
+    char    msgbuf[BUFFER_SIZE], buffer[BUFFER_SIZE];
+    char    *ptr = buffer;
+    struct timeval tv;
+
+    if((sock = socket(AF_NETLINK, SOCK_RAW, NETLINK_ROUTE)) < 0) {
+        perror("socket failed");
+        return EXIT_FAILURE;
+    }
+
+    memset(msgbuf, 0, sizeof(msgbuf));
+    memset(buffer, 0, sizeof(buffer));
+
+    /* point the header and the msg structure pointers into the buffer */
+    nlmsg = (struct nlmsghdr *)msgbuf;
+
+    /* Fill in the nlmsg header*/
+    nlmsg->nlmsg_len = NLMSG_LENGTH(sizeof(struct rtmsg));
+    nlmsg->nlmsg_type = RTM_GETROUTE; // Get the routes from kernel routing table .
+    nlmsg->nlmsg_flags = NLM_F_DUMP | NLM_F_REQUEST; // The message is a request for dump.
+    nlmsg->nlmsg_seq = msgseq++; // Sequence of the message packet.
+    nlmsg->nlmsg_pid = getpid(); // PID of process sending the request.
+
+    /* 1 Sec Timeout to avoid stall */
+    tv.tv_sec = 1;
+    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (struct timeval *)&tv, sizeof(struct timeval));
+    /* send msg */
+    if(send(sock, nlmsg, nlmsg->nlmsg_len, 0) < 0) {
+        perror("send failed");
+        return EXIT_FAILURE;
+    }
+
+    /* receive response */
+    do {
+        received_bytes = recv(sock, ptr, sizeof(buffer) - msg_len, 0);
+        if (received_bytes < 0) {
+            perror("Error in recv");
+            return EXIT_FAILURE;
+        }
+
+        nlh = (struct nlmsghdr *) ptr;
+
+        /* Check if the header is valid */
+        if((NLMSG_OK(nlmsg, received_bytes) == 0) || (nlmsg->nlmsg_type == NLMSG_ERROR)) {
+            perror("Error in received packet");
+            return EXIT_FAILURE;
+        }
+
+        /* If we received all data break */
+        if(nlh->nlmsg_type == NLMSG_DONE) {
+            break;
+        } else {
+            ptr += received_bytes;
+            msg_len += received_bytes;
+        }
+
+        /* Break if its not a multi part message */
+        if((nlmsg->nlmsg_flags & NLM_F_MULTI) == 0) {
+            break;
+        }
+    }
+    while ((nlmsg->nlmsg_seq != msgseq) || (nlmsg->nlmsg_pid != getpid()));
+
+    /* parse response */
+    for( ; NLMSG_OK(nlh, received_bytes); nlh = NLMSG_NEXT(nlh, received_bytes)) {
+        /* Get the route data */
+        route_entry = (struct rtmsg *) NLMSG_DATA(nlh);
+
+        /* We are just interested in main routing table */
+        if (route_entry->rtm_table != RT_TABLE_MAIN) {
+            continue;
+        }
+
+        route_attribute = (struct rtattr *) RTM_RTA(route_entry);
+        route_attribute_len = RTM_PAYLOAD(nlh);
+
+        bool set_gateway = false;
+        bool set_dev = false;
+
+        /* Loop through all attributes */
+        for(; RTA_OK(route_attribute, route_attribute_len); route_attribute = RTA_NEXT(route_attribute, route_attribute_len)) {
+            switch(route_attribute->rta_type) {
+	            case RTA_OIF: {
+		        	if_indextoname(*(int *)RTA_DATA(route_attribute), dev);
+		        	set_dev = true;
+	            }
+	            break;
+	            case RTA_GATEWAY: {
+	            	*gateway = *(struct in_addr*)RTA_DATA(route_attribute);
+	            	set_gateway = true;
+	            }
+	            break;
+	            default:
+	        	break;
+            }
+        }
+
+        if(set_gateway && set_dev) {
+            break;
+        }
+    }
+
+    close(sock);
+
+    return true;
 }

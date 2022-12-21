@@ -104,13 +104,12 @@ typedef struct PACKED _VPNAuthPacket {
 typedef struct PACKED _VPNDHCPPacket {
 	uint32_t ip;
 	uint32_t subnet;
-	uint32_t gateway;
 	uint32_t mtu;
 } VPNDHCPPacket;
 
 typedef struct PACKED _VPNRoutePacket {
 	uint32_t src;
-	uint8_t mask;
+	uint32_t mask;
 	uint32_t dst;
 } VPNRoutePacket;
 
