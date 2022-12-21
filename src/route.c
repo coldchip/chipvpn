@@ -1,4 +1,5 @@
 #include "route.h"
+#include "chipvpn.h"
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -44,10 +45,10 @@ void chipvpn_route_add(struct in_addr src, struct in_addr mask, struct in_addr d
 	strcpy(mask_c, inet_ntoa(mask));
 	strcpy(dst_c, inet_ntoa(dst));
 
-    printf("ip %s mask %s to %s\n", src_c, mask_c, dst_c);
+    chipvpn_log("route ip %s mask %s to %s", src_c, mask_c, dst_c);
 
     if(ioctl(fd, SIOCADDRT, &route) < 0) {
-        printf("ioctl failed and returned errno %s \n", strerror(errno));
+        chipvpn_warn("route set failed due to: %s", strerror(errno));
     }
     close(fd);
 }
