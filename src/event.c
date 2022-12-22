@@ -47,6 +47,9 @@ VPNTun    *tun  = NULL;
 void chipvpn_init(char *config_file) {
 	signal(SIGPIPE, SIG_IGN);
 	signal(SIGINT, chipvpn_exit);
+	signal(SIGQUIT, chipvpn_exit);
+	signal(SIGTERM, chipvpn_exit);
+	signal(SIGHUP, chipvpn_exit);
 
 	while(1) {
 		chipvpn_setup(config_file);
