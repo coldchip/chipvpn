@@ -11,48 +11,68 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 
-VPNRoute *chipvpn_route_create() {
+VPNRoute *chipvpn_route_new(struct in_addr src, struct in_addr mask, struct in_addr dst, char *dev) {
 	VPNRoute *route = malloc(sizeof(VPNRoute));
-	return route;
-}
 
-void chipvpn_route_add(struct in_addr src, struct in_addr mask, struct in_addr dst, char *dev) {
-    int fd = socket( PF_INET, SOCK_DGRAM,  IPPROTO_IP);
+	int fd = socket(PF_INET, SOCK_DGRAM, IPPROTO_IP);
 
-    struct rtentry route;
-    memset(&route, 0, sizeof(route));
+	memset(&route->entry, 0, sizeof(route->entry));
 
-    struct sockaddr_in *addr = (struct sockaddr_in*) &route.rt_dst;
+	struct sockaddr_in *addr = (struct sockaddr_in*)&(route->entry.rt_dst);
 	addr->sin_family = AF_INET;
 	addr->sin_addr = src;
 
-	addr = (struct sockaddr_in*) &route.rt_genmask;
+	addr = (struct sockaddr_in*)&(route->entry.rt_genmask);
 	addr->sin_family = AF_INET;
 	addr->sin_addr = mask;
 
-	addr = (struct sockaddr_in*)&route.rt_gateway;
+	addr = (struct sockaddr_in*)&(route->entry.rt_gateway);
 	addr->sin_family = AF_INET;
 	addr->sin_addr = dst;
 
-	route.rt_dev = dev;
-	route.rt_flags = RTF_UP | RTF_GATEWAY;
-    route.rt_metric = 0;
+	route->entry.rt_dev = chipvpn_strdup(dev);
+	route->entry.rt_flags = RTF_UP | RTF_GATEWAY;
+	route->entry.rt_metric = 0;
 
-    char src_c[24];
-    char mask_c[24];
-    char dst_c[24];
+	char src_c[INET_ADDRSTRLEN];
+	char mask_c[INET_ADDRSTRLEN];
+	char dst_c[INET_ADDRSTRLEN];
 	strcpy(src_c, inet_ntoa(src));
 	strcpy(mask_c, inet_ntoa(mask));
 	strcpy(dst_c, inet_ntoa(dst));
 
-    chipvpn_log("route ip %s mask %s to %s", src_c, mask_c, dst_c);
+	chipvpn_log("add route ip %s mask %s to %s", src_c, mask_c, dst_c);
 
-    if(ioctl(fd, SIOCADDRT, &route) < 0) {
-        chipvpn_warn("route set failed due to: %s", strerror(errno));
-    }
-    close(fd);
+	if(ioctl(fd, SIOCADDRT, &route->entry) < 0) {
+		chipvpn_warn("route set failed due to: %s", strerror(errno));
+	}
+	close(fd);
+
+	return route;
+}
+
+void chipvpn_route_add(List *list, struct in_addr src, struct in_addr mask, struct in_addr dst, char *dev) {
+	VPNRoute *route = chipvpn_route_new(src, mask, dst, dev);
+	list_insert(list_end(list), route);
 }
 
 void chipvpn_route_free(VPNRoute *route) {
+	char src_c[INET_ADDRSTRLEN];
+	char mask_c[INET_ADDRSTRLEN];
+	char dst_c[INET_ADDRSTRLEN];
+
+	strcpy(src_c, inet_ntoa(((struct sockaddr_in*)&route->entry.rt_dst)->sin_addr));
+	strcpy(mask_c, inet_ntoa(((struct sockaddr_in*)&route->entry.rt_genmask)->sin_addr));
+	strcpy(dst_c, inet_ntoa(((struct sockaddr_in*)&route->entry.rt_gateway)->sin_addr));
+
+	chipvpn_log("del route ip %s mask %s to %s", src_c, mask_c, dst_c);
+
+	int fd = socket(PF_INET, SOCK_DGRAM, IPPROTO_IP);
+	if(ioctl(fd, SIOCDELRT, &route->entry) < 0) {
+		chipvpn_warn("route del failed due to: %s", strerror(errno));
+	}
+	close(fd);
+
+	free(route->entry.rt_dev);
 	free(route);
 }

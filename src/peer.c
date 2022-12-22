@@ -18,6 +18,7 @@
 #include "chipvpn.h"
 #include "crypto.h"
 #include "firewall.h"
+#include "route.h"
 #include <string.h>
 #include <unistd.h>
 #include <stdlib.h>
@@ -39,6 +40,8 @@ VPNPeer *chipvpn_peer_create(int fd) {
 	peer->has_route_set       = false;
 	peer->inbound_buffer_pos  = 0;
 	peer->outbound_buffer_pos = 0;
+
+	list_clear(&peer->routes);
 
 	list_clear(&peer->inbound_firewall);
 	list_clear(&peer->outbound_firewall);
@@ -72,6 +75,12 @@ VPNPeer *chipvpn_peer_create(int fd) {
 
 void chipvpn_peer_free(VPNPeer *peer) {
 	chipvpn_peer_set_login(peer, false);
+
+	// routes cleanup
+	while(!list_empty(&peer->routes)) {
+		VPNRoute *route = (VPNRoute*)list_remove(list_begin(&peer->routes));
+		chipvpn_route_free(route);
+	}
 
 	// firewall rules cleanup
 	while(!list_empty(&peer->inbound_firewall)) {
@@ -167,6 +176,7 @@ bool chipvpn_peer_enqueue_service(VPNPeer *peer) {
 		queue->packet = peer->inbound_buffer;
 
 		list_insert(list_end(&peer->inbound_queue), queue);
+
 		return true;
 	}
 
@@ -280,27 +290,16 @@ bool chipvpn_peer_recv(VPNPeer *peer, VPNPacket *dst) {
 	return false;
 }
 
-bool chipvpn_peer_send(VPNPeer *peer, VPNPacketType type, void *data, int size) {
+bool chipvpn_peer_send(VPNPeer *peer, VPNPacketType type, void *data, int size, VPNPacketFlag flag) {
 	if(
 		(
-			list_size(&peer->outbound_queue) < CHIPVPN_QUEUE_SIZE &&
-			(
-				type == VPN_TYPE_DATA
-			)
+			flag == VPN_FLAG_DATA && 
+			list_size(&peer->outbound_queue) < (CHIPVPN_QUEUE_SIZE)
 		) 
 		||
 		(
-			list_size(&peer->outbound_queue) < CHIPVPN_QUEUE_SIZE + CHIPVPN_PRIORITY_QUEUE_SIZE &&
-			(
-				type == VPN_TYPE_SET_KEY      ||
-				type == VPN_TYPE_LOGIN        ||
-				type == VPN_TYPE_LOGIN_REPLY  ||
-				type == VPN_TYPE_ASSIGN       ||
-				type == VPN_TYPE_ASSIGN_REPLY ||
-				type == VPN_TYPE_ROUTE        ||
-				type == VPN_TYPE_ROUTE_REPLY  ||
-				type == VPN_TYPE_PING
-			)
+			flag == VPN_FLAG_CONTROL && 
+			list_size(&peer->outbound_queue) < (CHIPVPN_QUEUE_SIZE + CHIPVPN_PRIORITY_QUEUE_SIZE)
 		)
 	) {
 		VPNPacketQueue *queue = malloc(sizeof(VPNPacketQueue));

@@ -25,7 +25,7 @@
 #define CHIPVPN_VERSION 10000072L
 
 char              *chipvpn_read_file(const char *file);
-int                chipvpn_execf(const char *format, ...);
+char              *chipvpn_strdup(const char *s);
 void               chipvpn_log(const char *format, ...);
 void               chipvpn_warn(const char *format, ...);
 void               chipvpn_error(const char *format, ...);

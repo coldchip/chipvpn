@@ -123,7 +123,7 @@ void chipvpn_setup(char *config_file) {
 		RAND_priv_bytes((unsigned char*)&packet.key, sizeof(packet.key));
 		chipvpn_peer_set_key(peer, packet.key);
 		chipvpn_log("key exchange success");
-		if(!chipvpn_peer_send(peer, VPN_TYPE_SET_KEY, &packet, sizeof(packet))) {
+		if(!chipvpn_peer_send(peer, VPN_TYPE_SET_KEY, &packet, sizeof(packet), VPN_FLAG_CONTROL)) {
 			chipvpn_peer_disconnect(peer);
 			return;
 		}
@@ -132,7 +132,7 @@ void chipvpn_setup(char *config_file) {
 
 		VPNAuthPacket auth;
 		strcpy((char*)auth.token, config->token);
-		if(!chipvpn_peer_send(peer, VPN_TYPE_LOGIN, &auth, sizeof(auth))) {
+		if(!chipvpn_peer_send(peer, VPN_TYPE_LOGIN, &auth, sizeof(auth), VPN_FLAG_CONTROL)) {
 			chipvpn_peer_disconnect(peer);
 			return;
 		}
@@ -173,7 +173,7 @@ void chipvpn_loop() {
 		for(ListNode *i = list_begin(&host->peers); i != list_end(&host->peers); i = list_next(i)) {
 			VPNPeer *peer = (VPNPeer*)i;
 
-			if(!chipvpn_peer_buffer_readable(peer) || list_size(&peer->inbound_queue) < CHIPVPN_QUEUE_SIZE) {
+			if(!chipvpn_peer_buffer_readable(peer) || list_size(&peer->inbound_queue) < (CHIPVPN_QUEUE_SIZE + CHIPVPN_PRIORITY_QUEUE_SIZE)) {
 				FD_SET(peer->fd, &rdset);
 			}
 			if(!chipvpn_peer_buffer_writeable(peer) || list_size(&peer->outbound_queue) > 0) {
@@ -256,7 +256,7 @@ void chipvpn_loop() {
 
 							peer->tx += r;
 
-							chipvpn_peer_send(peer, VPN_TYPE_DATA, &packet.data, r);
+							chipvpn_peer_send(peer, VPN_TYPE_DATA, &packet.data, r, VPN_FLAG_DATA);
 						}
 					}
 				}
@@ -317,7 +317,7 @@ void chipvpn_ticker() {
 		i = list_next(i);
 		if(chipvpn_get_time() - peer->last_ping < 30) {
 			if(chipvpn_peer_get_login(peer)) {
-				if(!chipvpn_peer_send(peer, VPN_TYPE_PING, NULL, 0)) {
+				if(!chipvpn_peer_send(peer, VPN_TYPE_PING, NULL, 0, VPN_FLAG_CONTROL)) {
 					chipvpn_peer_disconnect(peer);
 				}
 			}
@@ -427,7 +427,7 @@ VPNPacketError chipvpn_recv_login(VPNPeer *peer, VPNAuthPacket *packet, int size
 	if(memcmp(packet->token, config->token, strlen(config->token)) == 0) {
 		chipvpn_peer_set_login(peer, true);
 
-		if(!chipvpn_peer_send(peer, VPN_TYPE_LOGIN_REPLY, NULL, 0)) {
+		if(!chipvpn_peer_send(peer, VPN_TYPE_LOGIN_REPLY, NULL, 0, VPN_FLAG_CONTROL)) {
 			return VPN_CONNECTION_END;
 		}
 
@@ -442,7 +442,7 @@ VPNPacketError chipvpn_recv_login(VPNPeer *peer, VPNAuthPacket *packet, int size
 VPNPacketError chipvpn_recv_login_reply(VPNPeer *peer) {
 	chipvpn_peer_set_login(peer, true);
 
-	if(!chipvpn_peer_send(peer, VPN_TYPE_ASSIGN, NULL, 0)) {
+	if(!chipvpn_peer_send(peer, VPN_TYPE_ASSIGN, NULL, 0, VPN_FLAG_CONTROL)) {
 		return VPN_CONNECTION_END;
 	}
 
@@ -463,7 +463,7 @@ VPNPacketError chipvpn_recv_assign(VPNPeer *peer) {
 		.mtu = htonl(config->mtu)
 	};
 
-	if(!chipvpn_peer_send(peer, VPN_TYPE_ASSIGN_REPLY, &assign, sizeof(assign))) {
+	if(!chipvpn_peer_send(peer, VPN_TYPE_ASSIGN_REPLY, &assign, sizeof(assign), VPN_FLAG_CONTROL)) {
 		return VPN_CONNECTION_END;
 	}
 
@@ -486,7 +486,7 @@ VPNPacketError chipvpn_recv_assign_reply(VPNPeer *peer, VPNDHCPPacket *packet, i
 		chipvpn_error("unable to bring up tunnel adapter");
 	}
 
-	if(!chipvpn_peer_send(peer, VPN_TYPE_ROUTE, NULL, 0)) {
+	if(!chipvpn_peer_send(peer, VPN_TYPE_ROUTE, NULL, 0, VPN_FLAG_CONTROL)) {
 		return VPN_CONNECTION_END;
 	}
 
@@ -503,7 +503,7 @@ VPNPacketError chipvpn_recv_route(VPNPeer *peer) {
 			.dst = inet_addr(config->gateway)
 		};
 
-		if(!chipvpn_peer_send(peer, VPN_TYPE_ROUTE_REPLY, &route, sizeof(route))) {
+		if(!chipvpn_peer_send(peer, VPN_TYPE_ROUTE_REPLY, &route, sizeof(route), VPN_FLAG_CONTROL)) {
 			return VPN_CONNECTION_END;
 		}
 	}
@@ -527,7 +527,7 @@ VPNPacketError chipvpn_recv_route_reply(VPNPeer *peer, VPNRoutePacket *packet, i
 				chipvpn_error("unable to retrieve default gateway from system");
 			}
 
-			chipvpn_route_add(src, mask, dst, dev);
+			chipvpn_route_add(&peer->routes, src, mask, dst, dev);
 
 			peer->has_route_set = true;
 		}
@@ -538,7 +538,7 @@ VPNPacketError chipvpn_recv_route_reply(VPNPeer *peer, VPNRoutePacket *packet, i
 		mask.s_addr = packet->mask;
 		dst.s_addr  = packet->dst;
 
-		chipvpn_route_add(src, mask, dst, tun->dev);
+		chipvpn_route_add(&peer->routes, src, mask, dst, tun->dev);
 	}
 
 	return VPN_PACKET_OK;

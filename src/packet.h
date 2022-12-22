@@ -82,15 +82,20 @@ typedef enum {
 } VPNPacketError;
 
 typedef enum {
-	VPN_TYPE_SET_KEY = 0,
-	VPN_TYPE_LOGIN = 1,
-	VPN_TYPE_LOGIN_REPLY = 2,
-	VPN_TYPE_ASSIGN = 3,
+	VPN_FLAG_DATA = 0,
+	VPN_FLAG_CONTROL = 1
+} VPNPacketFlag;
+
+typedef enum {
+	VPN_TYPE_SET_KEY      = 0,
+	VPN_TYPE_LOGIN        = 1,
+	VPN_TYPE_LOGIN_REPLY  = 2,
+	VPN_TYPE_ASSIGN       = 3,
 	VPN_TYPE_ASSIGN_REPLY = 4,
-	VPN_TYPE_ROUTE = 5,
-	VPN_TYPE_ROUTE_REPLY = 6,
-	VPN_TYPE_DATA = 7,
-	VPN_TYPE_PING = 8
+	VPN_TYPE_ROUTE        = 5,
+	VPN_TYPE_ROUTE_REPLY  = 6,
+	VPN_TYPE_DATA         = 7,
+	VPN_TYPE_PING         = 8
 } VPNPacketType;
 
 typedef struct PACKED _VPNKeyPacket {

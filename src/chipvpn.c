@@ -55,19 +55,13 @@ char *chipvpn_read_file(const char *file) {
 	return p;
 }
 
-int chipvpn_execf(const char *format, ...) {
-	va_list args;
-	va_start(args, format);
-
-	char fmt[1000];
-
-	vsnprintf(fmt, sizeof(fmt), format, args);
-
-	int res = system(fmt);
-	
-	va_end(args);
-
-	return res;
+char *chipvpn_strdup(const char *s) {
+	size_t len = strlen(s) + 1;
+	void *new = malloc(len);
+	if (new == NULL) {
+		return NULL;
+	}
+	return (char *) memcpy(new, s, len);
 }
 
 void chipvpn_log(const char *format, ...) {
@@ -315,6 +309,5 @@ bool chipvpn_get_gateway(struct in_addr *gateway, char *dev) {
     }
 
     close(sock);
-
     return true;
 }

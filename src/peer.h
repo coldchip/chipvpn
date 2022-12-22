@@ -43,6 +43,8 @@ typedef struct _VPNPeer {
 	uint64_t tx_max;
 	uint64_t rx_max;
 
+	List routes;
+
 	List inbound_firewall;
 	List outbound_firewall;
 
@@ -74,7 +76,7 @@ bool               chipvpn_peer_dequeue_service(VPNPeer *peer);
 VPNPacketError     chipvpn_peer_dispatch_inbound(VPNPeer *peer);
 VPNPacketError     chipvpn_peer_dispatch_outbound(VPNPeer *peer);
 bool               chipvpn_peer_recv(VPNPeer *peer, VPNPacket *dst);
-bool               chipvpn_peer_send(VPNPeer *peer, VPNPacketType type, void *data, int size);
+bool               chipvpn_peer_send(VPNPeer *peer, VPNPacketType type, void *data, int size, VPNPacketFlag flag);
 int                chipvpn_peer_raw_recv(VPNPeer *peer, void *buf, int size, int *err);
 int                chipvpn_peer_raw_send(VPNPeer *peer, void *buf, int size, int *err);
 bool               chipvpn_peer_get_free_ip(List *peers, struct in_addr gateway, struct in_addr *assign);
