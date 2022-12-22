@@ -22,7 +22,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define CHIPVPN_VERSION 10000072L
+#define CHIPVPN_VERSION 10000073L
 
 char              *chipvpn_read_file(const char *file);
 char              *chipvpn_strdup(const char *s);
