@@ -48,6 +48,7 @@ VPNPacketError        chipvpn_recv_route(VPNPeer *peer);
 VPNPacketError        chipvpn_recv_route_reply(VPNPeer *peer, VPNRoutePacket *packet, int size);
 VPNPacketError        chipvpn_recv_data(VPNPeer *peer, VPNDataPacket *packet, int size);
 VPNPacketError        chipvpn_recv_ping(VPNPeer *peer);
+VPNPacketError        chipvpn_recv_msg(VPNPeer *peer, VPNMsgPacket *packet, int size);
 
 void                  chipvpn_disconnect_peer(VPNPeer *peer);
 void                  chipvpn_exit(int type);

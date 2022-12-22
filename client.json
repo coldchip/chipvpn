@@ -2,5 +2,5 @@
 	"connect": "localhost",
 	"port": 8443,
 	"token": "123456",
-	"pull_routes": true
+	"pull_routes": false
 }

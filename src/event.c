@@ -368,6 +368,8 @@ VPNPacketError chipvpn_socket_event(VPNPeer *peer, VPNPacket *packet) {
 		((type == VPN_TYPE_ROUTE)       && 
 		(config->mode != MODE_SERVER))   ||
 		((type == VPN_TYPE_ROUTE_REPLY) && 
+		(config->mode != MODE_CLIENT))   ||
+		((type == VPN_TYPE_MSG) && 
 		(config->mode != MODE_CLIENT))
 	) {
 		// mode specific zones
@@ -411,6 +413,10 @@ VPNPacketError chipvpn_socket_event(VPNPeer *peer, VPNPacket *packet) {
 			return chipvpn_recv_ping(peer);
 		}
 		break;
+		case VPN_TYPE_MSG: {
+			return chipvpn_recv_msg(peer, &data.msg_packet, PLEN(packet));
+		}
+		break;
 		default: {
 			return VPN_CONNECTION_END;
 		}
@@ -430,6 +436,22 @@ VPNPacketError chipvpn_recv_login(VPNPeer *peer, VPNAuthPacket *packet, int size
 	if(memcmp(packet->token, config->token, strlen(config->token)) == 0) {
 		chipvpn_peer_set_login(peer, true);
 
+		char art[] = " \n\
+   ____ _     _    __     ______  _   _  \n\
+  / ___| |__ (_)_ _\\ \\   / /  _ \\| \\ | | \n\
+ | |   | '_ \\| | '_ \\ \\ / /| |_) |  \\| | \n\
+ | |___| | | | | |_) \\ V / |  __/| |\\  | \n\
+  \\____|_| |_|_| .__/ \\_/  |_|   |_| \\_| \n\
+               |_|                       \n\
+		";
+
+		VPNMsgPacket packet;
+		sprintf((char*)&packet.message, "successfully logged in! \n%s", art);
+
+		if(!chipvpn_peer_send(peer, VPN_TYPE_MSG, &packet, sizeof(packet), VPN_FLAG_CONTROL)) {
+			return VPN_CONNECTION_END;
+		}
+
 		if(!chipvpn_peer_send(peer, VPN_TYPE_LOGIN_REPLY, NULL, 0, VPN_FLAG_CONTROL)) {
 			return VPN_CONNECTION_END;
 		}
@@ -444,6 +466,8 @@ VPNPacketError chipvpn_recv_login(VPNPeer *peer, VPNAuthPacket *packet, int size
 
 VPNPacketError chipvpn_recv_login_reply(VPNPeer *peer) {
 	chipvpn_peer_set_login(peer, true);
+
+	chipvpn_log("successfully authenticated");
 
 	if(!chipvpn_peer_send(peer, VPN_TYPE_ASSIGN, NULL, 0, VPN_FLAG_CONTROL)) {
 		return VPN_CONNECTION_END;
@@ -562,6 +586,12 @@ VPNPacketError chipvpn_recv_data(VPNPeer *peer, VPNDataPacket *packet, int size)
 			chipvpn_error("unable to write to tun adapter");
 		}
 	}
+	return VPN_PACKET_OK;
+}
+
+VPNPacketError chipvpn_recv_msg(VPNPeer *peer, VPNMsgPacket *packet, int size) {
+	packet->message[sizeof(packet->message) - 1] = '\0';
+	chipvpn_log("[server] %s", packet->message);
 	return VPN_PACKET_OK;
 }
 

@@ -35,7 +35,7 @@ typedef struct _VPNConfig {
 	VPNMode  mode;
 	char     ip[1024];
 	int      port;
-	char     token[1024];
+	char     token[512];
 	bool     pull_routes;
 	List     push_routes;
 	int      max_peers;

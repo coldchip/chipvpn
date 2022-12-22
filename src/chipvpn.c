@@ -111,31 +111,6 @@ void chipvpn_error(const char *format, ...) {
 	exit(1);
 }
 
-uint16_t chipvpn_checksum16(void *data, unsigned int bytes) {
-	uint16_t *data_pointer = (uint16_t *) data;
-	uint32_t total_sum = 0;
-
-	while(bytes > 1) {
-		total_sum += *data_pointer++;
-		//If it overflows to the MSBs add it straight away
-		if(total_sum >> 16){
-			total_sum = (total_sum >> 16) + (total_sum & 0x0000FFFF);
-		}
-		bytes -= 2; //Consumed 2 bytes
-	}
-	if(1 == bytes) {
-		//Add the last byte
-		total_sum += *(((uint8_t *) data_pointer) + 1);
-		//If it overflows to the MSBs add it straight away
-		if(total_sum >> 16){
-			total_sum = (total_sum >> 16) + (total_sum & 0x0000FFFF);
-		}
-		bytes -= 1;
-	}
-
-	return (~((uint16_t) total_sum));
-}
-
 char *chipvpn_resolve_hostname(const char *ip) {
 	struct hostent *he = gethostbyname(ip);
 	if(he == NULL) {
@@ -166,13 +141,18 @@ char *chipvpn_format_bytes(uint64_t bytes) {
 	return output;
 }
 
+/*
+	code to convert cidr ip string to ip and mask
+	referenced from: https://stackoverflow.com/questions/63511698/is-this-fastes-way-to-check-if-ip-string-belongs-to-cidr-string
+*/
+
 bool chipvpn_cidr_to_mask(const char *cidr, uint32_t *ip, uint32_t *mask) {
 	uint8_t a, b, c, d, bits;
-	if (sscanf(cidr, "%hhu.%hhu.%hhu.%hhu/%hhu", &a, &b, &c, &d, &bits) < 5) {
+	if(sscanf(cidr, "%hhu.%hhu.%hhu.%hhu/%hhu", &a, &b, &c, &d, &bits) < 5) {
 	    return false; /* didn't convert enough of CIDR */
 	}
 	
-	if (bits > 32) {
+	if(bits > 32) {
 	    return false; /* Invalid bit count */
 	}
 
@@ -198,8 +178,10 @@ uint32_t chipvpn_get_time() {
 	return (tv.tv_sec * 1000 + tv.tv_usec / 1000) / 1000;
 }
 
-#define BUFFER_SIZE 4096
-
+/*
+	code to grab the default gateway in linux using netlink
+	referenced from: https://gist.github.com/javiermon/6272065
+*/
 bool chipvpn_get_gateway(struct in_addr *gateway, char *dev) {
     int     received_bytes = 0, msg_len = 0, route_attribute_len = 0;
     int     sock = -1, msgseq = 0;
@@ -207,7 +189,7 @@ bool chipvpn_get_gateway(struct in_addr *gateway, char *dev) {
     struct  rtmsg *route_entry;
     // This struct contain route attributes (route type)
     struct  rtattr *route_attribute;
-    char    msgbuf[BUFFER_SIZE], buffer[BUFFER_SIZE];
+    char    msgbuf[4096], buffer[4096];
     char    *ptr = buffer;
     struct timeval tv;
 
