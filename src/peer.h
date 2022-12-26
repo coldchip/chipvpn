@@ -19,19 +19,16 @@
 #include "list.h"
 #include "packet.h"
 #include "crypto.h"
+#include "bucket.h"
 #include <stdint.h>
 #include <stdbool.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netinet/ip.h>
 
-#define CHIPVPN_QUEUE_SIZE 500
-#define CHIPVPN_PRIORITY_QUEUE_SIZE 500
-
 typedef struct _VPNPeer {
 	ListNode node;
 	int fd;
-	bool encrypted;
 	struct sockaddr_in addr;
 	bool is_authed;
 	uint32_t last_ping;
@@ -48,14 +45,13 @@ typedef struct _VPNPeer {
 	List inbound_firewall;
 	List outbound_firewall;
 
-	uint32_t inbound_buffer_pos;
-	uint32_t outbound_buffer_pos;
+	// stage 1(encrypted buffer)
+	VPNBucket *enc_inbound;
+	VPNBucket *enc_outbound;
 	
-	VPNPacket inbound_buffer;
-	VPNPacket outbound_buffer;
-
-	List inbound_queue;
-	List outbound_queue;
+	// stage 2(decrypted buffer)
+	VPNBucket *dec_inbound;
+	VPNBucket *dec_outbound;
 
 	VPNCrypto *inbound_aes;
 	VPNCrypto *outbound_aes;
@@ -69,16 +65,16 @@ void               chipvpn_peer_set_encryption(VPNPeer *peer, bool encrypted);
 bool               chipvpn_peer_get_encryption(VPNPeer *peer);
 bool               chipvpn_peer_get_login(VPNPeer *peer);
 void               chipvpn_peer_set_login(VPNPeer *peer, bool login);
-bool               chipvpn_peer_buffer_readable(VPNPeer *peer);
-bool               chipvpn_peer_buffer_writeable(VPNPeer *peer);
-bool               chipvpn_peer_enqueue_service(VPNPeer *peer);
-bool               chipvpn_peer_dequeue_service(VPNPeer *peer);
-VPNPacketError     chipvpn_peer_dispatch_inbound(VPNPeer *peer);
-VPNPacketError     chipvpn_peer_dispatch_outbound(VPNPeer *peer);
+
+int                chipvpn_peer_socket_inbound(VPNPeer *peer);
+int                chipvpn_peer_socket_outbound(VPNPeer *peer);
+
+int                chipvpn_peer_pipe_inbound(VPNPeer *peer);
+int                chipvpn_peer_pipe_outbound(VPNPeer *peer);
+
 bool               chipvpn_peer_recv(VPNPeer *peer, VPNPacket *dst);
 bool               chipvpn_peer_send(VPNPeer *peer, VPNPacketType type, void *data, int size, VPNPacketFlag flag);
-int                chipvpn_peer_raw_recv(VPNPeer *peer, void *buf, int size, int *err);
-int                chipvpn_peer_raw_send(VPNPeer *peer, void *buf, int size, int *err);
+
 bool               chipvpn_peer_get_free_ip(List *peers, struct in_addr gateway, struct in_addr *assign);
 VPNPeer           *chipvpn_peer_get_by_ip(List *peers, struct in_addr ip);
 

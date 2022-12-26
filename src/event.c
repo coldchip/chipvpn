@@ -24,6 +24,7 @@
 #include "config.h"
 #include "cJSON.h"
 #include "list.h"
+#include "bucket.h"
 #include <unistd.h>
 #include <sys/types.h>
 #include <stdbool.h>
@@ -124,14 +125,11 @@ void chipvpn_setup(char *config_file) {
 		
 		VPNKeyPacket packet;
 		RAND_priv_bytes((unsigned char*)&packet.key, sizeof(packet.key));
-		chipvpn_peer_set_key(peer, packet.key);
 		chipvpn_log("key exchange success");
 		if(!chipvpn_peer_send(peer, VPN_TYPE_SET_KEY, &packet, sizeof(packet), VPN_FLAG_CONTROL)) {
 			chipvpn_peer_disconnect(peer);
 			return;
 		}
-
-		chipvpn_peer_set_encryption(peer, true);
 
 		VPNAuthPacket auth;
 		strcpy((char*)auth.token, config->token);
@@ -176,10 +174,11 @@ void chipvpn_loop() {
 		for(ListNode *i = list_begin(&host->peers); i != list_end(&host->peers); i = list_next(i)) {
 			VPNPeer *peer = (VPNPeer*)i;
 
-			if(!chipvpn_peer_buffer_readable(peer) || list_size(&peer->inbound_queue) < (CHIPVPN_QUEUE_SIZE + CHIPVPN_PRIORITY_QUEUE_SIZE)) {
+			if(chipvpn_bucket_write_available(peer->enc_inbound) > 0 || chipvpn_bucket_write_available(peer->dec_inbound) > 0) {
 				FD_SET(peer->fd, &rdset);
 			}
-			if(!chipvpn_peer_buffer_writeable(peer) || list_size(&peer->outbound_queue) > 0) {
+
+			if(chipvpn_bucket_read_available(peer->enc_outbound) > 0 || chipvpn_bucket_read_available(peer->dec_outbound) > 0) {
 				FD_SET(peer->fd, &wdset);
 			}
 
@@ -203,7 +202,9 @@ void chipvpn_loop() {
 			*/
 			if(FD_ISSET(host->fd, &rdset) && config->mode == MODE_SERVER) {
 				VPNPeer *peer = chipvpn_socket_accept(host);
-				chipvpn_log("peer [%p] connected", peer);
+				if(peer) {
+					chipvpn_log("peer [%p] connected", peer);
+				}
 			}
 
 			/* 
@@ -216,21 +217,17 @@ void chipvpn_loop() {
 				// peer is readable
 				if(FD_ISSET(peer->fd, &rdset)) {
 					// read packet until it is a complete datagram
-					int r = chipvpn_peer_dispatch_inbound(peer);
+					int r = chipvpn_peer_socket_inbound(peer);
 					if(r <= 0 && r != VPN_EAGAIN) {
 						// peer I/O error
 						chipvpn_peer_disconnect(peer);
 						continue; // peer removed from list so skip the loop
 					}
-
-					chipvpn_peer_enqueue_service(peer); // queues ready packets from buffer into queue
 				}
 
 				// peer is writable
 				if(FD_ISSET(peer->fd, &wdset)) {
-					chipvpn_peer_dequeue_service(peer); // dequeues packets from queue into buffer
-
-					int w = chipvpn_peer_dispatch_outbound(peer);
+					int w = chipvpn_peer_socket_outbound(peer);
 					if(w <= 0 && w != VPN_EAGAIN) {
 						// peer I/O error
 						chipvpn_peer_disconnect(peer);
@@ -258,12 +255,20 @@ void chipvpn_loop() {
 							}
 
 							peer->tx += r;
-
 							chipvpn_peer_send(peer, VPN_TYPE_DATA, &packet.data, r, VPN_FLAG_DATA);
 						}
 					}
 				}
 			}
+		}
+
+		/*
+			performs encryption/decryption and pipe
+		*/
+		for(ListNode *i = list_begin(&host->peers); i != list_end(&host->peers); i = list_next(i)) {
+			VPNPeer *peer = (VPNPeer*)i;
+			while(chipvpn_peer_pipe_inbound(peer) > 0) {}
+			while(chipvpn_peer_pipe_outbound(peer) > 0) {}
 		}
 
 		/* 
@@ -275,7 +280,7 @@ void chipvpn_loop() {
 			j = list_next(j);
 
 			VPNPacket packet;
-			if(chipvpn_peer_recv(peer, &packet)) {
+			while(chipvpn_peer_recv(peer, &packet)) {
 				if(chipvpn_socket_event(peer, &packet) == VPN_CONNECTION_END) {
 					// event disconnection
 					chipvpn_peer_disconnect(peer);
@@ -427,8 +432,6 @@ VPNPacketError chipvpn_socket_event(VPNPeer *peer, VPNPacket *packet) {
 
 VPNPacketError chipvpn_recv_key(VPNPeer *peer, VPNKeyPacket *packet, int size) {
 	chipvpn_log("key exchange success");
-	chipvpn_peer_set_key(peer, packet->key);
-	chipvpn_peer_set_encryption(peer, true);
 	return VPN_PACKET_OK;
 }
 

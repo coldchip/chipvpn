@@ -19,6 +19,7 @@
 #include "crypto.h"
 #include "firewall.h"
 #include "route.h"
+#include "bucket.h"
 #include <string.h>
 #include <unistd.h>
 #include <stdlib.h>
@@ -30,7 +31,6 @@
 VPNPeer *chipvpn_peer_create(int fd) {
 	VPNPeer *peer             = malloc(sizeof(VPNPeer));
 	peer->fd                  = fd;
-	peer->encrypted           = false;
 	peer->is_authed           = false;
 	peer->tx                  = 0;
 	peer->rx                  = 0;
@@ -38,16 +38,17 @@ VPNPeer *chipvpn_peer_create(int fd) {
 	peer->rx_max              = 0xFFFFFFFFFFFFFFFF;
 	peer->last_ping           = chipvpn_get_time();
 	peer->has_route_set       = false;
-	peer->inbound_buffer_pos  = 0;
-	peer->outbound_buffer_pos = 0;
 
 	list_clear(&peer->routes);
 
 	list_clear(&peer->inbound_firewall);
 	list_clear(&peer->outbound_firewall);
 
-	list_clear(&peer->inbound_queue);
-	list_clear(&peer->outbound_queue);
+	peer->enc_inbound = chipvpn_bucket_create();
+	peer->enc_outbound = chipvpn_bucket_create();
+
+	peer->dec_inbound = chipvpn_bucket_create();
+	peer->dec_outbound = chipvpn_bucket_create();
 
 	// Allow all inbound/outbound traffic on peer
 	if(!chipvpn_firewall_add_rule(&peer->outbound_firewall, "0.0.0.0/0", RULE_ALLOW)) {
@@ -68,6 +69,13 @@ VPNPeer *chipvpn_peer_create(int fd) {
 	if(!peer->outbound_aes) {
 		chipvpn_error("unable to set aes ctx for peer");
 	}
+
+	uint8_t key[] = { 
+		0xc2, 0x06, 0xa0, 0x78, 0x2d, 0x6c, 0x61, 0x17, 
+		0x9f, 0x97, 0x03, 0xec, 0xd5, 0x3f, 0xa1, 0xf6
+	};
+
+	chipvpn_peer_set_key(peer, key);
 
 	chipvpn_log("peer connected");
 	return peer;
@@ -94,17 +102,11 @@ void chipvpn_peer_free(VPNPeer *peer) {
 		chipvpn_firewall_free_rule(rule);
 	}
 
-	// inbound queue cleanup
-	while(!list_empty(&peer->inbound_firewall)) {
-		VPNPacketQueue *queue = (VPNPacketQueue*)list_remove(list_begin(&peer->inbound_queue));
-		free(queue);
-	}
+	chipvpn_bucket_free(peer->enc_inbound);
+	chipvpn_bucket_free(peer->enc_outbound);
 
-	// outbound queue cleanup
-	while(!list_empty(&peer->outbound_firewall)) {
-		VPNPacketQueue *queue = (VPNPacketQueue*)list_remove(list_begin(&peer->outbound_queue));
-		free(queue);
-	}
+	chipvpn_bucket_free(peer->dec_inbound);
+	chipvpn_bucket_free(peer->dec_outbound);
 
 	chipvpn_crypto_free(peer->inbound_aes);
 	chipvpn_crypto_free(peer->outbound_aes);
@@ -128,14 +130,6 @@ void chipvpn_peer_set_key(VPNPeer *peer, uint8_t *key) {
 	chipvpn_crypto_set_key(peer->outbound_aes, key, iv);
 }
 
-void chipvpn_peer_set_encryption(VPNPeer *peer, bool encrypted) {
-	peer->encrypted = encrypted;
-}
-
-bool chipvpn_peer_get_encryption(VPNPeer *peer) {
-	return peer->encrypted;
-}
-
 void chipvpn_peer_set_login(VPNPeer *peer, bool login) {
 	peer->is_authed = login;
 }
@@ -144,149 +138,92 @@ bool chipvpn_peer_get_login(VPNPeer *peer) {
 	return peer->is_authed;
 }
 
-bool chipvpn_peer_buffer_readable(VPNPeer *peer) {
-	// Able to receive a fully constructed VPNPacket datagram
-	VPNPacket *packet = &peer->inbound_buffer;
+int chipvpn_peer_socket_inbound(VPNPeer *peer) {
+	int size = chipvpn_bucket_write_available(peer->enc_inbound);
 
-	return 
-	peer->inbound_buffer_pos >= sizeof(VPNPacketHeader) && 
-	peer->inbound_buffer_pos == (sizeof(VPNPacketHeader) + PLEN(packet));
-}
-
-bool chipvpn_peer_buffer_writeable(VPNPeer *peer) {
-	// Able to send a fully constructed VPNPacket datagram
-	return peer->outbound_buffer_pos == 0;
-}
-
-/*
-	The chipvpn_peer_enqueue_service function is called when the input buffer 
-	of the VPNPeer object is readable and the inbound queue has fewer than CHIPVPN_QUEUE_SIZE. 
-	In this case, the function allocates a new VPNPacketQueue object and initializes 
-	it with the current contents of the VPNPeer's inbound buffer. It then inserts the 
-	VPNPacketQueue object into the end of the inbound queue and resets the position of 
-	the inbound buffer to zero. The function returns true if the VPNPacketQueue object 
-	was added to the inbound queue, and false otherwise.
-*/
-
-bool chipvpn_peer_enqueue_service(VPNPeer *peer) {
-	if(chipvpn_peer_buffer_readable(peer) && list_size(&peer->inbound_queue) < CHIPVPN_QUEUE_SIZE) {
-		VPNPacketQueue *queue = malloc(sizeof(VPNPacketQueue));
-		
-		peer->inbound_buffer_pos = 0;
-		queue->packet = peer->inbound_buffer;
-
-		list_insert(list_end(&peer->inbound_queue), queue);
-
-		return true;
-	}
-
-	return false;
-}
-
-/*
-	The chipvpn_peer_dequeue_service function is called when the output buffer of 
-	the VPNPeer buffer is writeable and the outbound queue has at least one element. 
-	In this case, the function removes the first element from the outbound queue and 
-	initializes the VPNPeer's outbound buffer with its contents. It then sets the 
-	position of the outbound buffer to the size of the VPNPacketHeader plus the size 
-	of the packet body, as indicated by the packet header. The function returns true if 
-	the outbound buffer was successfully initialized, and false otherwise.
-*/
-
-bool chipvpn_peer_dequeue_service(VPNPeer *peer) {
-	if(chipvpn_peer_buffer_writeable(peer) && list_size(&peer->outbound_queue) > 0) {
-		VPNPacketQueue *queue = (VPNPacketQueue*)list_remove(list_begin(&peer->outbound_queue));
-
-		peer->outbound_buffer_pos = sizeof(VPNPacketHeader) + ntohl(queue->packet.header.size);
-		peer->outbound_buffer = queue->packet;
-
-		free(queue);
-
-		return true;
-	}
-
-	return false;
-}
-
-int chipvpn_peer_dispatch_inbound(VPNPeer *peer) {
-	if(!chipvpn_peer_buffer_readable(peer)) {
-		VPNPacket *packet = &peer->inbound_buffer;
-		uint32_t left = sizeof(VPNPacketHeader) - peer->inbound_buffer_pos;
-
-		if(peer->inbound_buffer_pos >= sizeof(VPNPacketHeader)) {
-			if(PLEN(packet) > sizeof(VPNPacketBody)) {
-				return VPN_CONNECTION_END;
-			}
-			left += PLEN(packet);
-		}
-
-		if(
-			(peer->inbound_buffer_pos > sizeof(peer->inbound_buffer)) || 
-			(left + peer->inbound_buffer_pos) > sizeof(peer->inbound_buffer)
-		) {
-			return VPN_CONNECTION_END;
-		}
-
-		int err = EWOULDBLOCK;
-		int r = chipvpn_peer_raw_recv(peer, ((char*)packet) + peer->inbound_buffer_pos, left, &err);
+	if(size) {
+		char buf[size];
+		int r = recv(peer->fd, buf, size, 0);
 		if(r <= 0) {
-			if(err == EWOULDBLOCK || err == EAGAIN) {
+			if(errno == EAGAIN || errno == EWOULDBLOCK) {
 				return VPN_EAGAIN;
 			}
 			return VPN_CONNECTION_END;
 		}
 
-		peer->inbound_buffer_pos += r;
+		chipvpn_bucket_write(peer->enc_inbound, buf, r);
 
 		return r;
 	}
-
 	return VPN_EAGAIN;
 }
 
-int chipvpn_peer_dispatch_outbound(VPNPeer *peer) {
-	if(!chipvpn_peer_buffer_writeable(peer)) {
-		VPNPacket *packet = &peer->outbound_buffer;
+int chipvpn_peer_socket_outbound(VPNPeer *peer) {
+	int size = chipvpn_bucket_read_available(peer->enc_outbound);
 
-		int err = EWOULDBLOCK;
-		int w = chipvpn_peer_raw_send(peer, ((char*)packet) + sizeof(VPNPacketHeader) + PLEN(packet) - peer->outbound_buffer_pos, peer->outbound_buffer_pos, &err);
+	if(size > 0) {
+		int w = send(peer->fd, chipvpn_bucket_get_buffer(peer->enc_outbound), size, 0);
 		if(w <= 0) {
-			if(err == EWOULDBLOCK || err == EAGAIN) {
+			if(errno == EAGAIN || errno == EWOULDBLOCK) {
 				return VPN_EAGAIN;
 			}
 			return VPN_CONNECTION_END;
 		}
 
-		peer->outbound_buffer_pos -= w;
-		return w;
+		return chipvpn_bucket_consume(peer->enc_outbound, w);
 	}
+	return VPN_EAGAIN;
+}
 
+int chipvpn_peer_pipe_inbound(VPNPeer *peer) {
+	VPNBucket *src = peer->enc_inbound;
+	VPNBucket *dst = peer->dec_inbound;
+
+	if(chipvpn_bucket_read_available(src) > 0 && chipvpn_bucket_write_available(dst) > 0) {
+		int size = MIN(chipvpn_bucket_read_available(src), chipvpn_bucket_write_available(dst));
+
+		char src_buf[size], dst_buf[size];
+		int r = chipvpn_bucket_read(src, src_buf, size);
+		
+		if(!chipvpn_crypto_encrypt(peer->inbound_aes, dst_buf, src_buf, r)) {
+			return VPN_CONNECTION_END;
+		}
+
+		return chipvpn_bucket_write(dst, dst_buf, r);
+	}
+	return VPN_EAGAIN;
+}
+
+int chipvpn_peer_pipe_outbound(VPNPeer *peer) {
+	VPNBucket *src = peer->dec_outbound;
+	VPNBucket *dst = peer->enc_outbound;
+
+	if(chipvpn_bucket_read_available(src) > 0 && chipvpn_bucket_write_available(dst) > 0) {
+		int size = MIN(chipvpn_bucket_read_available(src), chipvpn_bucket_write_available(dst));
+
+		char src_buf[size], dst_buf[size];
+		int r = chipvpn_bucket_read(src, src_buf, size);
+
+		if(!chipvpn_crypto_encrypt(peer->outbound_aes, dst_buf, src_buf, r)) {
+			return VPN_CONNECTION_END;
+		}
+
+		return chipvpn_bucket_write(dst, dst_buf, r);
+	}
 	return VPN_EAGAIN;
 }
 
 bool chipvpn_peer_recv(VPNPeer *peer, VPNPacket *dst) {
-	if(list_size(&peer->inbound_queue) > 0) {
-		VPNPacketQueue *queue = (VPNPacketQueue*)list_remove(list_begin(&peer->inbound_queue));
-		// Buffer ready
-		
-		VPNPacket *packet = &queue->packet;
+	if(chipvpn_bucket_read_available(peer->dec_inbound) >= sizeof(VPNPacketHeader)) {
+		VPNPacket *packet = (VPNPacket*)chipvpn_bucket_get_buffer(peer->dec_inbound);
 
-		memcpy(&dst->header, &packet->header, sizeof(VPNPacketHeader));
+		int size = sizeof(VPNPacketHeader) + PLEN(packet);
 
-		if(chipvpn_peer_get_encryption(peer)) {
-			if(!chipvpn_crypto_decrypt(peer->inbound_aes, &dst->data, &packet->data, PLEN(packet))) {
-				free(queue);
-				return false;
-			}
-		} else {
-			memcpy(&dst->data, &packet->data, PLEN(packet));
+		if(chipvpn_bucket_read_available(peer->dec_inbound) >= size) {
+			chipvpn_bucket_read(peer->dec_inbound, dst, size);
+			return true;
 		}
-
-		free(queue);
-
-		return true;
 	}
-
 	return false;
 }
 
@@ -294,61 +231,25 @@ bool chipvpn_peer_send(VPNPeer *peer, VPNPacketType type, void *data, int size, 
 	if(
 		(
 			flag == VPN_FLAG_DATA && 
-			list_size(&peer->outbound_queue) < (CHIPVPN_QUEUE_SIZE)
-		) 
+			chipvpn_bucket_write_available(peer->dec_outbound) >= sizeof(VPNPacketHeader) + size
+		)
 		||
 		(
-			flag == VPN_FLAG_CONTROL && 
-			list_size(&peer->outbound_queue) < (CHIPVPN_QUEUE_SIZE + CHIPVPN_PRIORITY_QUEUE_SIZE)
+			flag == VPN_FLAG_CONTROL
 		)
 	) {
-		VPNPacketQueue *queue = malloc(sizeof(VPNPacketQueue));
-		list_insert(list_end(&peer->outbound_queue), queue);
-
-		VPNPacket *packet   = &queue->packet;
-		packet->header.size = htonl(size);
-		packet->header.type = (uint8_t)(type & 0xff);
+		VPNPacket packet;
+		packet.header.size = htonl(size);
+		packet.header.type = (uint8_t)(type & 0xFF);
 		if(data && size > 0) {
-			if(chipvpn_peer_get_encryption(peer)) {
-				if(!chipvpn_crypto_encrypt(peer->outbound_aes, &packet->data, data, size)) {
-					list_remove(&queue->node);
-					free(queue);
-					return false;
-				}
-			} else {
-				memcpy(&packet->data, data, size);
-			}
+			memcpy(&packet.data, data, size);
 		}
+
+		chipvpn_bucket_write(peer->dec_outbound, &packet, sizeof(VPNPacketHeader) + size);
 
 		return true;
 	}
 	return false;
-}
-
-int chipvpn_peer_raw_recv(VPNPeer *peer, void *buf, int size, int *err) {
-	/*
-		*buf should not be modified as that will 
-		corrupt the program from reading the
-		correct packet size. 
-	*/
-	int r = recv(peer->fd, buf, size, 0);
-	if(err) {
-		*err = errno;
-	}
-	return r;
-}
-
-int chipvpn_peer_raw_send(VPNPeer *peer, void *buf, int size, int *err) {
-	/*
-		*buf should not be modified as that will 
-		corrupt the program from reading the
-		correct packet size. 
-	*/
-	int w = send(peer->fd, buf, size, 0);
-	if(err) {
-		*err = errno;
-	}
-	return w;
 }
 
 bool chipvpn_peer_get_free_ip(List *peers, struct in_addr gateway, struct in_addr *assign) {

@@ -15,7 +15,8 @@ chipvpn_SOURCES = src/chipvpn.c \
 				src/list.c \
 				src/packet.c \
 				src/tun.c \
-				src/route.c
+				src/route.c \
+				src/bucket.c
 
 chipvpn_CFLAGS = -Ofast -s -std=gnu99 -Wall
 chipvpn_LDADD = -lcrypto -lssl
