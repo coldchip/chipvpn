@@ -272,7 +272,15 @@ void chipvpn_loop() {
 			j = list_next(j);
 
 			VPNPacket packet;
-			while(chipvpn_peer_recv(peer, &packet)) {
+			while(true) {
+				int r = chipvpn_peer_recv(peer, &packet);
+				if(r <= 0) {
+					if(r == VPN_CONNECTION_END) {
+						chipvpn_peer_disconnect(peer);
+					}
+					break;
+				}
+
 				if(chipvpn_socket_event(peer, &packet) == VPN_CONNECTION_END) {
 					// event disconnection
 					chipvpn_peer_disconnect(peer);
@@ -280,7 +288,7 @@ void chipvpn_loop() {
 				}
 			}
 		}
-		
+
 		/* 
 			ChipVPN's ticker
 		*/

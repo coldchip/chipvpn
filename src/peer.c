@@ -213,21 +213,24 @@ int chipvpn_peer_pipe_outbound(VPNPeer *peer) {
 	return VPN_EAGAIN;
 }
 
-bool chipvpn_peer_recv(VPNPeer *peer, VPNPacket *dst) {
+int chipvpn_peer_recv(VPNPeer *peer, VPNPacket *dst) {
 	if(chipvpn_bucket_read_available(peer->dec_inbound) >= sizeof(VPNPacketHeader)) {
 		VPNPacket *packet = (VPNPacket*)chipvpn_bucket_get_buffer(peer->dec_inbound);
 
 		int size = sizeof(VPNPacketHeader) + PLEN(packet);
 
+		if(size > sizeof(VPNPacket)) {
+			return VPN_CONNECTION_END;
+		}
+
 		if(chipvpn_bucket_read_available(peer->dec_inbound) >= size) {
-			chipvpn_bucket_read(peer->dec_inbound, dst, size);
-			return true;
+			return chipvpn_bucket_read(peer->dec_inbound, dst, size);
 		}
 	}
-	return false;
+	return VPN_EAGAIN;
 }
 
-bool chipvpn_peer_send(VPNPeer *peer, VPNPacketType type, void *data, int size, VPNPacketFlag flag) {
+int chipvpn_peer_send(VPNPeer *peer, VPNPacketType type, void *data, int size, VPNPacketFlag flag) {
 	if(
 		(
 			flag == VPN_FLAG_DATA && 
@@ -245,11 +248,9 @@ bool chipvpn_peer_send(VPNPeer *peer, VPNPacketType type, void *data, int size, 
 			memcpy(&packet.data, data, size);
 		}
 
-		chipvpn_bucket_write(peer->dec_outbound, &packet, sizeof(VPNPacketHeader) + size);
-
-		return true;
+		return chipvpn_bucket_write(peer->dec_outbound, &packet, sizeof(VPNPacketHeader) + size);
 	}
-	return false;
+	return VPN_EAGAIN;
 }
 
 bool chipvpn_peer_get_free_ip(List *peers, struct in_addr gateway, struct in_addr *assign) {

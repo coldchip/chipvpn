@@ -72,8 +72,8 @@ int                chipvpn_peer_socket_outbound(VPNPeer *peer);
 int                chipvpn_peer_pipe_inbound(VPNPeer *peer);
 int                chipvpn_peer_pipe_outbound(VPNPeer *peer);
 
-bool               chipvpn_peer_recv(VPNPeer *peer, VPNPacket *dst);
-bool               chipvpn_peer_send(VPNPeer *peer, VPNPacketType type, void *data, int size, VPNPacketFlag flag);
+int                chipvpn_peer_recv(VPNPeer *peer, VPNPacket *dst);
+int                chipvpn_peer_send(VPNPeer *peer, VPNPacketType type, void *data, int size, VPNPacketFlag flag);
 
 bool               chipvpn_peer_get_free_ip(List *peers, struct in_addr gateway, struct in_addr *assign);
 VPNPeer           *chipvpn_peer_get_by_ip(List *peers, struct in_addr ip);
