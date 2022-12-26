@@ -190,14 +190,6 @@ void chipvpn_loop() {
 		*/
 		if(select(max + 1, &rdset, &wdset, NULL, &tv) >= 0) {
 			/* 
-				ChipVPN's ticker
-			*/
-			if(chipvpn_get_time() - chipvpn_last_update >= 2) {
-				chipvpn_ticker();
-				chipvpn_last_update = chipvpn_get_time();
-			}
-
-			/* 
 				Triggered when someone connects
 			*/
 			if(FD_ISSET(host->fd, &rdset) && config->mode == MODE_SERVER) {
@@ -287,6 +279,14 @@ void chipvpn_loop() {
 					continue; // peer removed from list so skip the loop
 				}
 			}
+		}
+		
+		/* 
+			ChipVPN's ticker
+		*/
+		if(chipvpn_get_time() - chipvpn_last_update >= 2) {
+			chipvpn_ticker();
+			chipvpn_last_update = chipvpn_get_time();
 		}
 	}
 }
