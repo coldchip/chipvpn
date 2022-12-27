@@ -1,12 +1,12 @@
 #include <stdlib.h>
 #include <string.h>
-#include "packet.h"
 #include "bucket.h"
 
-VPNBucket *chipvpn_bucket_create() {
+VPNBucket *chipvpn_bucket_create(int max) {
 	VPNBucket *bucket = malloc(sizeof(VPNBucket));
 	bucket->data = malloc(sizeof(char) * 1);
 	bucket->size = 0;
+	bucket->max = max;
 	return bucket;
 }
 
@@ -19,7 +19,7 @@ int chipvpn_bucket_read_available(VPNBucket *bucket) {
 }
 
 int chipvpn_bucket_write_available(VPNBucket *bucket) {
-	return (sizeof(VPNPacket) * 3) - bucket->size;
+	return bucket->max - bucket->size;
 }
 
 int chipvpn_bucket_write(VPNBucket *bucket, void *buf, int size) {

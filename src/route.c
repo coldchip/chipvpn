@@ -41,7 +41,7 @@ VPNRoute *chipvpn_route_new(struct in_addr src, struct in_addr mask, struct in_a
 	strcpy(mask_c, inet_ntoa(mask));
 	strcpy(dst_c, inet_ntoa(dst));
 
-	chipvpn_log("add route ip %s mask %s via %s", src_c, mask_c, dst_c);
+	chipvpn_log("add route ip [%s] mask [%s] via [%s]", src_c, mask_c, dst_c);
 
 	if(ioctl(fd, SIOCADDRT, &route->entry) < 0) {
 		chipvpn_warn("route set failed due to: %s", strerror(errno));
@@ -65,7 +65,7 @@ void chipvpn_route_free(VPNRoute *route) {
 	strcpy(mask_c, inet_ntoa(((struct sockaddr_in*)&route->entry.rt_genmask)->sin_addr));
 	strcpy(dst_c, inet_ntoa(((struct sockaddr_in*)&route->entry.rt_gateway)->sin_addr));
 
-	chipvpn_log("del route ip %s mask %s via %s", src_c, mask_c, dst_c);
+	chipvpn_log("del route ip [%s] mask [%s] via [%s]", src_c, mask_c, dst_c);
 
 	int fd = socket(PF_INET, SOCK_DGRAM, IPPROTO_IP);
 	if(ioctl(fd, SIOCDELRT, &route->entry) < 0) {

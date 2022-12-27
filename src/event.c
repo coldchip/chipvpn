@@ -616,6 +616,35 @@ VPNPacketError chipvpn_recv_ping(VPNPeer *peer) {
 	strcpy(rx, chipvpn_format_bytes(peer->rx));
 	chipvpn_log("heartbeat from peer [%p] tx: %s rx: %s", peer, tx, rx);
 
+	#ifdef DEBUG
+
+	int dec_in  = chipvpn_bucket_read_available(peer->dec_inbound);
+	int enc_in  = chipvpn_bucket_read_available(peer->enc_inbound);
+	int dec_out = chipvpn_bucket_read_available(peer->dec_outbound);
+	int enc_out = chipvpn_bucket_read_available(peer->enc_outbound);
+
+	char d_i[64];
+	char e_i[64];
+	char d_o[64];
+	char e_o[64];
+
+	strcpy(d_i, chipvpn_format_bytes(dec_in));
+	strcpy(e_i, chipvpn_format_bytes(enc_in));
+	strcpy(d_o, chipvpn_format_bytes(dec_out));
+	strcpy(e_o, chipvpn_format_bytes(enc_out));
+
+	printf("\n[peer %p] <= [decrypted %s] <= [encrypted %s] <= [socket]\n[peer %p] => [decrypted %s] => [encrypted %s] => [socket]\n\n", 
+		peer,
+		d_i,
+		e_i,
+
+		peer,
+		d_o,
+		e_o
+	);
+
+	#endif
+
 	peer->last_ping = chipvpn_get_time();
 	return VPN_PACKET_OK; 
 }

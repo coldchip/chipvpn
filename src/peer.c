@@ -44,11 +44,11 @@ VPNPeer *chipvpn_peer_create(int fd) {
 	list_clear(&peer->inbound_firewall);
 	list_clear(&peer->outbound_firewall);
 
-	peer->enc_inbound = chipvpn_bucket_create();
-	peer->enc_outbound = chipvpn_bucket_create();
+	peer->enc_inbound = chipvpn_bucket_create(sizeof(VPNPacket) * 5);
+	peer->enc_outbound = chipvpn_bucket_create(sizeof(VPNPacket) * 5);
 
-	peer->dec_inbound = chipvpn_bucket_create();
-	peer->dec_outbound = chipvpn_bucket_create();
+	peer->dec_inbound = chipvpn_bucket_create(sizeof(VPNPacket) * 5);
+	peer->dec_outbound = chipvpn_bucket_create(sizeof(VPNPacket) * 5);
 
 	// Allow all inbound/outbound traffic on peer
 	if(!chipvpn_firewall_add_rule(&peer->outbound_firewall, "0.0.0.0/0", RULE_ALLOW)) {
