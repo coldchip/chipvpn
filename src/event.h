@@ -21,13 +21,6 @@
 #include "config.h"
 #include <stdint.h>
 
-#ifndef MAX
-#define MAX(a,b) \
-({ __typeof__ (a) _a = (a); \
-__typeof__ (b) _b = (b); \
-_a > _b ? _a : _b; })
-#endif
-
 void                  chipvpn_init(char *config_file);
 void                  chipvpn_setup(char *config_file);
 void                  chipvpn_loop();

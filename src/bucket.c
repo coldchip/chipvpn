@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <string.h>
+#include "chipvpn.h"
 #include "bucket.h"
 
 VPNBucket *chipvpn_bucket_create(int max) {

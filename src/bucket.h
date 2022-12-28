@@ -1,8 +1,6 @@
 #ifndef BUCKET_H
 #define BUCKET_H
 
-#define MIN(x, y) (((x) < (y)) ? (x) : (y))
-
 typedef struct _VPNBucket {
 	char *data;
 	int size;

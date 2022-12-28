@@ -24,6 +24,9 @@
 
 #define CHIPVPN_VERSION 10000076L
 
+#define MAX(x, y) (((x) > (y)) ? (x) : (y))
+#define MIN(x, y) (((x) < (y)) ? (x) : (y))
+
 char              *chipvpn_read_file(const char *file);
 char              *chipvpn_strdup(const char *s);
 void               chipvpn_log(const char *format, ...);
