@@ -123,7 +123,7 @@ void chipvpn_peer_disconnect(VPNPeer *peer) {
 void chipvpn_peer_set_key(VPNPeer *peer, uint8_t *key) {
 	uint8_t iv[] = { 
 		0x8e, 0xa2, 0x98, 0x96, 0xc2, 0x37, 0xe8, 0x6e, 
-		0x40, 0x7a, 0x74, 0x57, 0x68, 0x72, 0x1b, 0xa9 
+		0x40, 0x7a, 0x74, 0x57, 0x68, 0x72, 0x1b, 0xa9
 	};
 
 	chipvpn_crypto_set_key(peer->inbound_aes, key, iv);
@@ -141,9 +141,9 @@ bool chipvpn_peer_get_login(VPNPeer *peer) {
 int chipvpn_peer_socket_inbound(VPNPeer *peer) {
 	int size = chipvpn_bucket_write_available(peer->enc_inbound);
 
-	if(size) {
+	if(size > 0) {
 		char buf[size];
-		int r = recv(peer->fd, buf, size, 0);
+		int r = recv(peer->fd, buf, size, MSG_DONTWAIT);
 		if(r <= 0) {
 			if(errno == EAGAIN || errno == EWOULDBLOCK) {
 				return VPN_EAGAIN;
@@ -151,9 +151,7 @@ int chipvpn_peer_socket_inbound(VPNPeer *peer) {
 			return VPN_CONNECTION_END;
 		}
 
-		chipvpn_bucket_write(peer->enc_inbound, buf, r);
-
-		return r;
+		return chipvpn_bucket_write(peer->enc_inbound, buf, r);
 	}
 	return VPN_EAGAIN;
 }
@@ -162,7 +160,7 @@ int chipvpn_peer_socket_outbound(VPNPeer *peer) {
 	int size = chipvpn_bucket_read_available(peer->enc_outbound);
 
 	if(size > 0) {
-		int w = send(peer->fd, chipvpn_bucket_get_buffer(peer->enc_outbound), size, 0);
+		int w = send(peer->fd, chipvpn_bucket_get_buffer(peer->enc_outbound), size, MSG_DONTWAIT);
 		if(w <= 0) {
 			if(errno == EAGAIN || errno == EWOULDBLOCK) {
 				return VPN_EAGAIN;
@@ -179,13 +177,14 @@ int chipvpn_peer_pipe_inbound(VPNPeer *peer) {
 	VPNBucket *src = peer->enc_inbound;
 	VPNBucket *dst = peer->dec_inbound;
 
-	if(chipvpn_bucket_read_available(src) > 0 && chipvpn_bucket_write_available(dst) > 0) {
-		int size = MIN(chipvpn_bucket_read_available(src), chipvpn_bucket_write_available(dst));
+	int size = MIN(chipvpn_bucket_read_available(src), chipvpn_bucket_write_available(dst));
+	size = MIN(size, 1024);
 
+	if(size > 0) {
 		char src_buf[size], dst_buf[size];
 		int r = chipvpn_bucket_read(src, src_buf, size);
-		
-		if(!chipvpn_crypto_encrypt(peer->inbound_aes, dst_buf, src_buf, r)) {
+
+		if(!chipvpn_crypto_decrypt(peer->inbound_aes, dst_buf, src_buf, r)) {
 			return VPN_CONNECTION_END;
 		}
 
@@ -198,9 +197,10 @@ int chipvpn_peer_pipe_outbound(VPNPeer *peer) {
 	VPNBucket *src = peer->dec_outbound;
 	VPNBucket *dst = peer->enc_outbound;
 
-	if(chipvpn_bucket_read_available(src) > 0 && chipvpn_bucket_write_available(dst) > 0) {
-		int size = MIN(chipvpn_bucket_read_available(src), chipvpn_bucket_write_available(dst));
+	int size = MIN(chipvpn_bucket_read_available(src), chipvpn_bucket_write_available(dst));
+	size = MIN(size, 1024);
 
+	if(size > 0) {
 		char src_buf[size], dst_buf[size];
 		int r = chipvpn_bucket_read(src, src_buf, size);
 

@@ -39,7 +39,6 @@ void                  chipvpn_ipc_event(char *buf);
 VPNPacketError        chipvpn_ipc_login(VPNPeer *peer);
 
 VPNPacketError        chipvpn_socket_event(VPNPeer *peer, VPNPacket *packet);
-VPNPacketError        chipvpn_recv_key(VPNPeer *peer, VPNKeyPacket *packet, int size);
 VPNPacketError        chipvpn_recv_login(VPNPeer *peer, VPNAuthPacket *packet, int size);
 VPNPacketError        chipvpn_recv_login_reply(VPNPeer *peer);
 VPNPacketError        chipvpn_recv_assign(VPNPeer *peer);

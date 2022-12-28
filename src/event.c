@@ -123,17 +123,9 @@ void chipvpn_setup(char *config_file) {
 			chipvpn_log("unable to connect, reconnecting");
 		}
 		
-		VPNKeyPacket packet;
-		RAND_priv_bytes((unsigned char*)&packet.key, sizeof(packet.key));
-		chipvpn_log("key exchange success");
-		if(!chipvpn_peer_send(peer, VPN_TYPE_SET_KEY, &packet, sizeof(packet), VPN_FLAG_CONTROL)) {
-			chipvpn_peer_disconnect(peer);
-			return;
-		}
-
 		VPNAuthPacket auth;
 		strcpy((char*)auth.token, config->token);
-		if(!chipvpn_peer_send(peer, VPN_TYPE_LOGIN, &auth, sizeof(auth), VPN_FLAG_CONTROL)) {
+		if(!chipvpn_peer_send(peer, VPN_TYPE_LOGIN, &auth, strlen((char*)auth.token), VPN_FLAG_CONTROL)) {
 			chipvpn_peer_disconnect(peer);
 			return;
 		}
@@ -346,7 +338,7 @@ void chipvpn_ticker() {
 /*
 	This function is a dispatcher for handling different types of packets received from a peer.
 	The handling functions called by this function to perform various tasks, 
-	such as setting keys, authenticating the peer, 
+	such as authenticating the peer, 
 	assigning an IP address to the peer, 
 	sending and receiving data, and responding to ping packets.
 */
@@ -368,8 +360,6 @@ VPNPacketError chipvpn_socket_event(VPNPeer *peer, VPNPacket *packet) {
 	}
 
 	if(
-		((type == VPN_TYPE_SET_KEY)      && 
-		(config->mode != MODE_SERVER))   || 
 		((type == VPN_TYPE_LOGIN)        && 
 		(config->mode != MODE_SERVER))   ||
 		((type == VPN_TYPE_LOGIN_REPLY)  && 
@@ -390,10 +380,6 @@ VPNPacketError chipvpn_socket_event(VPNPeer *peer, VPNPacket *packet) {
 	}
 
 	switch(type) {
-		case VPN_TYPE_SET_KEY: {
-			return chipvpn_recv_key(peer, &data.key_packet, PLEN(packet));
-		}
-		break;
 		case VPN_TYPE_LOGIN: {
 			return chipvpn_recv_login(peer, &data.auth_packet, PLEN(packet));
 		}
@@ -436,11 +422,6 @@ VPNPacketError chipvpn_socket_event(VPNPeer *peer, VPNPacket *packet) {
 		break;
 	}
 	return VPN_CONNECTION_END;
-}
-
-VPNPacketError chipvpn_recv_key(VPNPeer *peer, VPNKeyPacket *packet, int size) {
-	chipvpn_log("key exchange success");
-	return VPN_PACKET_OK;
 }
 
 VPNPacketError chipvpn_recv_login(VPNPeer *peer, VPNAuthPacket *packet, int size) {
