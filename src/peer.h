@@ -53,8 +53,7 @@ typedef struct _VPNPeer {
 	VPNBucket *vpn_inbound;
 	VPNBucket *vpn_outbound;
 
-	bool inbound_encrypted;
-	bool outbound_encrypted;
+	bool encrypted;
 
 	VPNCrypto *inbound_cipher;
 	VPNCrypto *outbound_cipher;

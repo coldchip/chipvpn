@@ -60,8 +60,7 @@ VPNPeer *chipvpn_peer_create(int fd) {
 
 	chipvpn_peer_set_login(peer, false);
 
-	peer->inbound_encrypted = false;
-	peer->outbound_encrypted = false;
+	peer->encrypted = false;
 
 	peer->inbound_cipher = chipvpn_crypto_create();
 	if(!peer->inbound_cipher) {
@@ -206,7 +205,7 @@ int chipvpn_peer_cipher_outbound(VPNPeer *peer) {
 
 int chipvpn_peer_recv(VPNPeer *peer, VPNPacket *dst) {
 	VPNBucket *bucket = peer->sock_inbound;
-	if(peer->inbound_encrypted) {
+	if(peer->encrypted) {
 		bucket = peer->vpn_inbound;
 	}
 
@@ -228,7 +227,7 @@ int chipvpn_peer_recv(VPNPeer *peer, VPNPacket *dst) {
 
 int chipvpn_peer_send(VPNPeer *peer, VPNPacketType type, void *data, int size, VPNPacketFlag flag) {
 	VPNBucket *bucket = peer->sock_outbound;
-	if(peer->outbound_encrypted) {
+	if(peer->encrypted) {
 		bucket = peer->vpn_outbound;
 	}
 
