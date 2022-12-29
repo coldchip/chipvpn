@@ -46,31 +46,32 @@ typedef struct _VPNPeer {
 	List outbound_firewall;
 
 	// stage 1(encrypted buffer)
-	VPNBucket *enc_inbound;
-	VPNBucket *enc_outbound;
+	VPNBucket *sock_inbound;
+	VPNBucket *sock_outbound;
 	
 	// stage 2(decrypted buffer)
-	VPNBucket *dec_inbound;
-	VPNBucket *dec_outbound;
+	VPNBucket *vpn_inbound;
+	VPNBucket *vpn_outbound;
 
-	VPNCrypto *inbound_aes;
-	VPNCrypto *outbound_aes;
+	bool inbound_encrypted;
+	bool outbound_encrypted;
+
+	VPNCrypto *inbound_cipher;
+	VPNCrypto *outbound_cipher;
 } VPNPeer;
 
 VPNPeer           *chipvpn_peer_create(int fd);
 void               chipvpn_peer_free(VPNPeer *peer);
 void               chipvpn_peer_disconnect(VPNPeer *peer);
-void               chipvpn_peer_set_key(VPNPeer *peer, uint8_t *key);
-void               chipvpn_peer_set_encryption(VPNPeer *peer, bool encrypted);
-bool               chipvpn_peer_get_encryption(VPNPeer *peer);
+void               chipvpn_peer_set_key(VPNPeer *peer, uint8_t *iv, uint8_t *key);
 bool               chipvpn_peer_get_login(VPNPeer *peer);
 void               chipvpn_peer_set_login(VPNPeer *peer, bool login);
 
 int                chipvpn_peer_socket_inbound(VPNPeer *peer);
 int                chipvpn_peer_socket_outbound(VPNPeer *peer);
 
-int                chipvpn_peer_pipe_inbound(VPNPeer *peer);
-int                chipvpn_peer_pipe_outbound(VPNPeer *peer);
+int                chipvpn_peer_cipher_inbound(VPNPeer *peer);
+int                chipvpn_peer_cipher_outbound(VPNPeer *peer);
 
 int                chipvpn_peer_recv(VPNPeer *peer, VPNPacket *dst);
 int                chipvpn_peer_send(VPNPeer *peer, VPNPacketType type, void *data, int size, VPNPacketFlag flag);
