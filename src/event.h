@@ -21,7 +21,7 @@
 #include "config.h"
 #include <stdint.h>
 
-#define DISCONNECT_IF(condition) \
+#define VALIDATE_PEER(condition) \
 if(!(condition)) { \
     return VPN_CONNECTION_END; \
 } \
