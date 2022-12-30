@@ -53,7 +53,8 @@ typedef struct _VPNPeer {
 	VPNBucket *vpn_inbound;
 	VPNBucket *vpn_outbound;
 
-	bool encrypted;
+	bool inbound_encrypted;
+	bool outbound_encrypted;
 
 	VPNCrypto *inbound_cipher;
 	VPNCrypto *outbound_cipher;
@@ -62,7 +63,6 @@ typedef struct _VPNPeer {
 VPNPeer           *chipvpn_peer_create(int fd);
 void               chipvpn_peer_free(VPNPeer *peer);
 void               chipvpn_peer_disconnect(VPNPeer *peer);
-void               chipvpn_peer_set_key(VPNPeer *peer, uint8_t *iv, uint8_t *key);
 bool               chipvpn_peer_get_login(VPNPeer *peer);
 void               chipvpn_peer_set_login(VPNPeer *peer, bool login);
 

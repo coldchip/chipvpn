@@ -21,6 +21,11 @@
 #include "config.h"
 #include <stdint.h>
 
+#define DISCONNECT_IF(condition) \
+if(!(condition)) { \
+    return VPN_CONNECTION_END; \
+} \
+
 void                  chipvpn_init(char *config_file);
 void                  chipvpn_setup(char *config_file);
 void                  chipvpn_loop();
@@ -37,7 +42,7 @@ VPNPacketError        chipvpn_recv_cert(VPNPeer *peer);
 VPNPacketError        chipvpn_recv_cert_reply(VPNPeer *peer, VPNCertPacket *packet, int size);
 
 VPNPacketError        chipvpn_recv_key(VPNPeer *peer, VPNKeyPacket *packet, int size);
-VPNPacketError        chipvpn_recv_key_reply(VPNPeer *peer);
+VPNPacketError        chipvpn_recv_key_reply(VPNPeer *peer, VPNKeyPacket *packet, int size);
 
 VPNPacketError        chipvpn_recv_login(VPNPeer *peer, VPNAuthPacket *packet, int size);
 VPNPacketError        chipvpn_recv_login_reply(VPNPeer *peer);
