@@ -144,7 +144,7 @@ void chipvpn_loop() {
 
 	while(!terminate) {
 		tv.tv_sec = 0;
-		tv.tv_usec = 200000;
+		tv.tv_usec = 250000;
 
 		FD_ZERO(&rdset);
 		FD_ZERO(&wdset);
@@ -360,7 +360,7 @@ VPNPacketError chipvpn_socket_event(VPNPeer *peer, VPNPacket *packet) {
 		}
 		break;
 		case VPN_TYPE_KEY_REPLY: {
-			return chipvpn_recv_key_reply(peer, &data.key_packet, PLEN(packet));
+			return chipvpn_recv_key_reply(peer);
 		}
 		break;
 		case VPN_TYPE_LOGIN: {
@@ -407,6 +407,7 @@ VPNPacketError chipvpn_recv_cert(VPNPeer *peer) {
 	VALIDATE_PEER(config->mode == MODE_SERVER);
 	VALIDATE_PEER(!peer->inbound_encrypted);
 	VALIDATE_PEER(!peer->outbound_encrypted);
+	VALIDATE_PEER(!peer->has_internal_ip);
 	VALIDATE_PEER(!chipvpn_peer_get_login(peer));
 
 	VPNCertPacket packet;
@@ -426,6 +427,7 @@ VPNPacketError chipvpn_recv_cert_reply(VPNPeer *peer, VPNCertPacket *packet, int
 	VALIDATE_PEER(config->mode == MODE_CLIENT);
 	VALIDATE_PEER(!peer->inbound_encrypted);
 	VALIDATE_PEER(!peer->outbound_encrypted);
+	VALIDATE_PEER(!peer->has_internal_ip);
 	VALIDATE_PEER(!chipvpn_peer_get_login(peer));
 
 	// BIO *cbio = BIO_new_mem_buf((void*)packet->cert, -1);
@@ -455,7 +457,9 @@ VPNPacketError chipvpn_recv_cert_reply(VPNPeer *peer, VPNCertPacket *packet, int
 		return VPN_CONNECTION_END;
 	}
 
+	peer->inbound_encrypted = true;
 	peer->outbound_encrypted = true;
+	chipvpn_crypto_set_key(peer->inbound_cipher, keypair.iv, keypair.key);
 	chipvpn_crypto_set_key(peer->outbound_cipher, keypair.iv, keypair.key);
 
 
@@ -466,32 +470,27 @@ VPNPacketError chipvpn_recv_key(VPNPeer *peer, VPNKeyPacket *packet, int size) {
 	VALIDATE_PEER(config->mode == MODE_SERVER);
 	VALIDATE_PEER(!peer->inbound_encrypted);
 	VALIDATE_PEER(!peer->outbound_encrypted);
+	VALIDATE_PEER(!peer->has_internal_ip);
 	VALIDATE_PEER(!chipvpn_peer_get_login(peer));
 
 	peer->inbound_encrypted = true;
+	peer->outbound_encrypted = true;
 	chipvpn_crypto_set_key(peer->inbound_cipher, packet->iv, packet->key);
+	chipvpn_crypto_set_key(peer->outbound_cipher, packet->iv, packet->key);
 
-	VPNKeyPacket keypair;
-	RAND_priv_bytes((unsigned char*)&keypair.iv, sizeof(keypair.iv));
-	RAND_priv_bytes((unsigned char*)&keypair.key, sizeof(keypair.key));
-	if(!chipvpn_peer_send(peer, VPN_TYPE_KEY_REPLY, &keypair, sizeof(keypair), VPN_FLAG_CONTROL)) {
+	if(!chipvpn_peer_send(peer, VPN_TYPE_KEY_REPLY, NULL, 0, VPN_FLAG_CONTROL)) {
 		return VPN_CONNECTION_END;
 	}
-
-	peer->outbound_encrypted = true;
-	chipvpn_crypto_set_key(peer->outbound_cipher, keypair.iv, keypair.key);
 
 	return VPN_PACKET_OK;
 }
 
-VPNPacketError chipvpn_recv_key_reply(VPNPeer *peer, VPNKeyPacket *packet, int size) {
+VPNPacketError chipvpn_recv_key_reply(VPNPeer *peer) {
 	VALIDATE_PEER(config->mode == MODE_CLIENT);
-	VALIDATE_PEER(!peer->inbound_encrypted);
+	VALIDATE_PEER(peer->inbound_encrypted);
 	VALIDATE_PEER(peer->outbound_encrypted);
+	VALIDATE_PEER(!peer->has_internal_ip);
 	VALIDATE_PEER(!chipvpn_peer_get_login(peer));
-
-	peer->inbound_encrypted = true;
-	chipvpn_crypto_set_key(peer->inbound_cipher, packet->iv, packet->key);
 
 	VPNAuthPacket auth;
 	strcpy((char*)auth.token, config->token);
@@ -505,6 +504,7 @@ VPNPacketError chipvpn_recv_login(VPNPeer *peer, VPNAuthPacket *packet, int size
 	VALIDATE_PEER(config->mode == MODE_SERVER);
 	VALIDATE_PEER(peer->inbound_encrypted);
 	VALIDATE_PEER(peer->outbound_encrypted);
+	VALIDATE_PEER(!peer->has_internal_ip);
 	VALIDATE_PEER(!chipvpn_peer_get_login(peer));
 
 	if(memcmp(packet->token, config->token, strlen(config->token)) == 0) {
@@ -542,6 +542,7 @@ VPNPacketError chipvpn_recv_login_reply(VPNPeer *peer) {
 	VALIDATE_PEER(config->mode == MODE_CLIENT);
 	VALIDATE_PEER(peer->inbound_encrypted);
 	VALIDATE_PEER(peer->outbound_encrypted);
+	VALIDATE_PEER(!peer->has_internal_ip);
 	VALIDATE_PEER(!chipvpn_peer_get_login(peer));
 
 	chipvpn_peer_set_login(peer, true);
@@ -559,6 +560,7 @@ VPNPacketError chipvpn_recv_assign(VPNPeer *peer) {
 	VALIDATE_PEER(config->mode == MODE_SERVER);
 	VALIDATE_PEER(peer->inbound_encrypted);
 	VALIDATE_PEER(peer->outbound_encrypted);
+	VALIDATE_PEER(!peer->has_internal_ip);
 	VALIDATE_PEER(chipvpn_peer_get_login(peer));
 
 	struct in_addr gateway;
@@ -567,6 +569,8 @@ VPNPacketError chipvpn_recv_assign(VPNPeer *peer) {
 	if(!chipvpn_peer_get_free_ip(&host->peers, gateway, &peer->internal_ip)) {
 		return VPN_CONNECTION_END;
 	}
+
+	peer->has_internal_ip = true;
 
 	VPNDHCPPacket assign = {
 		.ip = peer->internal_ip.s_addr,
@@ -585,6 +589,7 @@ VPNPacketError chipvpn_recv_assign_reply(VPNPeer *peer, VPNDHCPPacket *packet, i
 	VALIDATE_PEER(config->mode == MODE_CLIENT);
 	VALIDATE_PEER(peer->inbound_encrypted);
 	VALIDATE_PEER(peer->outbound_encrypted);
+	VALIDATE_PEER(!peer->has_internal_ip);
 	VALIDATE_PEER(chipvpn_peer_get_login(peer));
 
 	struct in_addr peer_ip, peer_subnet;
@@ -594,6 +599,7 @@ VPNPacketError chipvpn_recv_assign_reply(VPNPeer *peer, VPNDHCPPacket *packet, i
 	uint32_t peer_mtu   = ntohl(packet->mtu);
 
 	peer->internal_ip = peer_ip;
+	peer->has_internal_ip = true;
 
 	if(!chipvpn_tun_setip(tun, peer_ip, peer_subnet, peer_mtu, config->qlen)) {
 		chipvpn_error("unable to assign ip to tunnel adapter");
@@ -613,6 +619,7 @@ VPNPacketError chipvpn_recv_route(VPNPeer *peer) {
 	VALIDATE_PEER(config->mode == MODE_SERVER);
 	VALIDATE_PEER(peer->inbound_encrypted);
 	VALIDATE_PEER(peer->outbound_encrypted);
+	VALIDATE_PEER(peer->has_internal_ip);
 	VALIDATE_PEER(chipvpn_peer_get_login(peer));
 
 	for(ListNode *i = list_begin(&config->push_routes); i != list_end(&config->push_routes); i = list_next(i)) {
@@ -636,6 +643,7 @@ VPNPacketError chipvpn_recv_route_reply(VPNPeer *peer, VPNRoutePacket *packet, i
 	VALIDATE_PEER(config->mode == MODE_CLIENT);
 	VALIDATE_PEER(peer->inbound_encrypted);
 	VALIDATE_PEER(peer->outbound_encrypted);
+	VALIDATE_PEER(peer->has_internal_ip);
 	VALIDATE_PEER(chipvpn_peer_get_login(peer));
 
 	if(config->pull_routes) {
@@ -673,6 +681,7 @@ VPNPacketError chipvpn_recv_route_reply(VPNPeer *peer, VPNRoutePacket *packet, i
 VPNPacketError chipvpn_recv_data(VPNPeer *peer, VPNDataPacket *packet, int size) {
 	VALIDATE_PEER(peer->inbound_encrypted);
 	VALIDATE_PEER(peer->outbound_encrypted);
+	VALIDATE_PEER(peer->has_internal_ip);
 	VALIDATE_PEER(chipvpn_peer_get_login(peer));
 
 	IPPacket *ip_hdr = (IPPacket*)(&packet->data);
@@ -718,10 +727,10 @@ VPNPacketError chipvpn_recv_ping(VPNPeer *peer) {
 
 	#ifdef DEBUG
 
-	int dec_in  = chipvpn_bucket_read_available(peer->dec_inbound);
-	int enc_in  = chipvpn_bucket_read_available(peer->enc_inbound);
-	int dec_out = chipvpn_bucket_read_available(peer->dec_outbound);
-	int enc_out = chipvpn_bucket_read_available(peer->enc_outbound);
+	int dec_in  = chipvpn_bucket_read_available(peer->vpn_inbound);
+	int enc_in  = chipvpn_bucket_read_available(peer->sock_inbound);
+	int dec_out = chipvpn_bucket_read_available(peer->vpn_outbound);
+	int enc_out = chipvpn_bucket_read_available(peer->sock_outbound);
 
 	char d_i[64];
 	char e_i[64];

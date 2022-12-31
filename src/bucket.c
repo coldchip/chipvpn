@@ -11,8 +11,8 @@ VPNBucket *chipvpn_bucket_create(int max) {
 	return bucket;
 }
 
-void *chipvpn_bucket_get_buffer(VPNBucket *bucket) {
-	return (void*)bucket->data;
+char *chipvpn_bucket_get_buffer(VPNBucket *bucket) {
+	return bucket->data;
 }
 
 int chipvpn_bucket_read_available(VPNBucket *bucket) {

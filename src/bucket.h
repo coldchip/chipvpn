@@ -8,7 +8,7 @@ typedef struct _VPNBucket {
 } VPNBucket;
 
 VPNBucket     *chipvpn_bucket_create(int max);
-void          *chipvpn_bucket_get_buffer(VPNBucket *bucket);
+char          *chipvpn_bucket_get_buffer(VPNBucket *bucket);
 int            chipvpn_bucket_read_available(VPNBucket *bucket);
 int            chipvpn_bucket_write_available(VPNBucket *bucket);
 int            chipvpn_bucket_write(VPNBucket *bucket, void *buf, int size);

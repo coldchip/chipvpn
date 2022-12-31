@@ -33,16 +33,13 @@ void                  chipvpn_cleanup();
 
 void                  chipvpn_ticker();
 
-void                  chipvpn_ipc_event(char *buf);
-VPNPacketError        chipvpn_ipc_login(VPNPeer *peer);
-
 VPNPacketError        chipvpn_socket_event(VPNPeer *peer, VPNPacket *packet);
 
 VPNPacketError        chipvpn_recv_cert(VPNPeer *peer);
 VPNPacketError        chipvpn_recv_cert_reply(VPNPeer *peer, VPNCertPacket *packet, int size);
 
 VPNPacketError        chipvpn_recv_key(VPNPeer *peer, VPNKeyPacket *packet, int size);
-VPNPacketError        chipvpn_recv_key_reply(VPNPeer *peer, VPNKeyPacket *packet, int size);
+VPNPacketError        chipvpn_recv_key_reply(VPNPeer *peer);
 
 VPNPacketError        chipvpn_recv_login(VPNPeer *peer, VPNAuthPacket *packet, int size);
 VPNPacketError        chipvpn_recv_login_reply(VPNPeer *peer);

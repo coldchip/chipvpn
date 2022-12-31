@@ -33,6 +33,8 @@ typedef struct _VPNPeer {
 	bool is_authed;
 	uint32_t last_ping;
 	bool has_route_set;
+
+	bool has_internal_ip;
 	struct in_addr internal_ip;
 
 	uint64_t tx;

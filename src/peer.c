@@ -38,6 +38,7 @@ VPNPeer *chipvpn_peer_create(int fd) {
 	peer->rx_max              = 0xFFFFFFFFFFFFFFFF;
 	peer->last_ping           = chipvpn_get_time();
 	peer->has_route_set       = false;
+	peer->has_internal_ip     = false;
 
 	list_clear(&peer->routes);
 

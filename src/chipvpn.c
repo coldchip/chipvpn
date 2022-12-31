@@ -156,12 +156,7 @@ bool chipvpn_cidr_to_mask(const char *cidr, uint32_t *ip, uint32_t *mask) {
 	    return false; /* Invalid bit count */
 	}
 
-	*ip = htonl(
-	    (a << 24UL) |
-	    (b << 16UL) |
-	    (c << 8UL) |
-	    (d << 0UL)
-	);
+	*ip = htonl((a << 24UL) | (b << 16UL) | (c << 8UL) | (d << 0UL));
 
 	if(bits == 0) {
 		*mask = 0;

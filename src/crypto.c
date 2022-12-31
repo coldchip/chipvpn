@@ -14,7 +14,7 @@ VPNCrypto *chipvpn_crypto_create() {
 }
 
 bool chipvpn_crypto_set_key(VPNCrypto *crypto, uint8_t *key, uint8_t *iv) {
-	return EVP_CipherInit(crypto->ctx, EVP_chacha20(), key, iv, 0);
+	return EVP_CipherInit(crypto->ctx, EVP_aes_256_ctr(), key, iv, 0);
 }
 
 bool chipvpn_crypto_encrypt(VPNCrypto *crypto, void *dst, void *src, int length) {
