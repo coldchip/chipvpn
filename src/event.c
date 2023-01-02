@@ -71,7 +71,7 @@ void chipvpn_setup(char *config_file) {
 		chipvpn_error("unable to read config");
 	}
 
-	tun = chipvpn_tun_create(NULL);
+	tun = chipvpn_tun_create("chipvpn");
 	if(tun == NULL) {
 		chipvpn_error("tuntap adapter creation failed, please run as sudo");
 	}
