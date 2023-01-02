@@ -1,6 +1,9 @@
 {
 	"connect": "localhost",
 	"port": 8443,
-	"token": "123456",
-	"pull_routes": false
+	"token": "123456abcdef",
+	"pull_routes": true,
+	"sendbuf": 512000,
+	"recvbuf": 512000,
+	"txqueuelen": 2000
 }
