@@ -58,23 +58,19 @@ char *chipvpn_read_file(const char *file) {
 char *chipvpn_strdup(const char *s) {
 	size_t len = strlen(s) + 1;
 	void *new = malloc(len);
-	if (new == NULL) {
+	if(new == NULL) {
 		return NULL;
 	}
-	return (char *) memcpy(new, s, len);
+	return (char *)memcpy(new, s, len);
 }
 
 void chipvpn_log(const char *format, ...) {
 	va_list args;
 	va_start(args, format);
 
-	char template[] = "\033[0;32m[ChipVPN] %s\033[0m\n";
-
-	int i = snprintf(NULL, 0, template, format);
-	char *fmt = malloc(i + 1);
-	sprintf(fmt, template, format);
-	vprintf(fmt, args);
-	free(fmt);
+	printf("\033[0;32m[ChipVPN] ");
+	vprintf(format, args);
+	printf("\033[0m\n");
 	
 	va_end(args);
 }
@@ -83,13 +79,9 @@ void chipvpn_warn(const char *format, ...) {
 	va_list args;
 	va_start(args, format);
 
-	char template[] = "\033[0;31m[ChipVPN] %s\033[0m\n";
-
-	int i = snprintf(NULL, 0, template, format);
-	char *fmt = malloc(i + 1);
-	sprintf(fmt, template, format);
-	vprintf(fmt, args);
-	free(fmt);
+	printf("\033[0;31m[ChipVPN] ");
+	vprintf(format, args);
+	printf("\033[0m\n");
 	
 	va_end(args);
 }
@@ -98,15 +90,9 @@ void chipvpn_error(const char *format, ...) {
 	va_list args;
 	va_start(args, format);
 
-	char template[] = "\033[0;31m[ChipVPN] %s\033[0m\n";
-
-	int i = snprintf(NULL, 0, template, format);
-	char *fmt = malloc(i + 1);
-	sprintf(fmt, template, format);
-	vprintf(fmt, args);
-	free(fmt);
-	
-	va_end(args);
+	printf("\033[0;31m[ChipVPN] ");
+	vprintf(format, args);
+	printf("\033[0m\n");
 
 	exit(1);
 }
@@ -178,113 +164,111 @@ uint32_t chipvpn_get_time() {
 	referenced from: https://gist.github.com/javiermon/6272065
 */
 bool chipvpn_get_gateway(struct in_addr *gateway, char *dev) {
-    int     received_bytes = 0, msg_len = 0, route_attribute_len = 0;
-    int     sock = -1, msgseq = 0;
-    struct  nlmsghdr *nlh, *nlmsg;
-    struct  rtmsg *route_entry;
-    // This struct contain route attributes (route type)
-    struct  rtattr *route_attribute;
-    char    msgbuf[4096], buffer[4096];
-    char    *ptr = buffer;
-    struct timeval tv;
+	int     received_bytes = 0, msg_len = 0, route_attribute_len = 0;
+	int     sock = -1, msgseq = 0;
+	struct  nlmsghdr *nlh, *nlmsg;
+	struct  rtmsg *route_entry;
+	// This struct contain route attributes (route type)
+	struct  rtattr *route_attribute;
+	char    msgbuf[4096], buffer[4096];
+	char    *ptr = buffer;
+	struct  timeval tv;
 
-    if((sock = socket(AF_NETLINK, SOCK_RAW, NETLINK_ROUTE)) < 0) {
-        perror("socket failed");
-        return EXIT_FAILURE;
-    }
+	if((sock = socket(AF_NETLINK, SOCK_RAW, NETLINK_ROUTE)) < 0) {
+		return false;
+	}
 
-    memset(msgbuf, 0, sizeof(msgbuf));
-    memset(buffer, 0, sizeof(buffer));
+	memset(msgbuf, 0, sizeof(msgbuf));
+	memset(buffer, 0, sizeof(buffer));
 
-    /* point the header and the msg structure pointers into the buffer */
-    nlmsg = (struct nlmsghdr *)msgbuf;
+	/* point the header and the msg structure pointers into the buffer */
+	nlmsg = (struct nlmsghdr*)msgbuf;
 
-    /* Fill in the nlmsg header*/
-    nlmsg->nlmsg_len = NLMSG_LENGTH(sizeof(struct rtmsg));
-    nlmsg->nlmsg_type = RTM_GETROUTE; // Get the routes from kernel routing table .
-    nlmsg->nlmsg_flags = NLM_F_DUMP | NLM_F_REQUEST; // The message is a request for dump.
-    nlmsg->nlmsg_seq = msgseq++; // Sequence of the message packet.
-    nlmsg->nlmsg_pid = getpid(); // PID of process sending the request.
+	/* Fill in the nlmsg header*/
+	nlmsg->nlmsg_len = NLMSG_LENGTH(sizeof(struct rtmsg));
+	nlmsg->nlmsg_type = RTM_GETROUTE; // Get the routes from kernel routing table .
+	nlmsg->nlmsg_flags = NLM_F_DUMP | NLM_F_REQUEST; // The message is a request for dump.
+	nlmsg->nlmsg_seq = msgseq++; // Sequence of the message packet.
+	nlmsg->nlmsg_pid = getpid(); // PID of process sending the request.
 
-    /* 1 Sec Timeout to avoid stall */
-    tv.tv_sec = 1;
-    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (struct timeval *)&tv, sizeof(struct timeval));
-    /* send msg */
-    if(send(sock, nlmsg, nlmsg->nlmsg_len, 0) < 0) {
-        perror("send failed");
-        return EXIT_FAILURE;
-    }
+	/* 1 Sec Timeout to avoid stall */
+	tv.tv_sec = 1;
+	setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (struct timeval*)&tv, sizeof(struct timeval));
+	/* send msg */
+	if(send(sock, nlmsg, nlmsg->nlmsg_len, 0) < 0) {
+		close(sock);
+		return false;
+	}
 
-    /* receive response */
-    do {
-        received_bytes = recv(sock, ptr, sizeof(buffer) - msg_len, 0);
-        if (received_bytes < 0) {
-            perror("Error in recv");
-            return EXIT_FAILURE;
-        }
+	/* receive response */
+	do {
+		received_bytes = recv(sock, ptr, sizeof(buffer) - msg_len, 0);
+		if(received_bytes < 0) {
+			close(sock);
+			return false;
+		}
 
-        nlh = (struct nlmsghdr *) ptr;
+		nlh = (struct nlmsghdr*) ptr;
 
-        /* Check if the header is valid */
-        if((NLMSG_OK(nlmsg, received_bytes) == 0) || (nlmsg->nlmsg_type == NLMSG_ERROR)) {
-            perror("Error in received packet");
-            return EXIT_FAILURE;
-        }
+		/* Check if the header is valid */
+		if((NLMSG_OK(nlmsg, received_bytes) == 0) || (nlmsg->nlmsg_type == NLMSG_ERROR)) {
+		    close(sock);
+			return false;
+		}
 
-        /* If we received all data break */
-        if(nlh->nlmsg_type == NLMSG_DONE) {
-            break;
-        } else {
-            ptr += received_bytes;
-            msg_len += received_bytes;
-        }
+		/* If we received all data break */
+		if(nlh->nlmsg_type == NLMSG_DONE) {
+		    break;
+		} else {
+		    ptr += received_bytes;
+		    msg_len += received_bytes;
+		}
 
-        /* Break if its not a multi part message */
-        if((nlmsg->nlmsg_flags & NLM_F_MULTI) == 0) {
-            break;
-        }
-    }
-    while ((nlmsg->nlmsg_seq != msgseq) || (nlmsg->nlmsg_pid != getpid()));
+		/* Break if its not a multi part message */
+		if((nlmsg->nlmsg_flags & NLM_F_MULTI) == 0) {
+		    break;
+		}
+	} while((nlmsg->nlmsg_seq != msgseq) || (nlmsg->nlmsg_pid != getpid()));
 
-    /* parse response */
-    for( ; NLMSG_OK(nlh, received_bytes); nlh = NLMSG_NEXT(nlh, received_bytes)) {
-        /* Get the route data */
-        route_entry = (struct rtmsg *) NLMSG_DATA(nlh);
+	/* parse response */
+	for(; NLMSG_OK(nlh, received_bytes); nlh = NLMSG_NEXT(nlh, received_bytes)) {
+		/* Get the route data */
+		route_entry = (struct rtmsg*)NLMSG_DATA(nlh);
 
-        /* We are just interested in main routing table */
-        if (route_entry->rtm_table != RT_TABLE_MAIN) {
-            continue;
-        }
+		/* We are just interested in main routing table */
+		if(route_entry->rtm_table != RT_TABLE_MAIN) {
+			continue;
+		}
 
-        route_attribute = (struct rtattr *) RTM_RTA(route_entry);
-        route_attribute_len = RTM_PAYLOAD(nlh);
+		route_attribute = (struct rtattr*)RTM_RTA(route_entry);
+		route_attribute_len = RTM_PAYLOAD(nlh);
 
-        bool set_gateway = false;
-        bool set_dev = false;
+		bool set_gateway = false;
+		bool set_dev = false;
 
-        /* Loop through all attributes */
-        for(; RTA_OK(route_attribute, route_attribute_len); route_attribute = RTA_NEXT(route_attribute, route_attribute_len)) {
-            switch(route_attribute->rta_type) {
-	            case RTA_OIF: {
-		        	if_indextoname(*(int *)RTA_DATA(route_attribute), dev);
-		        	set_dev = true;
-	            }
-	            break;
-	            case RTA_GATEWAY: {
-	            	*gateway = *(struct in_addr*)RTA_DATA(route_attribute);
-	            	set_gateway = true;
-	            }
-	            break;
-	            default:
-	        	break;
-            }
-        }
+		/* Loop through all attributes */
+		for(; RTA_OK(route_attribute, route_attribute_len); route_attribute = RTA_NEXT(route_attribute, route_attribute_len)) {
+			switch(route_attribute->rta_type) {
+				case RTA_OIF: {
+					if_indextoname(*(int*)RTA_DATA(route_attribute), dev);
+					set_dev = true;
+				}
+				break;
+				case RTA_GATEWAY: {
+					*gateway = *(struct in_addr*)RTA_DATA(route_attribute);
+					set_gateway = true;
+				}
+				break;
+				default:
+				break;
+			}
+		}
 
-        if(set_gateway && set_dev) {
-            break;
-        }
-    }
+		if(set_gateway && set_dev) {
+			break;
+		}
+	}
 
-    close(sock);
-    return true;
+	close(sock);
+	return true;
 }
