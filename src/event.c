@@ -423,7 +423,7 @@ VPNPacketError chipvpn_recv_cert(VPNPeer *peer) {
 	return VPN_PACKET_OK;
 }
 
-VPNPacketError chipvpn_recv_cert_reply(VPNPeer *peer, VPNCertPacket *packet, int size) {
+VPNPacketError chipvpn_recv_cert_reply(VPNPeer *peer, VPNCertPacket *packet, uint16_t size) {
 	VALIDATE_PEER(config->mode == MODE_CLIENT);
 	VALIDATE_PEER(!peer->inbound_encrypted);
 	VALIDATE_PEER(!peer->outbound_encrypted);
@@ -466,7 +466,7 @@ VPNPacketError chipvpn_recv_cert_reply(VPNPeer *peer, VPNCertPacket *packet, int
 	return VPN_PACKET_OK;
 }
 
-VPNPacketError chipvpn_recv_key(VPNPeer *peer, VPNKeyPacket *packet, int size) {
+VPNPacketError chipvpn_recv_key(VPNPeer *peer, VPNKeyPacket *packet, uint16_t size) {
 	VALIDATE_PEER(config->mode == MODE_SERVER);
 	VALIDATE_PEER(!peer->inbound_encrypted);
 	VALIDATE_PEER(!peer->outbound_encrypted);
@@ -500,7 +500,7 @@ VPNPacketError chipvpn_recv_key_reply(VPNPeer *peer) {
 	return VPN_PACKET_OK;
 }
 
-VPNPacketError chipvpn_recv_login(VPNPeer *peer, VPNAuthPacket *packet, int size) {
+VPNPacketError chipvpn_recv_login(VPNPeer *peer, VPNAuthPacket *packet, uint16_t size) {
 	VALIDATE_PEER(config->mode == MODE_SERVER);
 	VALIDATE_PEER(peer->inbound_encrypted);
 	VALIDATE_PEER(peer->outbound_encrypted);
@@ -585,7 +585,7 @@ VPNPacketError chipvpn_recv_assign(VPNPeer *peer) {
 	return VPN_PACKET_OK;
 }
 
-VPNPacketError chipvpn_recv_assign_reply(VPNPeer *peer, VPNDHCPPacket *packet, int size) {
+VPNPacketError chipvpn_recv_assign_reply(VPNPeer *peer, VPNDHCPPacket *packet, uint16_t size) {
 	VALIDATE_PEER(config->mode == MODE_CLIENT);
 	VALIDATE_PEER(peer->inbound_encrypted);
 	VALIDATE_PEER(peer->outbound_encrypted);
@@ -639,7 +639,7 @@ VPNPacketError chipvpn_recv_route(VPNPeer *peer) {
 	return VPN_PACKET_OK;
 }
 
-VPNPacketError chipvpn_recv_route_reply(VPNPeer *peer, VPNRoutePacket *packet, int size) {
+VPNPacketError chipvpn_recv_route_reply(VPNPeer *peer, VPNRoutePacket *packet, uint16_t size) {
 	VALIDATE_PEER(config->mode == MODE_CLIENT);
 	VALIDATE_PEER(peer->inbound_encrypted);
 	VALIDATE_PEER(peer->outbound_encrypted);
@@ -678,7 +678,7 @@ VPNPacketError chipvpn_recv_route_reply(VPNPeer *peer, VPNRoutePacket *packet, i
 	return VPN_PACKET_OK;
 }
 
-VPNPacketError chipvpn_recv_data(VPNPeer *peer, VPNDataPacket *packet, int size) {
+VPNPacketError chipvpn_recv_data(VPNPeer *peer, VPNDataPacket *packet, uint16_t size) {
 	VALIDATE_PEER(peer->inbound_encrypted);
 	VALIDATE_PEER(peer->outbound_encrypted);
 	VALIDATE_PEER(peer->has_internal_ip);
@@ -701,7 +701,7 @@ VPNPacketError chipvpn_recv_data(VPNPeer *peer, VPNDataPacket *packet, int size)
 	return VPN_PACKET_OK;
 }
 
-VPNPacketError chipvpn_recv_msg(VPNPeer *peer, VPNMsgPacket *packet, int size) {
+VPNPacketError chipvpn_recv_msg(VPNPeer *peer, VPNMsgPacket *packet, uint16_t size) {
 	VALIDATE_PEER(config->mode == MODE_CLIENT);
 	VALIDATE_PEER(peer->inbound_encrypted);
 	VALIDATE_PEER(peer->outbound_encrypted);

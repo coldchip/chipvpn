@@ -51,7 +51,7 @@ VPNTun *chipvpn_tun_create(const char *dev) {
 		}
 	}
 
-	if(ioctl(fd, TUNSETIFF, (void *) &ifr) < 0) {
+	if(ioctl(fd, TUNSETIFF, (void *)&ifr) < 0) {
 		close(fd);
 		return NULL;
 	}

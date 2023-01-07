@@ -137,7 +137,7 @@ typedef struct PACKED _VPNMsgPacket {
 
 typedef struct PACKED _VPNPacketHeader {
 	uint8_t type;
-	uint32_t size;
+	uint16_t size;
 } VPNPacketHeader;
 
 typedef union _VPNPacketBody {

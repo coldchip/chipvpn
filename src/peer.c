@@ -226,7 +226,7 @@ int chipvpn_peer_recv(VPNPeer *peer, VPNPacket *dst) {
 	return VPN_EAGAIN;
 }
 
-int chipvpn_peer_send(VPNPeer *peer, VPNPacketType type, void *data, int size, VPNPacketFlag flag) {
+int chipvpn_peer_send(VPNPeer *peer, VPNPacketType type, void *data, uint16_t size, VPNPacketFlag flag) {
 	VPNBucket *bucket = peer->sock_outbound;
 	if(peer->outbound_encrypted) {
 		bucket = peer->vpn_outbound;
@@ -242,9 +242,11 @@ int chipvpn_peer_send(VPNPeer *peer, VPNPacketType type, void *data, int size, V
 			flag == VPN_FLAG_CONTROL
 		)
 	) {
-		VPNPacket packet;
-		packet.header.size = htonl(size);
-		packet.header.type = (uint8_t)(type & 0xFF);
+		VPNPacket packet = {
+			.header.size = htons(size),
+			.header.type = (uint8_t)(type & 0xFF)
+		};
+		
 		if(data && size > 0) {
 			memcpy(&packet.data, data, size);
 		}

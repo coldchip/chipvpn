@@ -36,25 +36,25 @@ void                  chipvpn_ticker();
 VPNPacketError        chipvpn_socket_event(VPNPeer *peer, VPNPacket *packet);
 
 VPNPacketError        chipvpn_recv_cert(VPNPeer *peer);
-VPNPacketError        chipvpn_recv_cert_reply(VPNPeer *peer, VPNCertPacket *packet, int size);
+VPNPacketError        chipvpn_recv_cert_reply(VPNPeer *peer, VPNCertPacket *packet, uint16_t size);
 
-VPNPacketError        chipvpn_recv_key(VPNPeer *peer, VPNKeyPacket *packet, int size);
+VPNPacketError        chipvpn_recv_key(VPNPeer *peer, VPNKeyPacket *packet, uint16_t size);
 VPNPacketError        chipvpn_recv_key_reply(VPNPeer *peer);
 
-VPNPacketError        chipvpn_recv_login(VPNPeer *peer, VPNAuthPacket *packet, int size);
+VPNPacketError        chipvpn_recv_login(VPNPeer *peer, VPNAuthPacket *packet, uint16_t size);
 VPNPacketError        chipvpn_recv_login_reply(VPNPeer *peer);
 
 VPNPacketError        chipvpn_recv_assign(VPNPeer *peer);
-VPNPacketError        chipvpn_recv_assign_reply(VPNPeer *peer, VPNDHCPPacket *packet, int size);
+VPNPacketError        chipvpn_recv_assign_reply(VPNPeer *peer, VPNDHCPPacket *packet, uint16_t size);
 
 VPNPacketError        chipvpn_recv_route(VPNPeer *peer);
-VPNPacketError        chipvpn_recv_route_reply(VPNPeer *peer, VPNRoutePacket *packet, int size);
+VPNPacketError        chipvpn_recv_route_reply(VPNPeer *peer, VPNRoutePacket *packet, uint16_t size);
 
-VPNPacketError        chipvpn_recv_data(VPNPeer *peer, VPNDataPacket *packet, int size);
+VPNPacketError        chipvpn_recv_data(VPNPeer *peer, VPNDataPacket *packet, uint16_t size);
 
 VPNPacketError        chipvpn_recv_ping(VPNPeer *peer);
 
-VPNPacketError        chipvpn_recv_msg(VPNPeer *peer, VPNMsgPacket *packet, int size);
+VPNPacketError        chipvpn_recv_msg(VPNPeer *peer, VPNMsgPacket *packet, uint16_t size);
 
 void                  chipvpn_disconnect_peer(VPNPeer *peer);
 void                  chipvpn_exit(int type);

@@ -2,5 +2,5 @@
 #include "packet.h"
 
 int vpnpacket_len(VPNPacket *packet) {
-	return ntohl(packet->header.size);
+	return ntohs(packet->header.size);
 }
