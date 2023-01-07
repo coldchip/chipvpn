@@ -22,8 +22,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define CHIPVPN_VERSION 10000079L
-#define CHIPVPN_PROTOCOL_VERSION 2
+#define CHIPVPN_VERSION 10000080L
+#define CHIPVPN_PROTOCOL_VERSION 3
 
 #define MAX(x, y) (((x) > (y)) ? (x) : (y))
 #define MIN(x, y) (((x) < (y)) ? (x) : (y))
