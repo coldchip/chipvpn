@@ -87,20 +87,27 @@ typedef enum {
 } VPNPacketFlag;
 
 typedef enum {
-	VPN_TYPE_CERT          = 0,
-	VPN_TYPE_CERT_REPLY    = 1,
-	VPN_TYPE_KEY           = 2,
-	VPN_TYPE_KEY_REPLY     = 3,
-	VPN_TYPE_LOGIN         = 4,
-	VPN_TYPE_LOGIN_REPLY   = 5,
-	VPN_TYPE_ASSIGN        = 6,
-	VPN_TYPE_ASSIGN_REPLY  = 7,
-	VPN_TYPE_ROUTE         = 8,
-	VPN_TYPE_ROUTE_REPLY   = 9,
-	VPN_TYPE_DATA          = 10,
-	VPN_TYPE_PING          = 11,
-	VPN_TYPE_MSG           = 12
+	VPN_TYPE_INIT = 0,
+	VPN_TYPE_INIT_REPLY,
+	VPN_TYPE_CERT,
+	VPN_TYPE_CERT_REPLY,
+	VPN_TYPE_KEY,
+	VPN_TYPE_KEY_REPLY,
+	VPN_TYPE_LOGIN,
+	VPN_TYPE_LOGIN_REPLY,
+	VPN_TYPE_ASSIGN,
+	VPN_TYPE_ASSIGN_REPLY,
+	VPN_TYPE_ROUTE,
+	VPN_TYPE_ROUTE_REPLY,
+	VPN_TYPE_DATA,
+	VPN_TYPE_PING,
+	VPN_TYPE_MSG
 } VPNPacketType;
+
+typedef struct PACKED _VPNInitPacket {
+	uint32_t version;
+	uint32_t protocol;
+} VPNInitPacket;
 
 typedef struct PACKED _VPNCertPacket {
 	uint8_t cert[8192];
@@ -141,6 +148,7 @@ typedef struct PACKED _VPNPacketHeader {
 } VPNPacketHeader;
 
 typedef union _VPNPacketBody {
+	VPNInitPacket init_packet;
 	VPNCertPacket cert_packet;
 	VPNKeyPacket key_packet;
 	VPNAuthPacket auth_packet;

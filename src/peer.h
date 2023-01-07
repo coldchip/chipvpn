@@ -30,6 +30,7 @@ typedef struct _VPNPeer {
 	ListNode node;
 	int fd;
 	struct sockaddr_in addr;
+	bool is_init;
 	bool is_authed;
 	uint32_t last_ping;
 	bool has_route_set;
@@ -65,8 +66,6 @@ typedef struct _VPNPeer {
 VPNPeer           *chipvpn_peer_create(int fd);
 void               chipvpn_peer_free(VPNPeer *peer);
 void               chipvpn_peer_disconnect(VPNPeer *peer);
-bool               chipvpn_peer_get_login(VPNPeer *peer);
-void               chipvpn_peer_set_login(VPNPeer *peer, bool login);
 
 int                chipvpn_peer_socket_inbound(VPNPeer *peer);
 int                chipvpn_peer_socket_outbound(VPNPeer *peer);

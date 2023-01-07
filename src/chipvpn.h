@@ -23,6 +23,7 @@
 #include <stdint.h>
 
 #define CHIPVPN_VERSION 10000079L
+#define CHIPVPN_PROTOCOL_VERSION 2
 
 #define MAX(x, y) (((x) > (y)) ? (x) : (y))
 #define MIN(x, y) (((x) < (y)) ? (x) : (y))

@@ -31,6 +31,7 @@
 VPNPeer *chipvpn_peer_create(int fd) {
 	VPNPeer *peer             = malloc(sizeof(VPNPeer));
 	peer->fd                  = fd;
+	peer->is_init             = false;
 	peer->is_authed           = false;
 	peer->tx                  = 0;
 	peer->rx                  = 0;
@@ -59,8 +60,6 @@ VPNPeer *chipvpn_peer_create(int fd) {
 		chipvpn_error("unable to add firewall rule");
 	}
 
-	chipvpn_peer_set_login(peer, false);
-
 	peer->inbound_encrypted = false; 
 	peer->outbound_encrypted = false;
 
@@ -79,8 +78,6 @@ VPNPeer *chipvpn_peer_create(int fd) {
 }
 
 void chipvpn_peer_free(VPNPeer *peer) {
-	chipvpn_peer_set_login(peer, false);
-
 	// routes cleanup
 	while(!list_empty(&peer->routes)) {
 		VPNRoute *route = (VPNRoute*)list_remove(list_begin(&peer->routes));
@@ -107,6 +104,7 @@ void chipvpn_peer_free(VPNPeer *peer) {
 
 	chipvpn_crypto_free(peer->inbound_cipher);
 	chipvpn_crypto_free(peer->outbound_cipher);
+	
 	free(peer);
 }
 
@@ -115,14 +113,6 @@ void chipvpn_peer_disconnect(VPNPeer *peer) {
 	list_remove(&peer->node);
 	close(peer->fd);
 	chipvpn_peer_free(peer);
-}
-
-void chipvpn_peer_set_login(VPNPeer *peer, bool login) {
-	peer->is_authed = login;
-}
-
-bool chipvpn_peer_get_login(VPNPeer *peer) {
-	return peer->is_authed;
 }
 
 int chipvpn_peer_socket_inbound(VPNPeer *peer) {
@@ -246,7 +236,7 @@ int chipvpn_peer_send(VPNPeer *peer, VPNPacketType type, void *data, uint16_t si
 			.header.size = htons(size),
 			.header.type = (uint8_t)(type & 0xFF)
 		};
-		
+
 		if(data && size > 0) {
 			memcpy(&packet.data, data, size);
 		}

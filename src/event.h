@@ -35,6 +35,9 @@ void                  chipvpn_ticker();
 
 VPNPacketError        chipvpn_socket_event(VPNPeer *peer, VPNPacket *packet);
 
+VPNPacketError        chipvpn_recv_init(VPNPeer *peer, VPNInitPacket *packet, uint16_t size);
+VPNPacketError        chipvpn_recv_init_reply(VPNPeer *peer, VPNInitPacket *packet, uint16_t size);
+
 VPNPacketError        chipvpn_recv_cert(VPNPeer *peer);
 VPNPacketError        chipvpn_recv_cert_reply(VPNPeer *peer, VPNCertPacket *packet, uint16_t size);
 
