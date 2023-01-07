@@ -31,11 +31,14 @@ typedef struct _VPNPeer {
 	int fd;
 	struct sockaddr_in addr;
 	bool is_init;
+	bool inbound_encrypted;
+	bool outbound_encrypted;
 	bool is_authed;
-	uint32_t last_ping;
+	bool is_ip_set;
 	bool has_route_set;
 
-	bool has_internal_ip;
+	uint32_t last_ping;
+
 	struct in_addr internal_ip;
 
 	uint64_t tx;
@@ -55,9 +58,6 @@ typedef struct _VPNPeer {
 	// stage 2(decrypted buffer)
 	VPNBucket *vpn_inbound;
 	VPNBucket *vpn_outbound;
-
-	bool inbound_encrypted;
-	bool outbound_encrypted;
 
 	VPNCrypto *inbound_cipher;
 	VPNCrypto *outbound_cipher;

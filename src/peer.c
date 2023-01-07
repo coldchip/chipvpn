@@ -32,14 +32,16 @@ VPNPeer *chipvpn_peer_create(int fd) {
 	VPNPeer *peer             = malloc(sizeof(VPNPeer));
 	peer->fd                  = fd;
 	peer->is_init             = false;
+	peer->inbound_encrypted   = false; 
+	peer->outbound_encrypted  = false;
 	peer->is_authed           = false;
+	peer->is_ip_set           = false;
+	peer->has_route_set       = false;
 	peer->tx                  = 0;
 	peer->rx                  = 0;
 	peer->tx_max              = 0xFFFFFFFFFFFFFFFF;
 	peer->rx_max              = 0xFFFFFFFFFFFFFFFF;
 	peer->last_ping           = chipvpn_get_time();
-	peer->has_route_set       = false;
-	peer->has_internal_ip     = false;
 
 	list_clear(&peer->routes);
 
@@ -59,9 +61,6 @@ VPNPeer *chipvpn_peer_create(int fd) {
 	if(!chipvpn_firewall_add_rule(&peer->inbound_firewall, "0.0.0.0/0", RULE_ALLOW)) {
 		chipvpn_error("unable to add firewall rule");
 	}
-
-	peer->inbound_encrypted = false; 
-	peer->outbound_encrypted = false;
 
 	peer->inbound_cipher = chipvpn_crypto_create();
 	if(!peer->inbound_cipher) {
@@ -104,7 +103,7 @@ void chipvpn_peer_free(VPNPeer *peer) {
 
 	chipvpn_crypto_free(peer->inbound_cipher);
 	chipvpn_crypto_free(peer->outbound_cipher);
-	
+
 	free(peer);
 }
 
