@@ -77,6 +77,10 @@ VPNPeer *chipvpn_peer_create(int fd) {
 }
 
 void chipvpn_peer_free(VPNPeer *peer) {
+	// flush outbound buffer
+	while(chipvpn_peer_cipher_outbound(peer) > 0) {}
+	chipvpn_peer_socket_outbound(peer);
+
 	// routes cleanup
 	while(!list_empty(&peer->routes)) {
 		VPNRoute *route = (VPNRoute*)list_remove(list_begin(&peer->routes));

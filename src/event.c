@@ -599,6 +599,13 @@ VPNPacketError chipvpn_recv_login(VPNPeer *peer, VPNAuthPacket *packet, uint16_t
 		}
 
 	} else {
+		VPNMsgPacket msg;
+		sprintf((char*)&msg.message, "Invalid token! \n");
+
+		if(!chipvpn_peer_send(peer, VPN_TYPE_MSG, &msg, sizeof(msg), VPN_FLAG_CONTROL)) {
+			return VPN_CONNECTION_END;
+		}
+
 		return VPN_CONNECTION_END;
 	}
 
