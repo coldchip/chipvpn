@@ -31,6 +31,7 @@
 VPNPeer *chipvpn_peer_create(int fd) {
 	VPNPeer *peer             = malloc(sizeof(VPNPeer));
 	peer->fd                  = fd;
+	peer->state               = PEER_STATE_INIT;
 	peer->is_init             = false;
 	peer->inbound_encrypted   = false; 
 	peer->outbound_encrypted  = false;
@@ -39,6 +40,8 @@ VPNPeer *chipvpn_peer_create(int fd) {
 	peer->has_route_set       = false;
 	peer->tx                  = 0;
 	peer->rx                  = 0;
+	peer->last_tx             = 0;
+	peer->last_rx             = 0;
 	peer->tx_max              = 0xFFFFFFFFFFFFFFFF;
 	peer->rx_max              = 0xFFFFFFFFFFFFFFFF;
 	peer->last_ping           = chipvpn_get_time();
@@ -148,7 +151,7 @@ int chipvpn_peer_socket_outbound(VPNPeer *peer) {
 			return VPN_CONNECTION_END;
 		}
 
-		return chipvpn_bucket_consume(peer->sock_outbound, w);
+		return chipvpn_bucket_read(peer->sock_outbound, NULL, w);
 	}
 	return VPN_EAGAIN;
 }
@@ -159,7 +162,7 @@ int chipvpn_peer_cipher_inbound(VPNPeer *peer) {
 		VPNBucket *dst = peer->vpn_inbound;
 
 		int size = MIN(chipvpn_bucket_read_available(src), chipvpn_bucket_write_available(dst));
-		size = MIN(size, 1024);
+		size = MIN(size, 2048);
 
 		if(size > 0) {
 			char src_buf[size], dst_buf[size];
@@ -181,7 +184,7 @@ int chipvpn_peer_cipher_outbound(VPNPeer *peer) {
 		VPNBucket *dst = peer->sock_outbound;
 
 		int size = MIN(chipvpn_bucket_read_available(src), chipvpn_bucket_write_available(dst));
-		size = MIN(size, 1024);
+		size = MIN(size, 2048);
 
 		if(size > 0) {
 			char src_buf[size], dst_buf[size];

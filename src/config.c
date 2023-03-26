@@ -63,10 +63,10 @@ bool chipvpn_config_load(VPNConfig *config, const char *config_file) {
 		config->mode = MODE_SERVER;
 		strcpy(config->ip, cjson_bind->valuestring);
 	}
-	if((cjson_port && cJSON_IsNumber(cjson_port))) {
+	if(cjson_port && cJSON_IsNumber(cjson_port)) {
 		config->port = cjson_port->valueint;
 	}
-	if((cjson_token && cJSON_IsString(cjson_token))) {
+	if(cjson_token && cJSON_IsString(cjson_token)) {
 		strcpy(config->token, cjson_token->valuestring);
 	}
 	if(cjson_pull_routes && cJSON_IsBool(cjson_pull_routes) && cJSON_IsTrue(cjson_pull_routes)) {
@@ -97,22 +97,22 @@ bool chipvpn_config_load(VPNConfig *config, const char *config_file) {
 	if(cjson_max_peers && cJSON_IsNumber(cjson_max_peers) && cjson_max_peers->valueint > 0) {
 		config->max_peers = cjson_max_peers->valueint;
 	}
-	if((cjson_gateway && cJSON_IsString(cjson_gateway))) {
+	if(cjson_gateway && cJSON_IsString(cjson_gateway)) {
 		strcpy(config->gateway, cjson_gateway->valuestring);
 	}
-	if((cjson_subnet && cJSON_IsString(cjson_subnet))) {
+	if(cjson_subnet && cJSON_IsString(cjson_subnet)) {
 		strcpy(config->subnet, cjson_subnet->valuestring);
 	}
-	if((cjson_mtu && cJSON_IsNumber(cjson_mtu))) {
+	if(cjson_mtu && cJSON_IsNumber(cjson_mtu)) {
 		config->mtu = cjson_mtu->valueint;
 	}
-	if((cjson_sendbuf && cJSON_IsNumber(cjson_sendbuf))) {
+	if(cjson_sendbuf && cJSON_IsNumber(cjson_sendbuf)) {
 		config->sendbuf = cjson_sendbuf->valueint;
 	}
-	if((cjson_recvbuf && cJSON_IsNumber(cjson_recvbuf))) {
+	if(cjson_recvbuf && cJSON_IsNumber(cjson_recvbuf)) {
 		config->recvbuf = cjson_recvbuf->valueint;
 	}
-	if((cjson_qlen && cJSON_IsNumber(cjson_qlen))) {
+	if(cjson_qlen && cJSON_IsNumber(cjson_qlen)) {
 		config->qlen = cjson_qlen->valueint;
 	}
 

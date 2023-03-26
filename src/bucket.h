@@ -13,7 +13,6 @@ int            chipvpn_bucket_read_available(VPNBucket *bucket);
 int            chipvpn_bucket_write_available(VPNBucket *bucket);
 int            chipvpn_bucket_write(VPNBucket *bucket, void *buf, int size);
 int            chipvpn_bucket_read(VPNBucket *bucket, void *buf, int size);
-int            chipvpn_bucket_consume(VPNBucket *bucket, int size);
 void           chipvpn_bucket_free(VPNBucket *bucket);
 
 #endif

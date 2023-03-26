@@ -19,7 +19,6 @@ There are hundreds of VPN software and protocols out there, and each one are des
 - C compiler (gcc)
 - TUN/TAP kernel module
 - OpenSSL dev library
-- pthread
 
 # Building from source
 - `$ autoreconf -vfi`

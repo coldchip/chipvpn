@@ -19,7 +19,7 @@ chipvpn_SOURCES = src/chipvpn.c \
 				src/bucket.c
 
 chipvpn_CFLAGS = -Ofast -s -std=gnu99 -Wall
-chipvpn_LDADD = -lcrypto -lssl
+chipvpn_LDADD = -lcrypto -lssl 
 
 MAINTAINERCLEANFILES =                                  \
         aclocal.m4 config.guess config.xml              \

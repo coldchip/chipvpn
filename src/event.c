@@ -805,7 +805,18 @@ VPNPacketError chipvpn_recv_ping(VPNPeer *peer) {
 	char rx[50];
 	strcpy(tx, chipvpn_format_bytes(peer->tx));
 	strcpy(rx, chipvpn_format_bytes(peer->rx));
-	chipvpn_log("heartbeat from peer [%p] tx: %s rx: %s", peer, tx, rx);
+
+	chipvpn_log("heartbeat from peer [%p] tx: [%s] rx: [%s]", peer, tx, rx);
+
+	int speed_tx = (float)(peer->tx - peer->last_tx) / (float)(chipvpn_get_time() - peer->last_ping);
+	int speed_rx = (float)(peer->rx - peer->last_rx) / (float)(chipvpn_get_time() - peer->last_ping);
+
+	char speed_tx_c[50];
+	char speed_rx_c[50];
+	strcpy(speed_tx_c, chipvpn_format_bytes(speed_tx * 8));
+	strcpy(speed_rx_c, chipvpn_format_bytes(speed_rx * 8));
+
+	chipvpn_log("peer speed [%p] tx: [%s/s] rx: [%s/s]", peer, speed_tx_c, speed_rx_c);
 
 	#ifdef DEBUG
 
@@ -836,6 +847,8 @@ VPNPacketError chipvpn_recv_ping(VPNPeer *peer) {
 
 	#endif
 
+	peer->last_tx = peer->tx;
+	peer->last_rx = peer->rx;
 	peer->last_ping = chipvpn_get_time();
 	return VPN_PACKET_OK; 
 }

@@ -34,17 +34,9 @@ int chipvpn_bucket_write(VPNBucket *bucket, void *buf, int size) {
 int chipvpn_bucket_read(VPNBucket *bucket, void *buf, int size) {
 	size = MIN(bucket->size, size);
 
-	memcpy(buf, bucket->data, size);
-	memmove(bucket->data, bucket->data + size, bucket->size - size);
-	bucket->size -= size;
-	bucket->data = realloc(bucket->data, bucket->size);
-
-	return size;
-}
-
-int chipvpn_bucket_consume(VPNBucket *bucket, int size) {
-	size = MIN(bucket->size, size);
-
+	if(buf) {
+		memcpy(buf, bucket->data, size);
+	}
 	memmove(bucket->data, bucket->data + size, bucket->size - size);
 	bucket->size -= size;
 	bucket->data = realloc(bucket->data, bucket->size);

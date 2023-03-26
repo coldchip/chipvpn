@@ -68,7 +68,7 @@ void chipvpn_log(const char *format, ...) {
 	va_list args;
 	va_start(args, format);
 
-	printf("\033[0;32m[ChipVPN] ");
+	printf("\033[0;36m[ChipVPN] ");
 	vprintf(format, args);
 	printf("\033[0m\n");
 	

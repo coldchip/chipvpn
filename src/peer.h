@@ -26,10 +26,20 @@
 #include <netinet/in.h>
 #include <netinet/ip.h>
 
+typedef enum {
+	PEER_STATE_INIT,
+	PEER_STATE_KEY,
+	PEER_STATE_LOGIN,
+	PEER_STATE_CONNECTED
+} PeerState;
+
 typedef struct _VPNPeer {
 	ListNode node;
 	int fd;
 	struct sockaddr_in addr;
+
+	PeerState state;
+
 	bool is_init;
 	bool inbound_encrypted;
 	bool outbound_encrypted;
@@ -43,6 +53,8 @@ typedef struct _VPNPeer {
 
 	uint64_t tx;
 	uint64_t rx;
+	uint64_t last_tx;
+	uint64_t last_rx;
 	uint64_t tx_max;
 	uint64_t rx_max;
 
